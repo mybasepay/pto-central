@@ -1,125 +1,71 @@
-
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PTO Form - Under Maintenance</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PTO Central — myBasePay</title>
 
+  <!-- Base styles -->
+  <link rel="stylesheet" href="styles.css" />
 
-
-
-
-
-
-
-<!-- 
-////stlyes// -->
-
-<style>
-  body {
-    margin: 0;
-    font-family: Arial, Helvetica, sans-serif;
-    background: linear-gradient(135deg, #1f2937, #111827, #0f172a);
-    background-size: 400% 400%;
-    animation: gradientMove 12s ease infinite;
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    text-align: center;
-    overflow: hidden;
-  }
-
-  @keyframes gradientMove {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-
-  .container {
-    max-width: 500px;
-    padding: 40px;
-    background-color: rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(8px);
-    animation: fadeIn 1.5s ease forwards;
-    transform: translateY(20px);
-    opacity: 0;
-  }
-
-  @keyframes fadeIn {
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  h1 {
-    font-size: 28px;
-    margin-bottom: 15px;
-  }
-
-  p {
-    font-size: 16px;
-    opacity: 0.85;
-    line-height: 1.5;
-  }
-
-  .icon {
-    font-size: 50px;
-    margin-bottom: 20px;
-    animation: bounce 2.5s infinite ease-in-out;
-  }
-
-  @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
-  }
-
-  .footer {
-    margin-top: 25px;
-    font-size: 13px;
-    opacity: 0.6;
-  }
-</style>
-
-
-
-
-
-
-
-
-
+  <!-- Component styles -->
+  <link rel="stylesheet" href="components/pto-notice/pto-notice.css" />
 </head>
 <body>
-  <div class="container">
-    <div class="icon">🛠️</div>
-    <h1>PTO Request Form</h1>
-    <p>
-      The PTO Request Form is currently under maintenance for improvements and fixes.
-      Please try again later.
-    </p>
-    <div class="footer">
-      Thank you for your patience.
-    </div>
-  </div>
+  <main class="wrap">
+    <section class="card" role="region" aria-label="PTO Central">
+      <header>
+        <div>
+          <h1>PTO Central</h1>
+          <p class="desc">
+            Submit a new PTO or cancel an existing one from a single place.
+          </p>
+        </div>
+      </header>
 
+      <div class="grid" role="navigation" aria-label="Primary actions">
+        <a
+          class="button green"
+          href="https://forms.office.com/Pages/ResponsePage.aspx?id=lHyi4Qz7KEe3HTdm8ho6y6sGTemyH-VGqGh4tFUruAVUMzlaVklSTDU4Qk4xWUtXMVc3UVo1QTk4Ri4u"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span class="title">Submit PTO Request</span>
+          <span class="note">
+            Send a new request for time off. Your manager will receive an approval.
+          </span>
+        </a>
 
+        <a
+          class="button red"
+          href="https://forms.office.com/Pages/ResponsePage.aspx?id=lHyi4Qz7KEe3HTdm8ho6y6sGTemyH-VGqGh4tFUruAVUM0ZOWktWMlA2VDcwMERWSUM3RDY0TExYWC4u"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span class="title">Cancel a PTO</span>
+          <span class="note">
+            Request cancellation for pending, already-submitted or approved PTO
+          </span>
+        </a>
+      </div>
 
+      <div class="tips">
+        <strong>Tip:</strong> You don’t need to submit PTO for MBP recognized holidays.
+      </div>
 
+      <footer>
+        © <span id="year"></span> myBasePay · Tech Support
+      </footer>
+    </section>
+  </main>
 
+  <!-- Component mount point -->
+  <div id="pto-notice-container"></div>
+
+  <!-- Main JS -->
+  <script src="script.js"></script>
+
+  <!-- Component JS -->
+  <script src="components/pto-notice/pto-notice.js"></script>
 </body>
-
-
-
-
-
-
 </html>
