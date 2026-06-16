@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Requests — PTO Central</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!--
+    My Requests (Phase 2C). Employee view of their own PTO requests from the
+    PTO Requests SharePoint list. READ-ONLY this phase (no cancel/edit).
+    Not yet linked from index.html. Serve on port 3000 over http.
+  -->
+  <style>
+    /* Reuses styles.css design language (.wrap/.card/.tips/footer); controls scoped here. */
+    .section { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #0a0f1c; border: 1px solid rgba(255,255,255,0.08); }
+    .section h3 { margin: 0 0 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .btn { appearance: none; cursor: pointer; color: #fff; font: inherit; font-weight: 700; padding: 11px 18px;
+      border-radius: 12px; border: 1px solid rgba(255,255,255,0.14);
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); }
+    .btn:hover { border-color: rgba(255,255,255,0.28); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn.primary { border-left: 6px solid var(--brand); }
+    .btn.ghost { font-weight: 600; }
+    .status { font-size: 13px; color: var(--muted); }
+    .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    label.fld { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin-right: 6px; }
+    select { padding: 9px 10px; border-radius: 10px; background: #050a13; color: var(--text); border: 1px solid rgba(255,255,255,0.12); font: inherit; }
+    .dev-banner { margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 13px;
+      background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
+    .warn { display:none; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px;
+      background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
+    .error { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; border-left: 6px solid var(--brand2);
+      background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 14px; }
+    .empty { display:none; margin-top: 12px; color: var(--muted); font-size: 14px; }
+    .table-wrap { margin-top: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.reqs { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 880px; }
+    table.reqs th, table.reqs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
+    table.reqs th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    /* Default: don't break words — let the wrapper scroll horizontally on narrow screens. */
+    table.reqs th, table.reqs td { white-space: nowrap; }
+    table.reqs a { color: #7dd3fc; }
+    /* Manager email (col 5): allow clean wrapping, smaller/muted, capped width. */
+    table.reqs td:nth-child(5) { white-space: normal; overflow-wrap: anywhere; font-size: 12px; color: var(--muted); max-width: 240px; }
+    /* Item link (col 8): keep "Open" on a single line. */
+    table.reqs td:nth-child(8), table.reqs td:nth-child(8) a { white-space: nowrap; }
+    .yes { color: #fdba74; font-weight: 600; }
+    pre { margin: 8px 0 0; padding: 12px; overflow: auto; background: #050a13; border-radius: 8px; font-size: 12px; max-height: 320px; }
+    details summary { cursor: pointer; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card" role="region" aria-label="My PTO Requests">
+      <header>
+        <div>
+          <h1>PTO Central</h1>
+          <p class="desc">My Requests</p>
+        </div>
+      </header>
+
+      <div class="dev-banner" role="note">
+        <strong>Development mode:</strong> Teams / calendar / email are not active yet.
+      </div>
+
+      <div class="section" aria-label="Account">
+        <div class="actions">
+          <button id="signin" class="btn primary" type="button">Sign in</button>
+          <button id="signout" class="btn ghost" type="button" disabled>Sign out</button>
+          <span id="account" class="status" aria-live="polite">Not signed in.</span>
+        </div>
+      </div>
+
+      <div class="section" aria-label="Controls">
+        <div class="controls">
+          <button id="refresh" class="btn ghost" type="button" disabled>Refresh</button>
+          <div>
+            <label class="fld" for="statusFilter">Status</label>
+            <select id="statusFilter">
+              <option value="All">All</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Auto-Approved">Auto-Approved</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+          <span id="count" class="status"></span>
+        </div>
+
+        <div id="warn" class="warn" role="alert"></div>
+        <div id="error" class="error" role="alert" aria-live="assertive"></div>
+        <div id="empty" class="empty">No PTO requests found for this account.</div>
+
+        <div class="table-wrap">
+          <table class="reqs" id="reqs-table" style="display:none;">
+            <thead>
+              <tr>
+                <th>Request Key</th>
+                <th>Type</th>
+                <th>Dates</th>
+                <th>Status</th>
+                <th>Manager</th>
+                <th>Short notice</th>
+                <th>Submitted</th>
+                <th>Item</th>
+              </tr>
+            </thead>
+            <tbody id="reqs-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section" aria-label="Debug">
+        <details>
+          <summary>Raw JSON (debug)</summary>
+          <pre id="raw">—</pre>
+        </details>
+      </div>
+
+      <footer>
+        © <span id="year"></span> myBasePay · Tech Support
+      </footer>
+    </section>
+  </main>
+
+  <!-- Library + modules. Order matters; page last. -->
+  <script src="lib/msal-browser.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/graph.js"></script>
+  <script src="js/directory.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/requests.js"></script>
+  <script src="js/authz.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pages/my-requests.page.js"></script>
+</body>
+</html>

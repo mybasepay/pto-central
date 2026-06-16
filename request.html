@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Submit PTO Request — PTO Central</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!--
+    Submit PTO Request (Phase 2B). Employee-facing form built on the domain
+    modules (directory/rules/requests). NOT yet linked from index.html.
+
+    Phase scope: creates a request in the PTO Requests SharePoint list only.
+    Teams notification, calendar/OOO, and email are NOT active yet.
+  -->
+  <style>
+    /* Reuses the styles.css design language (.wrap/.card/.tips/footer); the
+       form-control styling below is scoped here so styles.css is untouched. */
+    .row { margin-top: 16px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    label.fld { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .03em; }
+    input, select, textarea {
+      width: 100%; box-sizing: border-box; padding: 10px 11px; border-radius: 10px;
+      background: #050a13; color: var(--text); border: 1px solid rgba(255,255,255,0.12); font: inherit;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--ring); }
+    textarea { min-height: 64px; resize: vertical; }
+    input:disabled { opacity: .5; }
+    .inline { display: flex; align-items: center; gap: 10px; }
+    .inline input[type=checkbox] { width: 18px; height: 18px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .section { margin-top: 18px; padding: 14px 16px; border-radius: 12px; background: #0a0f1c; border: 1px solid rgba(255,255,255,0.08); }
+    .section h3 { margin: 0 0 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .kv { display: grid; grid-template-columns: 170px 1fr; gap: 6px 12px; font-size: 14px; }
+    .kv dt { color: var(--muted); } .kv dd { margin: 0; word-break: break-all; }
+    .kv dd a { color: #7dd3fc; }
+    .note { margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px; display: none; }
+    .note.info { background: #07261a; border: 1px solid #0a7e51; color: #a7f3d0; }
+    .note.warn { background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
+    .note.danger { background: #2a0d0d; border: 1px solid #b91c1c; color: #fecaca; }
+    .error { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; border-left: 6px solid var(--brand2);
+      background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 14px; }
+    .actions { margin-top: 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .btn { appearance: none; cursor: pointer; color: #fff; font: inherit; font-weight: 700; padding: 12px 20px;
+      border-radius: 12px; border: 1px solid rgba(255,255,255,0.14);
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); }
+    .btn:hover { border-color: rgba(255,255,255,0.28); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn.primary { border-left: 6px solid var(--brand); }
+    .btn.ghost { font-weight: 600; }
+    .status { font-size: 13px; color: var(--muted); }
+    .dev-banner { margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 13px;
+      background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
+    .result { display: none; margin-top: 16px; }
+    .pill { display:inline-block; font-size:12px; padding:3px 10px; border-radius:999px; background:#1f2937; color:#cbd5e1; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card" role="region" aria-label="Submit PTO Request">
+      <header>
+        <div>
+          <h1>PTO Central</h1>
+          <p class="desc">Submit PTO Request</p>
+        </div>
+      </header>
+
+      <div class="dev-banner" role="note">
+        <strong>Development mode:</strong> requests created here write to the live
+        <code>PTO Requests</code> list. Teams / calendar / email are not active yet.
+      </div>
+
+      <!-- Auth -->
+      <div class="section" aria-label="Account">
+        <div class="actions" style="margin-top:0;">
+          <button id="signin" class="btn primary" type="button">Sign in</button>
+          <button id="signout" class="btn ghost" type="button" disabled>Sign out</button>
+          <span id="account" class="status" aria-live="polite">Not signed in.</span>
+        </div>
+      </div>
+
+      <!-- Employee context -->
+      <div class="section" aria-label="Your details">
+        <h3>Your details</h3>
+        <dl class="kv">
+          <dt>Requester</dt><dd id="c-name">—</dd>
+          <dt>Email</dt><dd id="c-email">—</dd>
+          <dt>Department / title</dt><dd id="c-dept">—</dd>
+          <dt>Manager</dt><dd id="c-mgr">—</dd>
+          <dt>Manager's manager</dt><dd id="c-mm">—</dd>
+        </dl>
+        <div id="mgr-warn" class="note warn" role="alert"></div>
+        <div id="mm-warn" class="note warn" role="alert"></div>
+      </div>
+
+      <!-- Form -->
+      <div class="section" aria-label="Request">
+        <h3>Request details</h3>
+        <div class="form-grid">
+          <div>
+            <label class="fld" for="ptoType">PTO Type</label>
+            <select id="ptoType">
+              <option>PTO</option>
+              <option>MHD</option>
+              <option>Sick</option>
+              <option>Bereavement</option>
+              <option>Parental Leave</option>
+              <option>Other Leave</option>
+            </select>
+          </div>
+          <div class="inline" style="align-self:end;">
+            <input type="checkbox" id="partialDay" />
+            <label for="partialDay" style="margin:0;">Partial day</label>
+            <input type="number" id="hours" placeholder="hours" min="0" step="0.5" disabled style="max-width:120px;" />
+          </div>
+
+          <div>
+            <label class="fld" for="startDate">Start date</label>
+            <input type="date" id="startDate" />
+          </div>
+          <div>
+            <label class="fld" for="endDate">End date</label>
+            <input type="date" id="endDate" />
+          </div>
+
+          <div class="full">
+            <label class="fld" for="reason">Reason / notes (optional)</label>
+            <textarea id="reason" placeholder="Optional note for your manager / HR"></textarea>
+          </div>
+
+          <div>
+            <label class="fld" for="backupName">Backup contact name (optional)</label>
+            <input type="text" id="backupName" />
+          </div>
+          <div>
+            <label class="fld" for="backupEmail">Backup contact email (optional)</label>
+            <input type="text" id="backupEmail" />
+          </div>
+        </div>
+
+        <!-- Business-rule UI -->
+        <div id="notice" class="note info" role="status"></div>
+        <div id="shortNotice" class="note warn" role="alert"></div>
+        <div id="sickNote" class="note info" role="status"></div>
+
+        <div class="row inline" style="margin-top:16px;">
+          <input type="checkbox" id="confirm" />
+          <label for="confirm" style="margin:0;">I confirm this PTO request is accurate</label>
+        </div>
+
+        <div class="actions">
+          <button id="submit" class="btn primary" type="button" disabled>Submit PTO Request</button>
+          <span id="submit-status" class="status"></span>
+        </div>
+
+        <div id="error" class="error" role="alert" aria-live="assertive"></div>
+      </div>
+
+      <!-- Result -->
+      <div id="result" class="section result" aria-label="Result">
+        <h3>Request submitted</h3>
+        <dl class="kv">
+          <dt>Request key</dt><dd id="r-key">—</dd>
+          <dt>Item id</dt><dd id="r-id">—</dd>
+          <dt>Status</dt><dd id="r-status">—</dd>
+          <dt>Short notice</dt><dd id="r-short">—</dd>
+          <dt>SharePoint item</dt><dd id="r-link">—</dd>
+        </dl>
+      </div>
+
+      <!--
+        DEVELOPMENT ONLY (Phase 3B): the manager approval link for this item.
+        Nothing is sent — no Teams, no email. This block exists purely to make
+        manual approval testing easy. It is a SIBLING of #result (not nested) so
+        it can never be hidden by the result panel's visibility state. Hidden
+        until a request is created; revealed with an explicit display value.
+      -->
+      <div id="dev-approval" class="dev-banner" role="note" style="display:none; margin-top:14px;">
+        <strong>Development only — manager approval link.</strong>
+        No notification was sent (no Teams / email). Use this to test
+        <code>approve.html</code> manually.
+        <dl class="kv" style="margin-top:10px;">
+          <dt>Approval link</dt><dd><a id="approval-link" href="#" target="_blank" rel="noopener noreferrer">—</a></dd>
+          <dt>Relative form</dt><dd><code id="approval-link-rel">—</code></dd>
+        </dl>
+        <div id="dev-approval-error" class="error" role="alert" style="display:none; margin-top:10px;"></div>
+        <div class="actions" style="margin-top:10px;">
+          <button id="copy-approval" class="btn ghost" type="button">Copy approval link</button>
+          <span id="copy-approval-status" class="status" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <div class="tips">
+        <strong>Tip:</strong> You don’t need to submit PTO for MBP recognized holidays.
+      </div>
+
+      <footer>
+        © <span id="year"></span> myBasePay · Tech Support
+      </footer>
+    </section>
+  </main>
+
+  <!-- Library + modules. Order matters: rules/directory/requests depend on graph+config; page last. -->
+  <script src="lib/msal-browser.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/graph.js"></script>
+  <script src="js/directory.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/requests.js"></script>
+  <script src="js/authz.js"></script>
+  <script src="js/links.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pages/request.page.js"></script>
+</body>
+</html>

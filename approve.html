@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manager Approval — PTO Central</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!--
+    Manager Approval (Phase 3A). Opened with ?itemId=123.
+    Lets the assigned manager approve/reject a Pending request.
+    Authorization = sign-in + manager-email match (Phase 3A). Stronger signed
+    approval links are deferred to Phase 3B.
+
+    Does NOT: send Teams/email, create calendar/OOO. Writes only the decision
+    fields on the request. Serve on port 3000 over http.
+  -->
+  <style>
+    /* Reuses styles.css design language; controls scoped here. */
+    .section { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #0a0f1c; border: 1px solid rgba(255,255,255,0.08); }
+    .section h3 { margin: 0 0 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .btn { appearance: none; cursor: pointer; color: #fff; font: inherit; font-weight: 700; padding: 11px 18px;
+      border-radius: 12px; border: 1px solid rgba(255,255,255,0.14);
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); }
+    .btn:hover { border-color: rgba(255,255,255,0.28); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn.approve { border-left: 6px solid var(--brand); }
+    .btn.reject { border-left: 6px solid var(--brand2); }
+    .btn.ghost { font-weight: 600; }
+    .status { font-size: 13px; color: var(--muted); }
+    .kv { display: grid; grid-template-columns: 180px 1fr; gap: 6px 12px; font-size: 14px; }
+    .kv dt { color: var(--muted); } .kv dd { margin: 0; word-break: break-word; }
+    .kv dd a { color: #7dd3fc; }
+    label.fld { display:block; font-size: 12px; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .03em; }
+    textarea { width: 100%; box-sizing: border-box; padding: 10px 11px; border-radius: 10px; background: #050a13; color: var(--text); border: 1px solid rgba(255,255,255,0.12); font: inherit; min-height: 64px; resize: vertical; }
+    textarea:focus { outline:none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--ring); }
+    .note { display:none; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+    .note.info { background: #07261a; border: 1px solid #0a7e51; color: #a7f3d0; }
+    .note.warn { background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
+    .note.block { background: #2a0d0d; border: 1px solid #b91c1c; color: #fecaca; }
+    .error { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; border-left: 6px solid var(--brand2);
+      background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 14px; }
+    .dev-banner { margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 13px;
+      background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
+    pre { margin: 8px 0 0; padding: 12px; overflow: auto; background: #050a13; border-radius: 8px; font-size: 12px; max-height: 320px; white-space: pre-wrap; }
+    details summary { cursor: pointer; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card" role="region" aria-label="Manager Approval">
+      <header>
+        <div>
+          <h1>PTO Central</h1>
+          <p class="desc">Manager Approval</p>
+        </div>
+      </header>
+
+      <div class="dev-banner" role="note">
+        <strong>Development mode:</strong> approval writes to the live
+        <code>PTO Requests</code> list. Teams / calendar / email are not active yet.
+      </div>
+
+      <!-- Auth -->
+      <div class="section" aria-label="Account">
+        <div class="actions">
+          <button id="signin" class="btn approve" type="button">Sign in</button>
+          <button id="signout" class="btn ghost" type="button" disabled>Sign out</button>
+          <span id="account" class="status" aria-live="polite">Not signed in.</span>
+        </div>
+      </div>
+
+      <!-- Request details -->
+      <div class="section" aria-label="Request">
+        <h3>Request details</h3>
+        <dl class="kv">
+          <dt>Request key</dt><dd id="d-key">—</dd>
+          <dt>Requester</dt><dd id="d-requester">—</dd>
+          <dt>Requester email</dt><dd id="d-requester-email">—</dd>
+          <dt>PTO type</dt><dd id="d-type">—</dd>
+          <dt>Start date</dt><dd id="d-start">—</dd>
+          <dt>End date</dt><dd id="d-end">—</dd>
+          <dt>Partial day / hours</dt><dd id="d-partial">—</dd>
+          <dt>Reason</dt><dd id="d-reason">—</dd>
+          <dt>Backup contact</dt><dd id="d-backup">—</dd>
+          <dt>Status</dt><dd id="d-status">—</dd>
+          <dt>Submitted at</dt><dd id="d-submitted">—</dd>
+          <dt>Manager</dt><dd id="d-manager">—</dd>
+          <dt>Short notice</dt><dd id="d-short">—</dd>
+          <dt>Notice days</dt><dd id="d-notice">—</dd>
+          <dt>SharePoint item</dt><dd id="d-link">—</dd>
+        </dl>
+      </div>
+
+      <!-- Decision -->
+      <div class="section" aria-label="Decision">
+        <h3>Decision</h3>
+        <div id="block-note" class="note block" role="alert"></div>
+        <div id="status-note" class="note info" role="status"></div>
+
+        <div id="decision-ui" style="display:none;">
+          <label class="fld" for="comment">Comment (optional)</label>
+          <textarea id="comment" placeholder="Optional note recorded with your decision"></textarea>
+          <div class="actions" style="margin-top:12px;">
+            <button id="approve" class="btn approve" type="button">Approve</button>
+            <button id="reject" class="btn reject" type="button">Reject</button>
+            <span id="decision-status" class="status"></span>
+          </div>
+        </div>
+
+        <div id="error" class="error" role="alert" aria-live="assertive"></div>
+      </div>
+
+      <!-- Audit / debug -->
+      <div class="section" aria-label="Audit">
+        <h3>Audit log</h3>
+        <pre id="auditlog">—</pre>
+        <details style="margin-top:10px;">
+          <summary>Raw JSON (debug)</summary>
+          <pre id="raw">—</pre>
+        </details>
+      </div>
+
+      <footer>
+        © <span id="year"></span> myBasePay · Tech Support
+      </footer>
+    </section>
+  </main>
+
+  <!-- Library + modules. Order matters; page last. -->
+  <script src="lib/msal-browser.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/graph.js"></script>
+  <script src="js/directory.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/requests.js"></script>
+  <script src="js/authz.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pages/approve.page.js"></script>
+</body>
+</html>
