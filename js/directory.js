@@ -105,11 +105,53 @@ window.PTODirectory = (function () {
   }
 
   /**
+   * Resolve a single employee by email for the on-behalf flow (§8.2, §10 rule 15).
+   * Graph: GET /users?$filter=mail eq '..' or userPrincipalName eq '..'
+   *   (filtered rather than path-addressed because an employee's email may differ
+   *   from their UPN — this matches on either.)
+   * Uses directoryRead (User.Read.All) — reading OTHER users needs it and admin
+   * consent. A 403 surfaces the same clear, actionable error as the manager hops.
+   * @param {string} email
+   * @returns {Promise<object|null>} the user (id, displayName, mail, userPrincipalName,
+   *   jobTitle, department), or null if no user matches.
+   */
+  async function getUserByEmail(email) {
+    var raw = String(email === null || email === undefined ? "" : email).trim();
+    if (!raw) throw new Error("getUserByEmail requires an email.");
+
+    var safe = raw.replace(/'/g, "''"); // OData: escape single quotes by doubling
+    var select = "$select=id,displayName,mail,userPrincipalName,jobTitle,department";
+    var filter =
+      "$filter=" +
+      encodeURIComponent("mail eq '" + safe + "' or userPrincipalName eq '" + safe + "'");
+    var path = "/users?" + select + "&" + filter + "&$top=1";
+
+    var res;
+    try {
+      res = await PTOGraph.get(path, PTOConfig.scopes.directoryRead);
+    } catch (e) {
+      var msg = (e && e.message) || String(e);
+      if (/\b403\b|Authorization_RequestDenied|Access denied|insufficient privileges/i.test(msg)) {
+        throw new Error(
+          "Employee lookup was denied. This needs Microsoft Graph delegated " +
+            "User.Read.All with admin consent. Add it to the Entra app registration, " +
+            "grant admin consent, then sign out and sign in again. (Original: " + msg + ")"
+        );
+      }
+      throw e;
+    }
+
+    var list = (res && res.value) || [];
+    return list.length ? list[0] : null;
+  }
+
+  /**
    * Search employees for the on-behalf flow (§8.2, §10 rule 15).
-   * Not needed for Phase 2A self-service; implemented when on-behalf UI lands.
+   * Lookup-by-email (getUserByEmail) covers the current on-behalf UI; a broader
+   * type-ahead search can be implemented here later if needed.
    */
   async function searchUsers(query) {
-    throw new Error("[directory] searchUsers() not implemented yet (on-behalf flow).");
+    throw new Error("[directory] searchUsers() not implemented yet — use getUserByEmail for on-behalf.");
   }
 
   return {
@@ -117,6 +159,7 @@ window.PTODirectory = (function () {
     getMyManager: getMyManager,
     getUserManager: getUserManager,
     getManagerChainForUser: getManagerChainForUser,
+    getUserByEmail: getUserByEmail,
     searchUsers: searchUsers,
   };
 })();

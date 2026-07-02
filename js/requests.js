@@ -34,15 +34,21 @@ window.PTORequests = (function () {
    *
    * @param {object} input - request details from the form:
    *   { ptoType, startDate, endDate, reason, backupContactName, backupContactEmail,
-   *     isPartialDay, hours, isUrgent?, requestKey? }
+   *     isPartialDay, hours, isUrgent?, requestKey?, onBehalfReason? }
    * @param {object} context - resolved identities + options:
    *   { requester, submitter, manager, managersManager, onBehalf, submittedAt? }
    *   - requester      : Graph user the PTO is FOR (id, displayName, mail/UPN, department, jobTitle)
    *   - submitter      : Graph user who submitted (defaults to requester)
    *   - manager        : requester's manager (or null)
    *   - managersManager: manager's manager (or null)
-   *   - onBehalf       : true if submitter !== requester
+   *   - onBehalf       : true if submitter !== requester (HR/Admin delegated submit)
    *   - submittedAt    : optional ISO string override (defaults to now)
+   *
+   * On-behalf semantics (the contract the calendar/notification flows depend on):
+   *   RequesterEmail/RequesterName/... always describe the EMPLOYEE the PTO is for.
+   *   ManagerEmail is the EMPLOYEE's manager. SubmittedBy* records who filled the
+   *   form. RequestMode is "Self" or "On behalf of"; OnBehalf (bool) mirrors it for
+   *   any flow that already reads the boolean.
    * @returns {object} fields keyed by SharePoint internal name.
    */
   function buildCreateRequestFields(input, context) {
@@ -84,11 +90,13 @@ window.PTORequests = (function () {
       RequesterDepartment: requester.department || "",
       RequesterJobTitle: requester.jobTitle || "",
 
-      // Submitter snapshot
+      // Submitter snapshot (who actually filled the form)
       SubmittedById: submitter.id || "",
       SubmittedByEmail: pickEmail(submitter),
       SubmittedByName: submitter.displayName || "",
       OnBehalf: onBehalf,
+      RequestMode: onBehalf ? "On behalf of" : "Self",
+      OnBehalfReason: onBehalf ? (input.onBehalfReason || "") : "",
 
       // Request details
       PtoType: input.ptoType,

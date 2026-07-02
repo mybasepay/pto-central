@@ -10,7 +10,11 @@
  *   - Build + create the request via requests.js, show the result, and prevent
  *     duplicate submits.
  *
- * Phase 2B scope: create only. No Teams / calendar / email / on-behalf yet.
+ * Phase 2B scope: create only. No Teams / calendar / email.
+ * On-behalf (HR/Admin delegated submit) added later: an HR/Admin user can look up
+ * another employee and file PTO FOR them. RequesterEmail/ManagerEmail then describe
+ * the EMPLOYEE; SubmittedBy* records the HR/Admin who filled the form; RequestMode =
+ * "On behalf of". Self-service behavior is unchanged when the toggle is off.
  * Pages call domain modules, never Graph directly (§7).
  */
 
@@ -18,11 +22,17 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
+  function emailOf(u) { return (u && (u.mail || u.userPrincipalName)) || ""; }
 
   var state = {
-    me: null,
-    manager: null,
-    managersManager: null,
+    me: null,            // always the signed-in user (the submitter)
+    isHrAdmin: false,    // may use the on-behalf option
+    onBehalf: false,     // is the on-behalf toggle active
+    lookupOk: false,     // has a valid requester been resolved for the current mode
+    // The signed-in user's own chain (the default "self" target).
+    self: { requester: null, manager: null, managersManager: null, managersManagerError: null },
+    // The active target the request is FOR (self or a looked-up employee).
+    target: { requester: null, manager: null, managersManager: null },
     submitted: false,
     authorized: false,
   };
@@ -34,6 +44,12 @@
     partialDay: $("partialDay"), hours: $("hours"), reason: $("reason"),
     backupName: $("backupName"), backupEmail: $("backupEmail"), confirm: $("confirm"),
     submit: $("submit"), submitStatus: $("submit-status"), error: $("error"),
+    detailsTitle: $("details-title"),
+    // On-behalf (HR/Admin) controls.
+    oboSection: $("obo-section"), oboToggle: $("oboToggle"), oboFields: $("oboFields"),
+    oboEmail: $("oboEmail"), oboLookup: $("oboLookup"), oboReason: $("oboReason"),
+    oboStatus: $("oboStatus"), oboError: $("oboError"),
+    oboBadge: $("oboBadge"), oboBadgeText: $("oboBadgeText"),
     // Dev-only approval link (Phase 3B) — display/copy only, no send.
     devApproval: $("dev-approval"), approvalLink: $("approval-link"),
     approvalLinkRel: $("approval-link-rel"), copyApproval: $("copy-approval"),
@@ -82,45 +98,174 @@
   }
 
   async function loadContext() {
-    PTOUI.show("mgr-warn", false);
-    PTOUI.show("mm-warn", false);
-
     state.me = await PTODirectory.getMe();
     var az = await PTOAuthz.enforce(state.me);
     state.authorized = az.authorized;
     if (!az.authorized) return;
-    PTOUI.setText("c-name", state.me.displayName);
-    PTOUI.setText("c-email", state.me.mail || state.me.userPrincipalName);
-    PTOUI.setText("c-dept", (state.me.department || "—") + " / " + (state.me.jobTitle || "—"));
 
-    // Direct manager (User.Read) — needed to route approval unless Sick.
-    state.manager = await PTODirectory.getMyManager();
-    PTOUI.setText("c-mgr", state.manager ? fmtUser(state.manager) : "(none found)");
-    if (!state.manager) {
-      var w = $("mgr-warn");
-      w.textContent =
-        "No manager found in Entra ID. Non-Sick requests cannot be routed for approval — " +
-        "please contact HR (pto-approvals@mybasepay.com). Sick leave is auto-approved and can still be submitted.";
-      w.style.display = "block";
-    }
-
-    // Manager's manager (User.Read.All) — escalation snapshot; non-blocking.
-    state.managersManager = null;
-    if (state.manager && state.manager.id) {
+    // Load the signed-in user's OWN manager chain — this is the default
+    // self-service target and is unchanged from prior behavior.
+    state.self.requester = state.me;
+    state.self.manager = await PTODirectory.getMyManager(); // User.Read
+    state.self.managersManager = null;
+    state.self.managersManagerError = null;
+    if (state.self.manager && state.self.manager.id) {
       try {
-        state.managersManager = await PTODirectory.getUserManager(state.manager.id);
+        // User.Read.All — escalation snapshot; non-blocking.
+        state.self.managersManager = await PTODirectory.getUserManager(state.self.manager.id);
       } catch (e) {
-        var mw = $("mm-warn");
-        mw.textContent =
-          "Manager's-manager lookup unavailable (" + friendly(e) + "). " +
-          "Your request can still be submitted; the escalation contact will be blank.";
-        mw.style.display = "block";
+        state.self.managersManagerError = friendly(e);
       }
     }
-    PTOUI.setText("c-mm", state.managersManager ? fmtUser(state.managersManager) : "(none / unavailable)");
 
+    // HR/Admin gate for the on-behalf option (fails closed on any lookup error).
+    state.isHrAdmin = await PTOAuthz.hasRole(az.email, ["HR", "Admin"]);
+    if (els.oboSection) els.oboSection.style.display = state.isHrAdmin ? "block" : "none";
+
+    // Default to the self target.
+    setSelfTarget();
+  }
+
+  // ---- target (who the PTO is FOR) -----------------------------------------
+  // The "target" is either the signed-in user (self) or, for HR/Admin, a
+  // looked-up employee. The details panel, rule hints, validation, and submit
+  // all read from state.target so the two modes share one code path.
+
+  function renderTargetDetails() {
+    var t = state.target;
+    var r = t.requester || {};
+    PTOUI.setText("c-name", r.displayName);
+    PTOUI.setText("c-email", emailOf(r));
+    PTOUI.setText("c-dept", (r.department || "—") + " / " + (r.jobTitle || "—"));
+    PTOUI.setText("c-mgr", t.manager ? fmtUser(t.manager) : (r.id ? "(none found)" : "—"));
+    PTOUI.setText("c-mm", t.managersManager ? fmtUser(t.managersManager) : (r.id ? "(none / unavailable)" : "—"));
+
+    // Manager-missing warning (same rule for self and on-behalf: required unless Sick).
+    var w = $("mgr-warn");
+    if (r.id && !t.manager) {
+      w.textContent = state.onBehalf
+        ? "This employee has no manager in Entra ID. Non-Sick requests can't be routed for approval — " +
+          "submit Sick (auto-approved) or contact HR (pto-approvals@mybasepay.com)."
+        : "No manager found in Entra ID. Non-Sick requests cannot be routed for approval — " +
+          "please contact HR (pto-approvals@mybasepay.com). Sick leave is auto-approved and can still be submitted.";
+      w.style.display = "block";
+    } else {
+      w.style.display = "none";
+    }
+
+    // Manager's-manager warning only applies to the self path (the on-behalf
+    // chain is resolved atomically in onLookup and fails the whole lookup).
+    var mw = $("mm-warn");
+    if (!state.onBehalf && state.self.managersManagerError) {
+      mw.textContent =
+        "Manager's-manager lookup unavailable (" + state.self.managersManagerError + "). " +
+        "Your request can still be submitted; the escalation contact will be blank.";
+      mw.style.display = "block";
+    } else {
+      mw.style.display = "none";
+    }
+
+    updateOboBadge();
+  }
+
+  function setSelfTarget() {
+    state.onBehalf = false;
+    state.lookupOk = true; // self is always resolved
+    state.target = {
+      requester: state.self.requester,
+      manager: state.self.manager,
+      managersManager: state.self.managersManager,
+    };
+    if (els.detailsTitle) els.detailsTitle.textContent = "Your details";
+    renderTargetDetails();
     recomputeRuleUI();
     refreshSubmitEnabled();
+  }
+
+  // Toggle turned ON but no employee resolved yet — clear details and block
+  // submit until a successful lookup.
+  function enterOnBehalfMode() {
+    state.onBehalf = true;
+    state.lookupOk = false;
+    state.target = { requester: null, manager: null, managersManager: null };
+    if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
+    renderTargetDetails();
+    refreshSubmitEnabled();
+  }
+
+  function updateOboBadge() {
+    if (!els.oboBadge) return;
+    var r = state.onBehalf && state.lookupOk ? state.target.requester : null;
+    if (r) {
+      var who = r.displayName || emailOf(r) || "employee";
+      var email = emailOf(r);
+      els.oboBadgeText.textContent =
+        "Submitting on behalf of " + who + (email ? " (" + email + ")" : "");
+      els.oboBadge.classList.add("show");
+    } else {
+      els.oboBadge.classList.remove("show");
+    }
+  }
+
+  // ---- on-behalf messages ----
+  function setOboStatus(text) {
+    if (!els.oboStatus) return;
+    els.oboStatus.textContent = text || "";
+    els.oboStatus.style.display = text ? "block" : "none";
+  }
+  function showOboError(text) {
+    if (!els.oboError) return;
+    els.oboError.textContent = text || "";
+    els.oboError.style.display = text ? "block" : "none";
+  }
+  function clearOboMessages() { setOboStatus(""); showOboError(""); }
+
+  // ---- employee lookup (on-behalf) ----
+  async function onLookup() {
+    clearOboMessages();
+    var email = (els.oboEmail.value || "").trim();
+    if (!email) { showOboError('Enter the employee’s email, then click "Lookup employee".'); return; }
+    if (email.toLowerCase() === emailOf(state.me).toLowerCase()) {
+      showOboError('That’s your own account. Turn off "Request PTO for someone else" to submit your own PTO.');
+      return;
+    }
+
+    els.oboLookup.disabled = true;
+    state.lookupOk = false;
+    setOboStatus("Looking up " + email + "…");
+    try {
+      var employee = await PTODirectory.getUserByEmail(email);
+      if (!employee) {
+        updateOboBadge();
+        setOboStatus("");
+        showOboError('No employee found for "' + email + '". Check the email and try again.');
+        return;
+      }
+
+      // Resolve the EMPLOYEE's manager chain (User.Read.All). A hard failure here
+      // throws and is caught below → submit stays blocked with a clear message.
+      var chain = await PTODirectory.getManagerChainForUser(employee.id);
+
+      state.onBehalf = true;
+      state.lookupOk = true;
+      state.target = {
+        requester: employee,
+        manager: chain.manager,
+        managersManager: chain.managersManager,
+      };
+      if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
+      renderTargetDetails();
+      recomputeRuleUI();
+      setOboStatus("✓ Loaded " + (employee.displayName || email) + ".");
+    } catch (e) {
+      state.lookupOk = false;
+      updateOboBadge();
+      setOboStatus("");
+      showOboError("Lookup failed: " + friendly(e));
+    } finally {
+      els.oboLookup.disabled = false;
+      refreshSubmitEnabled();
+    }
   }
 
   // ---- business-rule hints ----
@@ -154,6 +299,12 @@
   // ---- validation (app-enforced; SharePoint columns are optional) ----
   function validate() {
     if (!state.me) return "Please sign in first.";
+
+    // On-behalf: a valid employee must be resolved before anything else.
+    if (state.onBehalf && (!state.lookupOk || !state.target.requester)) {
+      return 'Look up the employee first — enter their email and click "Lookup employee".';
+    }
+
     var type = els.ptoType.value;
     if (!type) return "Choose a PTO type.";
     if (!els.startDate.value) return "Choose a start date.";
@@ -165,10 +316,14 @@
       if (!(h > 0)) return "Enter the number of hours for a partial-day request.";
     }
 
-    // Manager required unless Sick (Sick is auto-approved).
-    if (type !== "Sick" && !state.manager) {
-      return "No manager found in Entra ID, so this request can't be routed for approval. " +
-        "Contact HR (pto-approvals@mybasepay.com), or submit Sick leave which is auto-approved.";
+    // Manager required unless Sick (Sick is auto-approved). Applies to the
+    // resolved target — the employee for on-behalf, the signed-in user otherwise.
+    if (type !== "Sick" && !state.target.manager) {
+      return state.onBehalf
+        ? "This employee has no manager in Entra ID, so the request can't be routed for approval. " +
+          "Submit Sick (auto-approved) or contact HR (pto-approvals@mybasepay.com)."
+        : "No manager found in Entra ID, so this request can't be routed for approval. " +
+          "Contact HR (pto-approvals@mybasepay.com), or submit Sick leave which is auto-approved.";
     }
 
     if (!els.confirm.checked) return 'Please check "I confirm this PTO request is accurate".';
@@ -192,6 +347,7 @@
       backupContactEmail: els.backupEmail.value,
       isPartialDay: els.partialDay.checked,
       hours: els.hours.value,
+      onBehalfReason: state.onBehalf ? els.oboReason.value : "",
     };
   }
 
@@ -342,18 +498,23 @@
     try {
       var input = gatherInput();
       var context = {
-        requester: state.me,
-        submitter: state.me, // Phase 2B: self-service only
-        manager: state.manager,
-        managersManager: state.managersManager,
-        onBehalf: false,
+        requester: state.target.requester, // the employee the PTO is FOR (self by default)
+        submitter: state.me,               // who actually filled the form
+        manager: state.target.manager,
+        managersManager: state.target.managersManager,
+        onBehalf: state.onBehalf,
       };
       var fields = PTORequests.buildCreateRequestFields(input, context);
       var created = await PTORequests.createRequest(fields);
 
       state.submitted = true; // prevent duplicate submits
       renderResult(fields, created);
-      setSubmitStatus("✓ Submitted. Submit is disabled to avoid duplicates.");
+      setSubmitStatus(
+        state.onBehalf
+          ? "✓ Submitted on behalf of " + (state.target.requester.displayName || emailOf(state.target.requester)) +
+            ". Submit is disabled to avoid duplicates."
+          : "✓ Submitted. Submit is disabled to avoid duplicates."
+      );
       els.submit.textContent = "Submitted";
     } catch (e) {
       setSubmitStatus("");
@@ -371,6 +532,28 @@
   els.startDate.addEventListener("change", recomputeRuleUI);
   els.endDate.addEventListener("change", recomputeRuleUI);
   els.confirm.addEventListener("change", refreshSubmitEnabled);
+
+  // On-behalf (HR/Admin): toggle reveals the lookup; switching off restores self.
+  if (els.oboToggle) {
+    els.oboToggle.addEventListener("change", function () {
+      var on = els.oboToggle.checked;
+      if (els.oboFields) els.oboFields.classList.toggle("show", on);
+      clearOboMessages();
+      if (on) {
+        enterOnBehalfMode();
+      } else {
+        els.oboEmail.value = "";
+        els.oboReason.value = "";
+        setSelfTarget();
+      }
+    });
+  }
+  if (els.oboLookup) els.oboLookup.addEventListener("click", onLookup);
+  if (els.oboEmail) {
+    els.oboEmail.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); onLookup(); }
+    });
+  }
 
   els.signin.addEventListener("click", async function () {
     clearError();

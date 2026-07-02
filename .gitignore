@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# PTO Central — publish guard.
+# This repo deploys to PUBLIC GitHub Pages (mybasepay.github.io/pto-central).
+# Anything committed here becomes publicly downloadable. Internal working
+# material stays local, matching the original publish precedent (the repo has
+# only ever contained the app surface: pages, js/, lib/, components/).
+# ---------------------------------------------------------------------------
+
+# Internal documentation, flow notes, and provisioning scripts (contain
+# process details, item ids, and names — keep off the public site).
+docs/
+flows/
+scripts/
+PTO_CENTRAL_ARCHITECTURE.md
+
+# Dev/diagnostic pages (localhost-only; not linked from the app).
+dev-*.html
+serve.json
+
+# Placeholder modules for future phases (not loaded by any published page).
+js/calendar.js
+js/notify.js
+js/pages/hr-dashboard.page.js
+js/pages/hr-employee.page.js
+
+# Editor / local tooling.
+.vscode/
