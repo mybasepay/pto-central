@@ -30,6 +30,7 @@
   var els = {
     signin: $("signin"), signout: $("signout"), account: $("account"),
     refresh: $("refresh"), applyFilters: $("apply-filters"), clearFilters: $("clear-filters"), count: $("count"),
+    exportReport: $("export-report"),
     fSearch: $("f-search"), fStatus: $("f-status"), fManager: $("f-manager"),
     fFrom: $("f-from"), fTo: $("f-to"), fShort: $("f-short"), fObo: $("f-obo"),
     ok: $("ok"), warn: $("warn"), error: $("error"), empty: $("empty"),
@@ -80,6 +81,7 @@
     els.signin.disabled = signedIn;
     els.signout.disabled = !signedIn;
     els.refresh.disabled = !signedIn || !state.authorized;
+    els.exportReport.disabled = !signedIn || !state.authorized;
     els.account.textContent = signedIn
       ? "Signed in as " + (acct.username || acct.name || acct.homeAccountId)
       : "Not signed in.";
@@ -321,6 +323,85 @@
   }
 
   function resetToFirstPage() { state.page = 1; renderTable(); }
+
+  // ---- export (CSV of the currently FILTERED rows — ignores pagination) -----
+  var EXPORT_HEADERS = [
+    "Request Key", "Requester Name", "Requester Email", "PTO Type",
+    "Start Date", "End Date", "Date Requested", "Manager Name", "Manager Email",
+    "Status", "Short Notice", "Notice Days", "Request Mode",
+    "Submitted By Name", "Submitted By Email", "Backup Contact", "Reason",
+    "On Behalf Reason", "SharePoint Item Link",
+  ];
+
+  /** RFC-4180-style field escaping: quote + double-up embedded quotes whenever
+   *  the value contains a comma, quote, or newline (CR or LF). */
+  function csvField(value) {
+    var s = (value === undefined || value === null) ? "" : String(value);
+    if (/[",\r\n]/.test(s)) {
+      s = '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+
+  function exportRowToCsv(r) {
+    var f = r.fields || {};
+    var meta = metaOf(r);
+    var mode = meta.RequestMode || (truthy(meta.OnBehalf) ? "On behalf of" : "Self");
+    var backup = ((f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "")).trim();
+
+    return [
+      r.requestKey || ("#" + r.id),
+      r.requesterName || "",
+      r.requesterEmail || "",
+      r.ptoType || "",
+      String(r.startDate || "").slice(0, 10),
+      String(r.endDate || "").slice(0, 10),
+      fmtDateTime(r.submittedAt),
+      r.managerName || "",
+      r.managerEmail || "",
+      r.status || "",
+      truthy(r.isShortNotice) ? "Yes" : "No",
+      (r.noticeDays === undefined || r.noticeDays === null) ? "" : r.noticeDays,
+      mode,
+      meta.SubmittedByName || "",
+      meta.SubmittedByEmail || "",
+      backup,
+      f.Reason || "",
+      meta.OnBehalfReason || "",
+      r.webUrl || "",
+    ].map(csvField).join(",");
+  }
+
+  /**
+   * Export the currently FILTERED table rows (matchesFilters — same set the
+   * table shows across all pages, not just the current page) as a CSV file
+   * named PTO-Central-HR-Report-YYYY-MM-DD.csv. Read-only: no SharePoint call,
+   * no field written, no other page/flow touched.
+   */
+  function exportReport() {
+    clearError();
+    var rows = state.all.filter(matchesFilters);
+
+    var lines = [EXPORT_HEADERS.map(csvField).join(",")];
+    rows.forEach(function (r) { lines.push(exportRowToCsv(r)); });
+
+    // CRLF line endings + a UTF-8 BOM so Excel opens the file cleanly (correct
+    // column split and correct rendering of accented characters/em dashes)
+    // instead of guessing the wrong encoding or dumping everything in column A.
+    var csv = lines.join("\r\n");
+    var blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "PTO-Central-HR-Report-" + todayDateOnly() + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+
+    showOk("✓ Exported " + rows.length + " request(s) matching the current filters.");
+  }
 
   // ---- row action menu ------------------------------------------------------
   function menuItem(act) { return els.rowMenu.querySelector('[data-act="' + act + '"]'); }
@@ -568,6 +649,7 @@
     els.fShort.checked = false; els.fObo.checked = false;
     resetToFirstPage();
   });
+  els.exportReport.addEventListener("click", exportReport);
 
   els.pageSize.addEventListener("change", function () {
     var v = els.pageSize.value;
@@ -608,11 +690,37 @@
   });
 
   // ---- boot -------------------------------------------------------------------
+  // Auto sign-in: HR Center is a role-gated destination (you only land here to
+  // do HR work), so skip the extra "click Sign in" step when no session is
+  // cached. This is a SINGLE attempt on initial load only — never retried
+  // automatically — so a blocked popup or a cancelled/failed sign-in can never
+  // loop; it just leaves the visible "Sign in" button as the fallback. No PTO
+  // data is loaded until PTOAuth confirms a signed-in account AND
+  // PTOAuthz.enforce (inside loadRequests) confirms HR/Admin — both unchanged.
   (async function boot() {
     try {
       await PTOAuth.initialize();
       renderAuth();
-      if (PTOAuth.getAccount()) await loadRequests();
+
+      if (PTOAuth.getAccount()) {
+        await loadRequests();
+        return;
+      }
+
+      els.signin.disabled = true;
+      els.account.textContent = "Signing in…";
+      try {
+        await PTOAuth.signIn();
+        renderAuth();
+        await loadRequests();
+      } catch (e) {
+        // Popup blocked / dismissed / failed — fall back to the manual button.
+        // Do NOT retry automatically (that would risk a loop); just log it and
+        // leave a clear, non-alarming hint next to the button.
+        console.warn("[hr.page] auto sign-in did not complete:", friendly(e));
+        renderAuth();
+        els.account.textContent = "Not signed in — click Sign in to continue.";
+      }
     } catch (e) {
       showError("Initialization failed: " + friendly(e));
     }

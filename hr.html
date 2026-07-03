@@ -121,6 +121,11 @@
       font: inherit; font-size: 13.5px; }
     input::placeholder { color: #5f708a; }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--hr-blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.3); }
+    /* Date inputs: native calendar picker (no free-text reliance). `color-scheme:
+       dark` tells the browser to render its OWN date/time controls — including
+       the calendar-icon glyph and the popup calendar panel — in a dark-mode
+       palette, so the icon isn't invisible (a dark glyph on our dark background). */
+    input[type="date"] { color-scheme: dark; }
     .checks { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
     .checks label { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text); cursor: pointer; }
     .checks input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--hr-blue); }
@@ -288,7 +293,7 @@
       <div class="filters">
         <div class="wide">
           <label class="fld" for="f-search">Search employee / email / request key</label>
-          <input type="text" id="f-search" placeholder="e.g. Nestor, nestor@mybasepay.com, PTO-2026…" autocomplete="off" />
+          <input type="text" id="f-search" placeholder="Employee, email, or PTO-2026…" autocomplete="off" />
         </div>
         <div>
           <label class="fld" for="f-status">Status</label>
@@ -323,6 +328,12 @@
       <div class="filters-foot">
         <button id="apply-filters" class="btn primary" type="button">Apply filters</button>
         <button id="clear-filters" class="btn" type="button">Clear</button>
+        <button id="export-report" class="btn" type="button" title="Export the currently filtered requests as a CSV" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px;margin-right:6px;vertical-align:-2px;">
+            <path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M5 21h14" />
+          </svg>
+          Export report
+        </button>
         <span id="count" class="count" aria-live="polite"></span>
       </div>
 
@@ -450,15 +461,15 @@
     deliberate file replacement, unlike the app's own modules.
   -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js?v=b4bcc96"></script>
-  <script src="js/auth.js?v=b4bcc96"></script>
-  <script src="js/graph.js?v=b4bcc96"></script>
-  <script src="js/directory.js?v=b4bcc96"></script>
-  <script src="js/rules.js?v=b4bcc96"></script>
-  <script src="js/requests.js?v=b4bcc96"></script>
-  <script src="js/authz.js?v=b4bcc96"></script>
-  <script src="js/links.js?v=b4bcc96"></script>
-  <script src="js/ui.js?v=b4bcc96"></script>
-  <script src="js/pages/hr.page.js?v=b4bcc96"></script>
+  <script src="js/config.js?v=hrc2"></script>
+  <script src="js/auth.js?v=hrc2"></script>
+  <script src="js/graph.js?v=hrc2"></script>
+  <script src="js/directory.js?v=hrc2"></script>
+  <script src="js/rules.js?v=hrc2"></script>
+  <script src="js/requests.js?v=hrc2"></script>
+  <script src="js/authz.js?v=hrc2"></script>
+  <script src="js/links.js?v=hrc2"></script>
+  <script src="js/ui.js?v=hrc2"></script>
+  <script src="js/pages/hr.page.js?v=hrc2"></script>
 </body>
 </html>
