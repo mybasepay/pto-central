@@ -435,17 +435,30 @@
     </button>
   </div>
 
-  <!-- Library + modules. Order matters; page last. -->
+  <!--
+    Library + modules. Order matters; page last.
+
+    Cache-busting: GitHub Pages / browser caches were serving a stale
+    js/pages/hr.page.js after a deploy (old stacked-buttons UI kept showing
+    instead of the kebab menu). The app's own modules below carry a ?v=<hash>
+    query param so a new commit forces a fresh fetch instead of the cached
+    copy. BUMP THE VERSION on every future change to hr.html or any of these
+    files (the exact value doesn't matter — it only needs to CHANGE — but
+    using the latest relevant commit hash keeps it traceable).
+    lib/msal-browser.min.js is intentionally NOT versioned here: it's a
+    pinned third-party build (v3.28.1) that never changes without a
+    deliberate file replacement, unlike the app's own modules.
+  -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/graph.js"></script>
-  <script src="js/directory.js"></script>
-  <script src="js/rules.js"></script>
-  <script src="js/requests.js"></script>
-  <script src="js/authz.js"></script>
-  <script src="js/links.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/pages/hr.page.js"></script>
+  <script src="js/config.js?v=b4bcc96"></script>
+  <script src="js/auth.js?v=b4bcc96"></script>
+  <script src="js/graph.js?v=b4bcc96"></script>
+  <script src="js/directory.js?v=b4bcc96"></script>
+  <script src="js/rules.js?v=b4bcc96"></script>
+  <script src="js/requests.js?v=b4bcc96"></script>
+  <script src="js/authz.js?v=b4bcc96"></script>
+  <script src="js/links.js?v=b4bcc96"></script>
+  <script src="js/ui.js?v=b4bcc96"></script>
+  <script src="js/pages/hr.page.js?v=b4bcc96"></script>
 </body>
 </html>
