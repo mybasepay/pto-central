@@ -22,7 +22,16 @@
   -->
   <style>
     /* Reuses styles.css design language (.wrap/.card/footer); controls scoped here. */
-    .wrap { max-width: 1280px; }
+
+    /* Layout/scroll fix (HR Center only): the shared styles.css centers the body
+       with `display:flex; align-items:center` on a viewport-locked `height:100%`.
+       That clips the TOP of tall pages — once the table loads, the header/filters
+       scroll out of reach and can't be reached again. Use normal document flow so
+       the whole page scrolls top→bottom. Only vertical trapping is removed; the
+       table keeps its own horizontal scroll via `.table-wrap { overflow-x:auto }`. */
+    html, body { height: auto; min-height: 100%; }
+    body { display: block; }
+    .wrap { max-width: 1280px; margin: 0 auto; }
     .section { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #0a0f1c; border: 1px solid rgba(255,255,255,0.08); }
     .section h3 { margin: 0 0 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
     .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
