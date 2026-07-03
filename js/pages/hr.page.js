@@ -699,7 +699,9 @@
     clearError();
     els.signin.disabled = true;
     try {
+      // Manual, gesture-driven → popup is fine here (and preserves page state).
       await PTOAuth.signIn();
+      clearAutoLoginFlag(); // future signed-out visits may auto-login again
       renderAuth();
       await loadRequests();
     } catch (e) {
@@ -723,35 +725,73 @@
   // ---- boot -------------------------------------------------------------------
   // Auto sign-in: HR Center is a role-gated destination (you only land here to
   // do HR work), so skip the extra "click Sign in" step when no session is
-  // cached. This is a SINGLE attempt on initial load only — never retried
-  // automatically — so a blocked popup or a cancelled/failed sign-in can never
-  // loop; it just leaves the visible "Sign in" button as the fallback. No PTO
-  // data is loaded until PTOAuth confirms a signed-in account AND
-  // PTOAuthz.enforce (inside loadRequests) confirms HR/Admin — both unchanged.
+  // cached.
+  //
+  // WHY REDIRECT, NOT POPUP: browsers block popups that aren't triggered by a
+  // user gesture, so PTOAuth.signIn() (loginPopup) can never auto-run at page
+  // load — it fails instantly with a popup-blocked error in a live browser
+  // (the root cause of the previous auto-login attempt always falling back to
+  // the button). A same-tab loginRedirect IS allowed at load time. On return
+  // from Microsoft, PTOAuth.initialize()'s handleRedirectPromise() captures
+  // the account, so this boot simply finds getAccount() populated and takes
+  // the normal signed-in path.
+  //
+  // LOOP GUARD: the redirect is attempted at most ONCE per tab session, via a
+  // sessionStorage flag set BEFORE navigating away. Returning cancelled /
+  // failed (no account, flag present) → manual Sign in button fallback, never
+  // a second automatic redirect. If sessionStorage can't persist the flag
+  // (blocked storage), we don't auto-redirect at all — a loop there would be
+  // undetectable. The flag is cleared on any successful sign-in.
+  //
+  // SECURITY UNCHANGED: no PTO data loads until PTOAuth confirms a signed-in
+  // account AND PTOAuthz.enforce (inside loadRequests) confirms HR/Admin.
+  var AUTO_LOGIN_FLAG = "hr_auto_login_attempted";
+
+  function autoLoginAttempted() {
+    try { return sessionStorage.getItem(AUTO_LOGIN_FLAG) === "1"; } catch (e) { return true; }
+  }
+  function markAutoLoginAttempted() {
+    // Returns true only if the flag VERIFIABLY persisted — the redirect is
+    // gated on that, so broken storage can never produce a redirect loop.
+    try {
+      sessionStorage.setItem(AUTO_LOGIN_FLAG, "1");
+      return sessionStorage.getItem(AUTO_LOGIN_FLAG) === "1";
+    } catch (e) { return false; }
+  }
+  function clearAutoLoginFlag() {
+    try { sessionStorage.removeItem(AUTO_LOGIN_FLAG); } catch (e) {}
+  }
+
   (async function boot() {
     try {
-      await PTOAuth.initialize();
+      await PTOAuth.initialize(); // handles a returning redirect internally
       renderAuth();
 
       if (PTOAuth.getAccount()) {
+        // Signed in (cached session or just back from the redirect).
+        clearAutoLoginFlag();
         await loadRequests();
         return;
       }
 
-      els.signin.disabled = true;
-      els.account.textContent = "Signing in…";
-      try {
-        await PTOAuth.signIn();
-        renderAuth();
-        await loadRequests();
-      } catch (e) {
-        // Popup blocked / dismissed / failed — fall back to the manual button.
-        // Do NOT retry automatically (that would risk a loop); just log it and
-        // leave a clear, non-alarming hint next to the button.
-        console.warn("[hr.page] auto sign-in did not complete:", friendly(e));
-        renderAuth();
-        els.account.textContent = "Not signed in — click Sign in to continue.";
+      if (!autoLoginAttempted() && markAutoLoginAttempted()) {
+        els.signin.disabled = true;
+        els.account.textContent = "Redirecting to Microsoft sign-in…";
+        try {
+          await PTOAuth.signInRedirect(); // navigates away; won't resolve on success
+          return;
+        } catch (e) {
+          // The redirect call itself failed (config/init error) — fall through
+          // to the manual fallback. The flag stays set: no automatic retry.
+          console.warn("[hr.page] auto sign-in redirect failed:", friendly(e));
+        }
       }
+
+      // Already attempted this tab session (user cancelled at Microsoft, auth
+      // failed, or the redirect call errored) — or storage can't persist the
+      // guard flag. Show the manual button; never auto-retry.
+      renderAuth();
+      els.account.textContent = "Not signed in — click Sign in to continue.";
     } catch (e) {
       showError("Initialization failed: " + friendly(e));
     }

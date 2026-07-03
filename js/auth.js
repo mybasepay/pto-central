@@ -118,6 +118,25 @@ window.PTOAuth = (function () {
     }
   }
 
+  /**
+   * Interactive sign-in via FULL-PAGE REDIRECT. For automatic sign-in on page
+   * load: browsers block popups that aren't triggered by a user gesture, so
+   * loginPopup can never auto-run at load time — a same-tab redirect can.
+   * NOTE: this NAVIGATES AWAY (the returned promise normally never resolves).
+   * On return, initialize()'s handleRedirectPromise() captures the account and
+   * sets it active, so callers just re-run their normal signed-in boot path.
+   * Additive helper (currently used by hr.html's auto-login only); the popup
+   * signIn() above is unchanged for every existing button-driven flow.
+   */
+  async function signInRedirect() {
+    ensureReady();
+    try {
+      await msalInstance.loginRedirect({ scopes: PTOConfig.scopes.login });
+    } catch (e) {
+      throw friendlyAuthError(e, "Sign-in (redirect) failed");
+    }
+  }
+
   /** Sign the active account out (popup). */
   async function signOut() {
     ensureReady();
@@ -177,6 +196,7 @@ window.PTOAuth = (function () {
   return {
     initialize: initialize,
     signIn: signIn,
+    signInRedirect: signInRedirect,
     signOut: signOut,
     getAccount: getAccount,
     getToken: getToken,
