@@ -23,7 +23,8 @@
 
   var els = {
     signin: $("signin"), signout: $("signout"), account: $("account"),
-    decisionUi: $("decision-ui"), comment: $("comment"),
+    userChip: $("user-chip"), userChipName: $("user-chip-name"), userChipAvatar: $("user-chip-avatar"),
+    decisionUi: $("decision-ui"), comment: $("comment"), commentCount: $("comment-count"),
     approve: $("approve"), reject: $("reject"), decisionStatus: $("decision-status"),
     blockNote: $("block-note"), statusNote: $("status-note"),
     error: $("error"), auditlog: $("auditlog"), raw: $("raw"),
@@ -99,14 +100,34 @@
     el.textContent = msg; el.style.display = "block";
   }
 
+  /** Two-letter initials for the user chip avatar (e.g. "Rodolfo Chacon" → "RC"). */
+  function initialsOf(name) {
+    var parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "··";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
   function renderAuth() {
     var acct = PTOAuth.getAccount();
     var signedIn = !!acct;
+    // Signed in: show the user chip, hide the Sign in button entirely (same as
+    // request.html / hr.html). Signed out: show Sign in + the live status text.
     els.signin.disabled = signedIn;
+    els.signin.style.display = signedIn ? "none" : "";
     els.signout.disabled = !signedIn;
+    if (els.userChip) {
+      els.userChip.classList.toggle("show", signedIn);
+      if (signedIn) {
+        var display = acct.name || acct.username || acct.homeAccountId;
+        if (els.userChipName) els.userChipName.textContent = display;
+        if (els.userChipAvatar) els.userChipAvatar.textContent = initialsOf(acct.name || acct.username);
+      }
+    }
+    els.account.classList.toggle("show-text", !signedIn);
     els.account.textContent = signedIn
       ? "Signed in as " + (acct.username || acct.name || acct.homeAccountId)
-      : "Not signed in.";
+      : (els.account.textContent || "Not signed in.");
   }
 
   function myEmail() {
@@ -140,7 +161,6 @@
     PTOUI.setText("d-type", f.PtoType);
     PTOUI.setText("d-start", PTOUI.formatDateOnly(f.StartDate));
     PTOUI.setText("d-end", PTOUI.formatDateOnly(f.EndDate));
-    PTOUI.setText("d-partial", f.IsPartialDay ? ("Yes" + (f.Hours ? " (" + f.Hours + " hrs)" : "")) : "No");
     PTOUI.setText("d-reason", f.Reason);
     var backup = (f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "");
     PTOUI.setText("d-backup", backup.trim() || "—");
@@ -283,11 +303,22 @@
   }
 
   // ---- wiring ----
+  // Live comment counter (UI only; the comment stays optional and the textarea's
+  // maxlength enforces the cap the counter displays).
+  function updateCommentCount() {
+    if (!els.commentCount || !els.comment) return;
+    var max = els.comment.getAttribute("maxlength") || "1000";
+    els.commentCount.textContent = (els.comment.value.length) + "/" + max;
+  }
+  if (els.comment) els.comment.addEventListener("input", updateCommentCount);
+
   els.signin.addEventListener("click", async function () {
     clearError();
     els.signin.disabled = true;
     try {
+      // Manual, gesture-driven → popup is fine here (and preserves page state).
       await PTOAuth.signIn();
+      clearAutoLoginFlag(); // future signed-out visits may auto-login again
       renderAuth();
       await loadRequest();
     } catch (e) {
@@ -306,16 +337,72 @@
   els.approve.addEventListener("click", function () { decide("Approved"); });
   els.reject.addEventListener("click", function () { decide("Rejected"); });
 
-  // ---- boot ----
+  // ---- boot -------------------------------------------------------------------
+  // Auto sign-in, same pattern as request.html / hr.html (validated live):
+  // browsers block popups at page load, so a same-tab loginRedirect is used.
+  // On return from Microsoft, PTOAuth.initialize()'s handleRedirectPromise()
+  // captures the account, so boot just finds getAccount() populated.
+  //
+  // LOOP GUARD: the redirect is attempted at most ONCE per tab session via a
+  // sessionStorage flag set BEFORE navigating away. Returning cancelled/failed
+  // (no account, flag present) → manual Sign in fallback, never a second
+  // automatic redirect. If sessionStorage can't persist the flag, no
+  // auto-redirect at all. Cleared on any successful sign-in.
+  //
+  // SECURITY UNCHANGED: no request data loads until PTOAuth confirms a signed-in
+  // account AND PTOAuthz.enforce (inside loadRequest) authorizes; the decide
+  // gate (canAct) is unchanged.
+  var AUTO_LOGIN_FLAG = "approve_auto_login_attempted";
+
+  function autoLoginAttempted() {
+    try { return sessionStorage.getItem(AUTO_LOGIN_FLAG) === "1"; } catch (e) { return true; }
+  }
+  function markAutoLoginAttempted() {
+    // True only if the flag VERIFIABLY persisted — the redirect is gated on
+    // that, so broken storage can never produce a redirect loop.
+    try {
+      sessionStorage.setItem(AUTO_LOGIN_FLAG, "1");
+      return sessionStorage.getItem(AUTO_LOGIN_FLAG) === "1";
+    } catch (e) { return false; }
+  }
+  function clearAutoLoginFlag() {
+    try { sessionStorage.removeItem(AUTO_LOGIN_FLAG); } catch (e) {}
+  }
+
   (async function boot() {
     try {
-      await PTOAuth.initialize();
+      await PTOAuth.initialize(); // handles a returning redirect internally
       renderAuth();
-      if (!state.itemId) {
-        showError(ITEM_ID_HELP);
-      } else if (PTOAuth.getAccount()) {
+
+      if (PTOAuth.getAccount()) {
+        // Signed in (cached session or just back from the redirect).
+        clearAutoLoginFlag();
+        if (!state.itemId) { showError(ITEM_ID_HELP); return; }
         await loadRequest();
+        return;
       }
+
+      if (!autoLoginAttempted() && markAutoLoginAttempted()) {
+        els.signin.disabled = true;
+        els.account.textContent = "Redirecting to Microsoft sign-in…";
+        els.account.classList.add("show-text");
+        try {
+          await PTOAuth.signInRedirect(); // navigates away; won't resolve on success
+          return;
+        } catch (e) {
+          // The redirect call itself failed (config/init error) — fall through
+          // to the manual fallback. The flag stays set: no automatic retry.
+          console.warn("[approve.page] auto sign-in redirect failed:", friendly(e));
+        }
+      }
+
+      // Already attempted this tab session (user cancelled / auth failed / the
+      // redirect errored) — or storage can't persist the guard flag. Manual
+      // button fallback; never auto-retry.
+      renderAuth();
+      els.account.textContent = "Not signed in — click Sign in to continue.";
+      els.account.classList.add("show-text");
+      if (!state.itemId) showError(ITEM_ID_HELP);
     } catch (e) {
       showError("Initialization failed: " + friendly(e));
     }
