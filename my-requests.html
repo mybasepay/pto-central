@@ -6,136 +6,341 @@
   <title>My Requests — PTO Central</title>
   <link rel="stylesheet" href="styles.css" />
   <!--
-    My Requests (Phase 2C). Employee view of their own PTO requests from the
-    PTO Requests SharePoint list. READ-ONLY this phase (no cancel/edit).
-    Not yet linked from index.html. Serve on port 3000 over http.
+    My Requests — employee view of their own PTO requests (READ-ONLY) from the
+    PTO Requests SharePoint list, via PTORequests.listMyRequests. Visual pass
+    2026-07-03 to match request.html / approve.html; kept deliberately simple
+    (3 summary cards, search + status filter + refresh, 4-column table).
+
+    All element IDs consumed by js/pages/my-requests.page.js are PRESERVED
+    (auth + user chip, refresh, statusFilter, search, count, warn, error,
+    empty, reqs-table, reqs-body, raw, the three stat-* counters, and the
+    page-size / page-prev / page-next pager).
   -->
   <style>
-    /* Reuses styles.css design language (.wrap/.card/.tips/footer); controls scoped here. */
-    .section { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #0a0f1c; border: 1px solid rgba(255,255,255,0.08); }
-    .section h3 { margin: 0 0 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-    .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    .btn { appearance: none; cursor: pointer; color: #fff; font: inherit; font-weight: 700; padding: 11px 18px;
-      border-radius: 12px; border: 1px solid rgba(255,255,255,0.14);
-      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); }
-    .btn:hover { border-color: rgba(255,255,255,0.28); }
+    /* ===== My Requests — scoped. Loaded AFTER styles.css; equal-specificity
+       element rules below win, same pattern as hr.html / request.html /
+       approve.html. Wide, top-down document flow. ===== */
+
+    :root {
+      --mr-surface: #0e1626;
+      --mr-surface-2: #0b1220;
+      --mr-tile: #0a101d;
+      --mr-line: rgba(120, 150, 210, 0.16);
+      --mr-line-soft: rgba(255, 255, 255, 0.07);
+      --mr-teal: #2dd4bf;
+      --mr-blue: #60a5fa;
+      --mr-amber: #fbbf24;
+      --mr-green: #34d399;
+    }
+
+    html, body { height: auto; min-height: 100%; }
+    body {
+      display: block;
+      padding: 0 clamp(14px, 3vw, 40px) 56px;
+      background:
+        radial-gradient(1000px 600px at 12% -8%, #0d1730, transparent 60%),
+        radial-gradient(1100px 640px at 100% 0%, #0a1424, transparent 55%),
+        linear-gradient(180deg, #0a111e 0%, #070c16 60%, #05080f 100%);
+      overflow-x: hidden;
+    }
+    .wrap { width: 100%; max-width: 1180px; margin: 0 auto; }
+
+    /* ---- Top bar ---- */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      flex-wrap: wrap; padding: 16px 2px 14px; margin: 0 0 4px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-logo {
+      width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto;
+      display: grid; place-items: center; color: var(--mr-blue);
+      background: linear-gradient(160deg, rgba(96, 165, 250, 0.22), rgba(56, 189, 248, 0.08));
+      border: 1px solid rgba(96, 165, 250, 0.32);
+    }
+    .brand-logo svg { width: 22px; height: 22px; }
+    .brand-name { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+
+    .auth-area { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .user-chip {
+      display: none; align-items: center; gap: 10px; padding: 6px 14px 6px 8px;
+      border-radius: 999px; border: 1px solid var(--mr-line);
+      background: rgba(255, 255, 255, 0.03); max-width: 340px;
+    }
+    .user-chip.show { display: inline-flex; }
+    .user-chip .avatar {
+      width: 28px; height: 28px; border-radius: 50%; flex: 0 0 auto;
+      display: grid; place-items: center; font-size: 11px; font-weight: 800; letter-spacing: .03em;
+      color: #cbd5e1; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--mr-line-soft);
+    }
+    .user-chip .who { min-width: 0; font-size: 13px; font-weight: 700; color: #eef2f8;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #account { display: none; }
+    #account.show-text { display: inline; font-size: 12.5px; color: var(--muted); }
+
+    /* ---- Buttons ---- */
+    .btn {
+      appearance: none; cursor: pointer; color: var(--text); font: inherit; font-weight: 600;
+      padding: 9px 16px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.03);
+      transition: border-color .15s ease, background .15s ease, transform .1s ease;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn svg { width: 15px; height: 15px; }
+    .btn:hover { border-color: rgba(147, 197, 253, 0.5); background: rgba(255, 255, 255, 0.06); }
+    .btn:active { transform: translateY(1px); }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
-    .btn.primary { border-left: 6px solid var(--brand); }
-    .btn.ghost { font-weight: 600; }
-    .status { font-size: 13px; color: var(--muted); }
-    .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-    label.fld { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin-right: 6px; }
-    select { padding: 9px 10px; border-radius: 10px; background: #050a13; color: var(--text); border: 1px solid rgba(255,255,255,0.12); font: inherit; }
-    .dev-banner { margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 13px;
-      background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
-    .warn { display:none; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px;
-      background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
-    .error { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; border-left: 6px solid var(--brand2);
-      background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 14px; }
-    .empty { display:none; margin-top: 12px; color: var(--muted); font-size: 14px; }
-    .table-wrap { margin-top: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table.reqs { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 880px; }
-    table.reqs th, table.reqs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
-    table.reqs th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-    /* Default: don't break words — let the wrapper scroll horizontally on narrow screens. */
-    table.reqs th, table.reqs td { white-space: nowrap; }
-    table.reqs a { color: #7dd3fc; }
-    /* Manager email (col 5): allow clean wrapping, smaller/muted, capped width. */
-    table.reqs td:nth-child(5) { white-space: normal; overflow-wrap: anywhere; font-size: 12px; color: var(--muted); max-width: 240px; }
-    /* Item link (col 8): keep "Open" on a single line. */
-    table.reqs td:nth-child(8), table.reqs td:nth-child(8) a { white-space: nowrap; }
-    .yes { color: #fdba74; font-weight: 600; }
-    pre { margin: 8px 0 0; padding: 12px; overflow: auto; background: #050a13; border-radius: 8px; font-size: 12px; max-height: 320px; }
-    details summary { cursor: pointer; color: var(--muted); }
+    .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.45); }
+    .btn.small { padding: 6px 12px; font-size: 12.5px; border-radius: 9px; }
+
+    /* ---- Page head ---- */
+    .page-head { margin: 16px 2px 0; }
+    .page-head h1 { font-size: clamp(24px, 3vw, 30px); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+    .page-head .desc { margin: 5px 0 0; font-size: 14px; }
+
+    /* ---- Summary cards ---- */
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
+    @media (max-width: 720px) { .stats { grid-template-columns: 1fr; } }
+    .stat {
+      display: flex; align-items: center; gap: 15px; padding: 18px 20px; border-radius: 15px;
+      border: 1px solid var(--mr-line);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)), var(--mr-surface);
+      box-shadow: 0 18px 40px -30px rgba(0, 0, 0, 0.8);
+    }
+    .stat-ico { width: 48px; height: 48px; border-radius: 13px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--mr-line); }
+    .stat-ico svg { width: 25px; height: 25px; }
+    .stat-ico.blue { color: var(--mr-blue); background: linear-gradient(160deg, rgba(96,165,250,0.2), rgba(56,189,248,0.06)); border-color: rgba(96,165,250,0.3); }
+    .stat-ico.amber { color: var(--mr-amber); background: linear-gradient(160deg, rgba(251,191,36,0.18), rgba(217,119,6,0.06)); border-color: rgba(251,191,36,0.32); }
+    .stat-ico.green { color: var(--mr-green); background: linear-gradient(160deg, rgba(52,211,153,0.18), rgba(45,212,191,0.06)); border-color: rgba(52,211,153,0.3); }
+    .stat-body { min-width: 0; line-height: 1.2; }
+    .stat-label { font-size: 13px; color: var(--muted); }
+    .stat-value { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; margin-top: 3px; color: #f1f5f9; }
+
+    /* ---- Controls bar ---- */
+    .panel {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)), var(--mr-surface);
+      border: 1px solid var(--mr-line); border-radius: 16px;
+      box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.8);
+      margin-top: 16px;
+    }
+    .controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 16px clamp(14px, 2vw, 20px); }
+    .search-wrap { position: relative; flex: 1 1 300px; min-width: 0; }
+    .search-wrap .search-ico { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #5f708a; pointer-events: none; }
+    .search-wrap input { padding-left: 38px; }
+    input, select {
+      width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px;
+      background: var(--mr-surface-2); color: var(--text); border: 1px solid rgba(255, 255, 255, 0.12);
+      font: inherit; font-size: 13.5px;
+    }
+    input::placeholder { color: #5f708a; }
+    input:focus, select:focus { outline: none; border-color: var(--mr-blue); box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.28); }
+    select#statusFilter { width: auto; min-width: 150px; }
+    .controls .spacer { flex: 1 1 auto; }
+
+    /* ---- Messages ---- */
+    .warn { display: none; margin: 0 clamp(14px, 2vw, 20px); padding: 10px 13px; border-radius: 11px; font-size: 13px;
+      background: rgba(217, 119, 6, 0.1); border: 1px solid rgba(217, 119, 6, 0.45); color: #fed7aa; }
+    .error { display: none; margin: 0 clamp(14px, 2vw, 20px); padding: 12px 14px; border-radius: 11px;
+      border-left: 5px solid #dc2626; background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 13.5px; }
+    .empty { display: none; padding: 40px 20px; color: var(--muted); font-size: 14px; text-align: center; }
+
+    /* ---- Table ---- */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.reqs { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    table.reqs thead th {
+      text-align: left; padding: 13px 20px; background: var(--mr-surface-2);
+      color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700;
+      border-top: 1px solid var(--mr-line); border-bottom: 1px solid var(--mr-line); white-space: nowrap;
+    }
+    table.reqs tbody td { padding: 14px 20px; border-bottom: 1px solid var(--mr-line-soft); vertical-align: middle; white-space: nowrap; }
+    table.reqs tbody tr:last-child td { border-bottom: 0; }
+    table.reqs tbody tr:hover > td { background: rgba(255, 255, 255, 0.02); }
+    td.key { font-variant-numeric: tabular-nums; color: #dbe4f0; }
+
+    /* ---- Pager ---- */
+    .pager { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+      padding: 14px clamp(14px, 2vw, 20px); border-top: 1px solid var(--mr-line-soft); font-size: 13px; color: var(--muted); }
+    .pager .right { display: flex; align-items: center; gap: 10px; }
+    .pager select { width: auto; padding: 6px 9px; font-size: 13px; }
+    .pager .nav { display: inline-flex; gap: 6px; }
+    .page-btn { min-width: 32px; height: 32px; padding: 0 9px; border-radius: 8px; cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.12); background: transparent; color: var(--text); font: inherit; font-size: 13px; }
+    .page-btn:hover:not(:disabled) { border-color: rgba(147, 197, 253, 0.55); }
+    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .mr-footer { margin-top: 20px; color: var(--muted); font-size: 12px; text-align: center; }
+    details.debug { margin-top: 14px; }
+    details.debug > summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 12.5px;
+      display: inline-flex; align-items: center; gap: 7px; }
+    details.debug > summary::-webkit-details-marker { display: none; }
+    details.debug > summary svg { width: 14px; height: 14px; transition: transform .18s ease; }
+    details.debug[open] > summary svg { transform: rotate(90deg); }
+    details.debug pre { margin: 12px 0 0; padding: 13px 15px; overflow: auto; border-radius: 11px;
+      background: #05090f; border: 1px solid var(--mr-line-soft); font-size: 12px; max-height: 320px;
+      color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   </style>
 </head>
 <body>
   <main class="wrap">
-    <section class="card" role="region" aria-label="My PTO Requests">
-      <header>
-        <div>
-          <h1>PTO Central</h1>
-          <p class="desc">My Requests</p>
-        </div>
-      </header>
-
-      <div class="dev-banner" role="note">
-        <strong>Pilot phase:</strong> this list reads the live
-        <code>PTO Requests</code> data. Calendar events are created on approval;
-        manager notifications are still in controlled testing.
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
+          </svg>
+        </span>
+        <span class="brand-name">PTO Central</span>
       </div>
-
-      <div class="section" aria-label="Account">
-        <div class="actions">
-          <button id="signin" class="btn primary" type="button">Sign in</button>
-          <button id="signout" class="btn ghost" type="button" disabled>Sign out</button>
-          <span id="account" class="status" aria-live="polite">Not signed in.</span>
-        </div>
+      <div class="auth-area">
+        <span id="user-chip" class="user-chip">
+          <span class="avatar" id="user-chip-avatar" aria-hidden="true">··</span>
+          <span class="who" id="user-chip-name">—</span>
+        </span>
+        <span id="account" aria-live="polite">Not signed in.</span>
+        <button id="signin" class="btn" type="button">Sign in</button>
+        <button id="signout" class="btn small" type="button" disabled>
+          Sign out
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
+          </svg>
+        </button>
       </div>
+    </header>
 
-      <div class="section" aria-label="Controls">
-        <div class="controls">
-          <button id="refresh" class="btn ghost" type="button" disabled>Refresh</button>
-          <div>
-            <label class="fld" for="statusFilter">Status</label>
-            <select id="statusFilter">
-              <option value="All">All</option>
-              <option value="Pending">Pending</option>
-              <option value="Approved">Approved</option>
-              <option value="Auto-Approved">Auto-Approved</option>
-              <option value="Rejected">Rejected</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
-          </div>
-          <span id="count" class="status"></span>
-        </div>
+    <!-- Page head -->
+    <div class="page-head">
+      <h1>My Requests</h1>
+      <p class="desc">View your PTO requests and current status.</p>
+    </div>
 
-        <div id="warn" class="warn" role="alert"></div>
-        <div id="error" class="error" role="alert" aria-live="assertive"></div>
-        <div id="empty" class="empty">No PTO requests found for this account.</div>
-
-        <div class="table-wrap">
-          <table class="reqs" id="reqs-table" style="display:none;">
-            <thead>
-              <tr>
-                <th>Request Key</th>
-                <th>Type</th>
-                <th>Dates</th>
-                <th>Status</th>
-                <th>Manager</th>
-                <th>Short notice</th>
-                <th>Submitted</th>
-                <th>Item</th>
-              </tr>
-            </thead>
-            <tbody id="reqs-body"></tbody>
-          </table>
+    <!-- Summary cards -->
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-ico blue" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="4" width="12" height="17" rx="2" /><rect x="9" y="2.5" width="6" height="3.2" rx="1" /><path d="M9 11h6M9 15h4" />
+          </svg>
+        </span>
+        <div class="stat-body">
+          <div class="stat-label">Total Requests</div>
+          <div class="stat-value" id="stat-total">—</div>
         </div>
       </div>
+      <div class="stat">
+        <span class="stat-ico amber" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+          </svg>
+        </span>
+        <div class="stat-body">
+          <div class="stat-label">Pending</div>
+          <div class="stat-value" id="stat-pending">—</div>
+        </div>
+      </div>
+      <div class="stat">
+        <span class="stat-ico green" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" /><path d="M8.5 12.5l2.5 2.5 4.5-5" />
+          </svg>
+        </span>
+        <div class="stat-body">
+          <div class="stat-label">Approved</div>
+          <div class="stat-value" id="stat-approved">—</div>
+        </div>
+      </div>
+    </div>
 
-      <div class="section" aria-label="Debug">
-        <details>
-          <summary>Raw JSON (debug)</summary>
-          <pre id="raw">—</pre>
-        </details>
+    <!-- Controls + table -->
+    <section class="panel" aria-label="My PTO requests">
+      <div class="controls">
+        <div class="search-wrap">
+          <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+          </svg>
+          <input type="text" id="search" placeholder="Search requests…" autocomplete="off" aria-label="Search requests by key or PTO type" />
+        </div>
+        <select id="statusFilter" aria-label="Filter by status">
+          <option value="All">All Statuses</option>
+          <option value="Pending">Pending</option>
+          <option value="Approved">Approved</option>
+          <option value="Auto-Approved">Auto-Approved</option>
+          <option value="Rejected">Rejected</option>
+          <option value="Cancelled">Cancelled</option>
+        </select>
+        <div class="spacer"></div>
+        <button id="refresh" class="btn" type="button" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 11a8 8 0 1 0-.9 4.3" /><path d="M20 4v5h-5" />
+          </svg>
+          Refresh
+        </button>
       </div>
 
-      <footer>
-        © <span id="year"></span> myBasePay · Tech Support
-      </footer>
+      <div id="warn" class="warn" role="alert"></div>
+      <div id="error" class="error" role="alert" aria-live="assertive"></div>
+
+      <div class="table-wrap">
+        <table class="reqs" id="reqs-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>Request Key</th>
+              <th>PTO Type</th>
+              <th>Dates</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="reqs-body"></tbody>
+        </table>
+      </div>
+      <div id="empty" class="empty">No PTO requests found for this account.</div>
+
+      <!-- Pager -->
+      <div class="pager">
+        <span id="count" aria-live="polite"></span>
+        <div class="right">
+          <span>Rows per page:</span>
+          <select id="page-size" aria-label="Rows per page">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="all">All</option>
+          </select>
+          <span class="nav">
+            <button id="page-prev" class="page-btn" type="button" aria-label="Previous page">‹</button>
+            <button id="page-next" class="page-btn" type="button" aria-label="Next page">›</button>
+          </span>
+        </div>
+      </div>
     </section>
+
+    <details class="debug">
+      <summary>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        Show raw JSON (debug)
+      </summary>
+      <pre id="raw">—</pre>
+    </details>
+
+    <footer class="mr-footer">
+      © <span id="year"></span> myBasePay · Tech Support
+    </footer>
   </main>
 
-  <!-- Library + modules. Order matters; page last. -->
+  <!--
+    Library + modules. Order matters; page last.
+    Cache-busting (?v=): same convention as the other pages — bump on any change
+    to my-requests.html or a module below. lib/msal-browser.min.js is
+    intentionally NOT versioned (pinned v3.28.1).
+  -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/graph.js"></script>
-  <script src="js/directory.js"></script>
-  <script src="js/rules.js"></script>
-  <script src="js/requests.js"></script>
-  <script src="js/authz.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/pages/my-requests.page.js"></script>
+  <script src="js/config.js?v=mr1"></script>
+  <script src="js/auth.js?v=mr1"></script>
+  <script src="js/graph.js?v=mr1"></script>
+  <script src="js/directory.js?v=mr1"></script>
+  <script src="js/rules.js?v=mr1"></script>
+  <script src="js/requests.js?v=mr1"></script>
+  <script src="js/authz.js?v=mr1"></script>
+  <script src="js/ui.js?v=mr1"></script>
+  <script src="js/pages/my-requests.page.js?v=mr1"></script>
 </body>
 </html>
