@@ -141,6 +141,22 @@
     return PTORequests.CANCELLABLE_STATUSES.indexOf(String(r.status || "").trim()) !== -1;
   }
 
+  // ---- HR Center action lock: PTO start date has passed ---------------------
+  // UI/business-rule guard ONLY — no data is read/written differently and no
+  // other page, flow, or the cancellation/approval logic itself is affected.
+  // Date-only compare (StartDate <= today), never time-of-day.
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function todayDateOnly() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+  var PAST_START_REASON = "Unavailable after PTO start date";
+  function isPastStart(r) {
+    var start = String(r.startDate || "").slice(0, 10); // date-only, matches the filter-range compare above
+    if (!start) return false;
+    return start <= todayDateOnly();
+  }
+
   function whoCell(name, email) {
     var td = PTOUI.el("td", { class: "who" }, name || email || "—");
     if (name && email) td.appendChild(PTOUI.el("span", { class: "sub" }, email));
@@ -314,17 +330,47 @@
     openRowMenu(anchor, r);
   }
 
+  /** Apply/clear the disabled look + tooltip on a menu item (button or <a>). */
+  function setMenuItemDisabled(node, disabled, reason) {
+    if (disabled) {
+      node.setAttribute("aria-disabled", "true");
+      node.setAttribute("title", reason || PAST_START_REASON);
+      if ("disabled" in node) node.disabled = true; // native for <button>
+    } else {
+      node.removeAttribute("aria-disabled");
+      node.removeAttribute("title");
+      if ("disabled" in node) node.disabled = false;
+    }
+  }
+
   function openRowMenu(anchor, r) {
     state.menuRequest = r;
     state.menuAnchor = anchor;
 
-    // Approval-page link (unchanged behavior — relative deep link, new tab).
-    menuItem("approval").setAttribute("href", PTOLinks.relativeApprovalUrl(r.id));
+    var past = isPastStart(r); // HR action lock: StartDate <= today (date-only)
 
-    // Cancel item: shown only when the request can be cancelled.
+    // Approval page: always shown, but disabled/grayed once PTO has started —
+    // approving/rejecting a request whose dates already began is not a normal
+    // action from here. Details stays available regardless (view-only).
+    var approvalEl = menuItem("approval");
+    if (past) {
+      approvalEl.removeAttribute("href");
+      setMenuItemDisabled(approvalEl, true);
+    } else {
+      approvalEl.setAttribute("href", PTOLinks.relativeApprovalUrl(r.id)); // unchanged behavior
+      setMenuItemDisabled(approvalEl, false);
+    }
+
+    // Cancel item: hidden when the STATUS already makes it non-cancellable
+    // (existing rule, unchanged). When status still allows cancellation but the
+    // PTO start date has passed, keep it VISIBLE but disabled/grayed — the row
+    // is never hidden and historical requests are never silently modified.
     var canCancel = cancellable(r);
-    menuItem("cancel").style.display = canCancel ? "" : "none";
-    menuItem("cancel-sep").style.display = canCancel ? "" : "none";
+    var cancelEl = menuItem("cancel");
+    var cancelSepEl = menuItem("cancel-sep");
+    cancelEl.style.display = canCancel ? "" : "none";
+    cancelSepEl.style.display = canCancel ? "" : "none";
+    if (canCancel) setMenuItemDisabled(cancelEl, past);
 
     // Reveal, measure, position (fixed = viewport coords from the anchor rect).
     els.rowMenu.hidden = false;
@@ -353,25 +399,31 @@
     if (refocus && anchor && document.contains(anchor)) anchor.focus();
   }
 
+  // Visible AND not disabled — used for initial focus + arrow-key navigation,
+  // so the action-lock guard (past PTO start date) is also skipped by keyboard.
   function visibleMenuItems() {
     return Array.prototype.filter.call(
       els.rowMenu.querySelectorAll(".row-menu-item"),
-      function (n) { return n.style.display !== "none"; }
+      function (n) { return n.style.display !== "none" && n.getAttribute("aria-disabled") !== "true"; }
     );
   }
   function firstVisibleMenuItem() { return visibleMenuItems()[0] || null; }
 
-  // Menu item actions (bound once; read state.menuRequest).
+  // Menu item actions (bound once; read state.menuRequest). Each bails out if
+  // the item is currently disabled (defense in depth alongside the native
+  // `disabled` attribute / removed `href`, which already block interaction).
   menuItem("details").addEventListener("click", function () {
     var r = state.menuRequest;
     closeRowMenu();
     if (r) { state.expandedId = state.expandedId === r.id ? null : r.id; renderTable(); }
   });
-  menuItem("approval").addEventListener("click", function () {
+  menuItem("approval").addEventListener("click", function (e) {
+    if (this.getAttribute("aria-disabled") === "true") { e.preventDefault(); return; }
     // Let the <a> open in a new tab (href set on open); just close the menu.
     closeRowMenu();
   });
   menuItem("cancel").addEventListener("click", function () {
+    if (this.disabled || this.getAttribute("aria-disabled") === "true") return;
     var r = state.menuRequest;
     closeRowMenu();
     if (r) openCancelPanel(r);
