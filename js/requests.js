@@ -138,8 +138,121 @@ window.PTORequests = (function () {
     return fields;
   }
 
+  // --- Submit-metadata internal-name resolution -----------------------------
+  // The six submitter/mode columns were (re)created MANUALLY on the live list,
+  // so their SharePoint INTERNAL names are not guaranteed to match the canonical
+  // names this module writes (e.g. a column displayed as "SubmittedByEmail" can
+  // have internal name "Submitted_x0020_By_x0020_Email"; a recreated "OnBehalf"
+  // can become "OnBehalf0"). Graph's item-create SILENTLY DROPS unrecognized
+  // field names instead of failing — which is exactly how items 28/29 saved
+  // everything except these fields (see docs/PRODUCTION_READINESS_RUNBOOK.md).
+  //
+  // Fix: resolve the live list's columns once per session and remap ONLY these
+  // six fields onto their real internal names. The proven core columns
+  // (Title, Requester*, Manager*, PtoType, dates, Status, AuditLog, ...) are
+  // NEVER remapped. A field whose column genuinely doesn't exist is dropped
+  // with a console warning so the create still succeeds.
+  var METADATA_FIELD_CANDIDATES = {
+    // canonical name → acceptable internal names / display names on the list
+    SubmittedById: ["SubmittedById", "Submitted By (OID)", "Submitted By Id"],
+    SubmittedByEmail: ["SubmittedByEmail", "Submitted By Email"],
+    SubmittedByName: ["SubmittedByName", "Submitted By Name"],
+    OnBehalf: ["OnBehalf", "On Behalf Of", "On Behalf"],
+    RequestMode: ["RequestMode", "Request Mode"],
+    OnBehalfReason: ["OnBehalfReason", "On-Behalf Reason", "On Behalf Reason"],
+  };
+
+  /** Loose compare: case-insensitive, ignoring spaces/dashes/underscores and
+   *  SharePoint's _x0020_ space encoding (so "Submitted_x0020_By_x0020_Email",
+   *  "Submitted By Email" and "SubmittedByEmail" all normalize identically). */
+  function normName(s) {
+    return String(s || "")
+      .replace(/_x0020_/gi, "")
+      .replace(/[\s\-_]/g, "")
+      .toLowerCase();
+  }
+
+  var _metaFieldMap = null; // canonical → real internal name (or null if absent)
+
+  async function resolveMetadataFieldMap() {
+    if (_metaFieldMap) return _metaFieldMap;
+
+    var ctx = await PTOGraph.resolveContext();
+    var res = await PTOGraph.getListColumns(ctx.siteId, ctx.listId);
+    var columns = (res && res.value) || [];
+
+    var map = {};
+    Object.keys(METADATA_FIELD_CANDIDATES).forEach(function (canonical) {
+      var candidates = METADATA_FIELD_CANDIDATES[canonical];
+
+      // 1. Exact internal-name match wins outright.
+      var col = columns.filter(function (c) { return c.name === canonical; })[0];
+
+      // 2. Otherwise match any candidate against internal OR display name,
+      //    loosely normalized. Prefer internal-name hits over display hits so a
+      //    mangled internal name (OnBehalf0) is only used via its display name.
+      if (!col) {
+        var wanted = candidates.map(normName);
+        col =
+          columns.filter(function (c) {
+            return wanted.indexOf(normName(c.name)) !== -1;
+          })[0] ||
+          columns.filter(function (c) {
+            return wanted.indexOf(normName(c.displayName)) !== -1;
+          })[0];
+      }
+
+      map[canonical] = col ? col.name : null;
+    });
+
+    // Always log the resolved mapping — this is the ground truth of the live
+    // list's internal names and the first thing to check when a field is blank.
+    console.log("[PTORequests] submit-metadata column mapping (canonical → internal):", map);
+    _metaFieldMap = map;
+    return map;
+  }
+
+  /**
+   * Remap the six submit-metadata fields onto the live list's internal names.
+   * Non-metadata fields pass through untouched. If column resolution itself
+   * fails (permissions/transient), fall back to the canonical names so a
+   * submit is never blocked by the mapping layer.
+   */
+  async function applyMetadataFieldMap(fields) {
+    var map;
+    try {
+      map = await resolveMetadataFieldMap();
+    } catch (e) {
+      console.warn(
+        "[PTORequests] could not resolve list columns; sending canonical field names as-is.",
+        e
+      );
+      return fields;
+    }
+
+    var out = {};
+    Object.keys(fields).forEach(function (key) {
+      if (!(key in METADATA_FIELD_CANDIDATES)) {
+        out[key] = fields[key]; // core field — never remapped
+        return;
+      }
+      var internal = map[key];
+      if (internal) {
+        out[internal] = fields[key];
+      } else {
+        console.warn(
+          "[PTORequests] column for '" + key + "' not found on the PTO Requests list — " +
+          "field dropped from the create payload. Provision/rename the column, then retry."
+        );
+      }
+    });
+    return out;
+  }
+
   /**
    * Create the request item in SharePoint.
+   * Submit-metadata fields (SubmittedBy*, OnBehalf, RequestMode, OnBehalfReason)
+   * are remapped to the live list's real internal names first — see above.
    * @param {object} fields - from buildCreateRequestFields().
    * @returns {Promise<object>} created item (includes id, webUrl).
    */
@@ -147,7 +260,8 @@ window.PTORequests = (function () {
     if (!fields || !fields.Title) {
       throw new Error("createRequest: fields object with at least a Title is required.");
     }
-    return PTOGraph.createListItem(fields);
+    var mapped = await applyMetadataFieldMap(fields);
+    return PTOGraph.createListItem(mapped);
   }
 
   /**
@@ -312,6 +426,9 @@ window.PTORequests = (function () {
   return {
     buildCreateRequestFields: buildCreateRequestFields,
     createRequest: createRequest,
+    // Diagnostic: resolve + log the live internal names of the submit-metadata
+    // columns (run `await PTORequests.resolveMetadataFieldMap()` in dev tools).
+    resolveMetadataFieldMap: resolveMetadataFieldMap,
     getRequest: getRequest,
     getRequestById: getRequestById,
     updateRequestDecision: updateRequestDecision,
