@@ -596,6 +596,17 @@
       closeCancelPanel();
       return;
     }
+    // Action-lock re-check at confirm time: the kebab item is disabled once
+    // StartDate <= today, but a confirm panel opened before midnight (or a
+    // stale tab) could otherwise still write after the PTO has started.
+    if (isPastStart(r)) {
+      showError(
+        "Cannot cancel " + (r.requestKey || ("#" + r.id)) + ": the PTO start date has passed. " +
+        PAST_START_REASON + "."
+      );
+      closeCancelPanel();
+      return;
+    }
 
     state.cancelling = true;
     els.cancelConfirm.disabled = true;
