@@ -30,9 +30,12 @@
        the whole page scrolls top→bottom. Only vertical trapping is removed; the
        table keeps its own horizontal scroll via `.table-wrap { overflow-x:auto }`. */
     html, body { height: auto; min-height: 100%; }
-    body { display: block; }
-    .wrap { max-width: 1280px; margin: 0 auto; }
-    .section { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #0a0f1c; border: 1px solid rgba(255,255,255,0.08); }
+    /* Wide admin-dashboard layout: use most of the viewport (not the shared
+       ~880px card width), centered, with comfortable page gutters. */
+    body { display: block; padding: 28px clamp(16px, 2.5vw, 40px) 56px; }
+    .wrap { width: 100%; max-width: 1680px; margin: 0 auto; }
+    .card { padding: 26px clamp(20px, 2.2vw, 34px); }
+    .section { margin-top: 18px; padding: 16px 18px; border-radius: 12px; background: #0a0f1c; border: 1px solid rgba(255,255,255,0.08); }
     .section h3 { margin: 0 0 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
     .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     .btn { appearance: none; cursor: pointer; color: #fff; font: inherit; font-weight: 700; padding: 10px 16px;
@@ -49,7 +52,7 @@
       background: rgba(129,140,248,0.08); border: 1px solid rgba(129,140,248,0.35); color: #c7d2fe; }
 
     /* Filters */
-    .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 16px; }
     .filters .wide { grid-column: span 2; }
     label.fld { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .03em; }
     input, select, textarea { width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 10px;
