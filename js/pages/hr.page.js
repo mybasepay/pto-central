@@ -3,20 +3,23 @@
  *
  * Responsibility:
  *   - Sign in; enforce HR/Admin via PTOAuthz.enforce (ROLE_REQUIRED["hr.html"] —
- *     fails CLOSED: any lookup problem → blocked, and NO request data is loaded).
+ *     fails CLOSED: any lookup problem -> blocked, and NO request data is loaded).
  *   - Load ALL requests from the modern "PTO Requests" list
  *     (PTORequests.listAllRequests — paged, read-only).
  *   - Client-side filters: search, status, manager, start-date range,
- *     short-notice only, on-behalf only.
- *   - Per-row: details expansion, approval-page link, SharePoint item link,
- *     and SAFE cancellation (PTORequests.cancelRequest):
- *       confirm + reason → Status = "Cancelled" + AuditLog append (+ optional
+ *     short-notice only, on-behalf only. Client-side pagination (view only).
+ *   - Per-row kebab menu: Details expansion, Approval-page link, and SAFE
+ *     cancellation (PTORequests.cancelRequest):
+ *       confirm + reason -> Status = "Cancelled" + AuditLog append (+ optional
  *       Cancelled-by/CancelReason metadata when the columns exist). The validated
  *       "PTO Calendar Cancellation MVP Clean" flow reacts to the status — this
  *       page never touches calendar event ids and never deletes items.
  *
  * The legacy "PTO Tracking" list is intentionally NOT read here.
  * Pages call domain modules, never Graph directly (architecture §7).
+ *
+ * NOTE: the kebab menu + pagination here are presentation only. The data load,
+ * cancellation, and authorization functions are unchanged in behavior.
  */
 
 (function () {
@@ -26,7 +29,7 @@
 
   var els = {
     signin: $("signin"), signout: $("signout"), account: $("account"),
-    refresh: $("refresh"), clearFilters: $("clear-filters"), count: $("count"),
+    refresh: $("refresh"), applyFilters: $("apply-filters"), clearFilters: $("clear-filters"), count: $("count"),
     fSearch: $("f-search"), fStatus: $("f-status"), fManager: $("f-manager"),
     fFrom: $("f-from"), fTo: $("f-to"), fShort: $("f-short"), fObo: $("f-obo"),
     ok: $("ok"), warn: $("warn"), error: $("error"), empty: $("empty"),
@@ -34,6 +37,9 @@
     cancelPanel: $("cancel-panel"), cancelMeta: $("cancel-meta"),
     cancelReason: $("cancel-reason"), cancelConfirm: $("cancel-confirm"),
     cancelAbort: $("cancel-abort"), cancelStatus: $("cancel-status"),
+    rowMenu: $("row-menu"),
+    pager: $("pager"), pageSize: $("page-size"), pageRange: $("page-range"),
+    pagePrev: $("page-prev"), pageNext: $("page-next"), pageNums: $("page-nums"),
   };
 
   var state = {
@@ -43,6 +49,12 @@
     expandedId: null,   // row id with the details expansion open
     cancelTarget: null, // normalized request pending cancellation confirm
     cancelling: false,
+    // view-only pagination
+    page: 1,
+    pageSize: 25,       // number, or Infinity for "All"
+    // row action menu
+    menuRequest: null,
+    menuAnchor: null,
   };
 
   var yearEl = $("year");
@@ -174,35 +186,44 @@
     return PTOUI.el("tr", { class: "details-row" }, td);
   }
 
-  function renderTable() {
-    var rows = state.all.filter(matchesFilters);
-    els.body.innerHTML = "";
+  var KEBAB_SVG =
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+    '<circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>';
 
-    rows.forEach(function (r) {
+  function rowKebab(r) {
+    var btn = PTOUI.el("button", {
+      class: "kebab", type: "button", "aria-haspopup": "menu", "aria-expanded": "false",
+      "aria-label": "Actions for " + (r.requestKey || ("#" + r.id)),
+      html: KEBAB_SVG,
+    });
+    btn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      toggleRowMenu(btn, r);
+    });
+    return btn;
+  }
+
+  function renderTable() {
+    closeRowMenu(); // rows are about to be rebuilt — drop any open menu
+
+    var filtered = state.all.filter(matchesFilters);
+    var total = filtered.length;
+
+    // Pagination (view only).
+    var size = state.pageSize;
+    var pageCount = (size === Infinity) ? 1 : Math.max(1, Math.ceil(total / size));
+    if (state.page > pageCount) state.page = pageCount;
+    if (state.page < 1) state.page = 1;
+    var startIdx = (size === Infinity) ? 0 : (state.page - 1) * size;
+    var endIdx = (size === Infinity) ? total : Math.min(total, startIdx + size);
+    var pageRows = filtered.slice(startIdx, endIdx);
+
+    els.body.innerHTML = "";
+    pageRows.forEach(function (r) {
       var meta = metaOf(r);
       var onBehalf = truthy(meta.OnBehalf) || meta.RequestMode === "On behalf of";
 
-      var actions = PTOUI.el("div", { class: "row-actions" });
-      var detailsBtn = PTOUI.el("button", {
-        class: "btn ghost small", type: "button",
-        onClick: function () {
-          state.expandedId = state.expandedId === r.id ? null : r.id;
-          renderTable();
-        },
-      }, state.expandedId === r.id ? "Hide" : "Details");
-      actions.appendChild(detailsBtn);
-      actions.appendChild(PTOUI.el("a", {
-        class: "btn ghost small", style: { textDecoration: "none" },
-        href: PTOLinks.relativeApprovalUrl(r.id), target: "_blank", rel: "noopener noreferrer",
-      }, "Approval page"));
-      if (cancellable(r)) {
-        actions.appendChild(PTOUI.el("button", {
-          class: "btn danger small", type: "button",
-          onClick: function () { openCancelPanel(r); },
-        }, "Cancel…"));
-      }
-
-      var modeTd = PTOUI.el("td", onBehalf ? { class: "mode-obo" } : null, onBehalf ? "On behalf" : "Self");
+      var actionsTd = PTOUI.el("td", { class: "col-actions" }, rowKebab(r));
 
       var tr = PTOUI.el("tr", null, [
         PTOUI.el("td", null, r.requestKey || ("#" + r.id)),
@@ -213,28 +234,173 @@
         whoCell(r.managerName, r.managerEmail),
         PTOUI.el("td", null, PTOUI.statusBadge(r.status)),
         truthy(r.isShortNotice)
-          ? PTOUI.el("td", { class: "yes" }, "Short")
-          : PTOUI.el("td", null, "—"),
-        modeTd,
+          ? PTOUI.el("td", { class: "flag-short" }, "Short")
+          : PTOUI.el("td", { class: "flag-none" }, "—"),
+        PTOUI.el("td", { class: onBehalf ? "mode-obo" : "mode-self" }, onBehalf ? "On behalf" : "Self"),
         whoCell(meta.SubmittedByName, meta.SubmittedByEmail),
-        PTOUI.el("td", null, actions),
+        actionsTd,
       ]);
       els.body.appendChild(tr);
       if (state.expandedId === r.id) els.body.appendChild(detailsRow(r));
     });
 
-    var hasRows = rows.length > 0;
+    var hasRows = total > 0;
     els.table.style.display = hasRows ? "" : "none";
     els.empty.style.display = hasRows ? "none" : "block";
     els.empty.textContent = state.all.length
       ? "No requests match the current filters."
       : "No PTO requests found.";
     els.count.textContent = state.all.length
-      ? rows.length + " shown of " + state.all.length + " loaded"
+      ? total + " shown of " + state.all.length + " loaded"
       : "";
+
+    renderPager(total, startIdx, endIdx, pageCount);
   }
 
-  // ---- cancellation ----------------------------------------------------------
+  // ---- pagination (view only) -----------------------------------------------
+  function pageWindow(cur, totalPages) {
+    var out = [];
+    if (totalPages <= 7) {
+      for (var i = 1; i <= totalPages; i++) out.push(i);
+      return out;
+    }
+    out.push(1);
+    var s = Math.max(2, cur - 1);
+    var e = Math.min(totalPages - 1, cur + 1);
+    if (s > 2) out.push("…");
+    for (var j = s; j <= e; j++) out.push(j);
+    if (e < totalPages - 1) out.push("…");
+    out.push(totalPages);
+    return out;
+  }
+
+  function renderPager(total, startIdx, endIdx, pageCount) {
+    if (!total) { els.pager.style.display = "none"; return; }
+    els.pager.style.display = "flex";
+    els.pageRange.textContent = (startIdx + 1) + "–" + endIdx + " of " + total;
+
+    els.pagePrev.disabled = state.page <= 1;
+    els.pageNext.disabled = state.page >= pageCount;
+
+    els.pageNums.innerHTML = "";
+    pageWindow(state.page, pageCount).forEach(function (p) {
+      if (p === "…") {
+        els.pageNums.appendChild(PTOUI.el("span", { class: "page-ellipsis" }, "…"));
+        return;
+      }
+      var b = PTOUI.el("button", {
+        class: "page-btn" + (p === state.page ? " active" : ""),
+        type: "button",
+        "aria-label": "Page " + p,
+        "aria-current": p === state.page ? "page" : null,
+      }, String(p));
+      b.addEventListener("click", function () { goToPage(p); });
+      els.pageNums.appendChild(b);
+    });
+  }
+
+  function goToPage(p) {
+    state.page = p;
+    renderTable();
+  }
+
+  function resetToFirstPage() { state.page = 1; renderTable(); }
+
+  // ---- row action menu ------------------------------------------------------
+  function menuItem(act) { return els.rowMenu.querySelector('[data-act="' + act + '"]'); }
+
+  function toggleRowMenu(anchor, r) {
+    if (!els.rowMenu.hidden && state.menuAnchor === anchor) { closeRowMenu(); return; }
+    openRowMenu(anchor, r);
+  }
+
+  function openRowMenu(anchor, r) {
+    state.menuRequest = r;
+    state.menuAnchor = anchor;
+
+    // Approval-page link (unchanged behavior — relative deep link, new tab).
+    menuItem("approval").setAttribute("href", PTOLinks.relativeApprovalUrl(r.id));
+
+    // Cancel item: shown only when the request can be cancelled.
+    var canCancel = cancellable(r);
+    menuItem("cancel").style.display = canCancel ? "" : "none";
+    menuItem("cancel-sep").style.display = canCancel ? "" : "none";
+
+    // Reveal, measure, position (fixed = viewport coords from the anchor rect).
+    els.rowMenu.hidden = false;
+    var rect = anchor.getBoundingClientRect();
+    var mw = els.rowMenu.offsetWidth;
+    var mh = els.rowMenu.offsetHeight;
+    var left = Math.max(8, Math.min(rect.right - mw, window.innerWidth - mw - 8));
+    var top = rect.bottom + 6;
+    if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - 6); // flip up near bottom
+    els.rowMenu.style.left = left + "px";
+    els.rowMenu.style.top = top + "px";
+
+    anchor.setAttribute("aria-expanded", "true");
+
+    var first = firstVisibleMenuItem();
+    if (first) first.focus();
+  }
+
+  function closeRowMenu(refocus) {
+    if (els.rowMenu.hidden) { return; }
+    els.rowMenu.hidden = true;
+    var anchor = state.menuAnchor;
+    if (anchor) anchor.setAttribute("aria-expanded", "false");
+    state.menuAnchor = null;
+    state.menuRequest = null;
+    if (refocus && anchor && document.contains(anchor)) anchor.focus();
+  }
+
+  function visibleMenuItems() {
+    return Array.prototype.filter.call(
+      els.rowMenu.querySelectorAll(".row-menu-item"),
+      function (n) { return n.style.display !== "none"; }
+    );
+  }
+  function firstVisibleMenuItem() { return visibleMenuItems()[0] || null; }
+
+  // Menu item actions (bound once; read state.menuRequest).
+  menuItem("details").addEventListener("click", function () {
+    var r = state.menuRequest;
+    closeRowMenu();
+    if (r) { state.expandedId = state.expandedId === r.id ? null : r.id; renderTable(); }
+  });
+  menuItem("approval").addEventListener("click", function () {
+    // Let the <a> open in a new tab (href set on open); just close the menu.
+    closeRowMenu();
+  });
+  menuItem("cancel").addEventListener("click", function () {
+    var r = state.menuRequest;
+    closeRowMenu();
+    if (r) openCancelPanel(r);
+  });
+
+  // Global dismissers.
+  document.addEventListener("click", function (e) {
+    if (els.rowMenu.hidden) return;
+    if (els.rowMenu.contains(e.target)) return;
+    if (state.menuAnchor && state.menuAnchor.contains(e.target)) return;
+    closeRowMenu();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (els.rowMenu.hidden) return;
+    if (e.key === "Escape") { e.preventDefault(); closeRowMenu(true); return; }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      var items = visibleMenuItems();
+      if (!items.length) return;
+      var idx = items.indexOf(document.activeElement);
+      e.preventDefault();
+      if (e.key === "ArrowDown") idx = (idx + 1) % items.length;
+      else idx = (idx - 1 + items.length) % items.length;
+      items[idx].focus();
+    }
+  });
+  window.addEventListener("scroll", function () { closeRowMenu(); }, true);
+  window.addEventListener("resize", function () { closeRowMenu(); });
+
+  // ---- cancellation (UNCHANGED behavior) ------------------------------------
   function openCancelPanel(r) {
     state.cancelTarget = r;
     els.cancelMeta.textContent =
@@ -298,7 +464,7 @@
     }
   }
 
-  // ---- data ------------------------------------------------------------------
+  // ---- data (UNCHANGED behavior) --------------------------------------------
   async function loadRequests() {
     clearError(); showOk(""); showWarn("");
     els.refresh.disabled = true;
@@ -323,6 +489,7 @@
         showWarn("Showing the " + state.all.length + " most recent requests — older items beyond the page cap were not loaded.");
       }
       state.expandedId = null;
+      state.page = 1;
       closeCancelPanel();
       renderTable();
     } catch (e) {
@@ -335,18 +502,29 @@
   }
 
   // ---- wiring ----------------------------------------------------------------
+  // Live filtering (responsive) + explicit "Apply filters". Both reset to page 1.
   [els.fSearch, els.fManager].forEach(function (el) {
-    el.addEventListener("input", renderTable);
+    el.addEventListener("input", resetToFirstPage);
   });
   [els.fStatus, els.fFrom, els.fTo, els.fShort, els.fObo].forEach(function (el) {
-    el.addEventListener("change", renderTable);
+    el.addEventListener("change", resetToFirstPage);
   });
+  els.applyFilters.addEventListener("click", resetToFirstPage);
   els.clearFilters.addEventListener("click", function () {
     els.fSearch.value = ""; els.fManager.value = "";
     els.fStatus.value = "All"; els.fFrom.value = ""; els.fTo.value = "";
     els.fShort.checked = false; els.fObo.checked = false;
+    resetToFirstPage();
+  });
+
+  els.pageSize.addEventListener("change", function () {
+    var v = els.pageSize.value;
+    state.pageSize = (v === "all") ? Infinity : parseInt(v, 10) || 25;
+    state.page = 1;
     renderTable();
   });
+  els.pagePrev.addEventListener("click", function () { if (state.page > 1) goToPage(state.page - 1); });
+  els.pageNext.addEventListener("click", function () { goToPage(state.page + 1); });
 
   els.refresh.addEventListener("click", loadRequests);
   els.cancelConfirm.addEventListener("click", onConfirmCancel);
@@ -371,6 +549,7 @@
     try { await PTOAuth.signOut(); } catch (e) { showError(friendly(e)); }
     state.all = [];
     state.authorized = false;
+    closeRowMenu();
     closeCancelPanel();
     renderTable();
     renderAuth();
