@@ -92,6 +92,16 @@
   // (Submitted_x0020_By_x0020_Email, OnBehalf0, ...) display correctly.
   function metaOf(r) { return PTORequests.readSubmitMetadata(r.fields); }
 
+  // ---- alternate approver (ApproverEmail/Name/Override/...) ----------------
+  // Same resolved internal-name pattern; blank ApproverEmail means "use
+  // ManagerEmail" (legacy request or column not yet provisioned) — never an
+  // error. See docs/ALTERNATE_APPROVER_DESIGN.md.
+  function approverOf(r) { return PTORequests.readApproverMetadata(r.fields); }
+  function approverOverrideTruthy(am) {
+    return am.ApproverOverride === true || am.ApproverOverride === "Yes" ||
+      am.ApproverOverride === "yes" || am.ApproverOverride === 1;
+  }
+
   function truthy(v) { return v === true || v === "Yes" || v === "true" || v === 1; }
 
   // ---- filters --------------------------------------------------------------
@@ -213,6 +223,20 @@
     item("Decision", f.DecisionByName
       ? f.Status + " by " + f.DecisionByName + (f.DecisionDate ? " on " + fmtDateTime(f.DecisionDate) : "")
       : "—");
+
+    // Approver (docs/ALTERNATE_APPROVER_DESIGN.md) — falls back to the manager
+    // when ApproverEmail is blank (legacy request / column not yet provisioned).
+    var am = approverOf(r);
+    var approverEmail = am.ApproverEmail || r.managerEmail || "";
+    var approverName = am.ApproverName || r.managerName || "";
+    item("Approver", ((approverName || "") + (approverEmail ? " <" + approverEmail + ">" : "")).trim() || "—");
+    if (approverOverrideTruthy(am)) {
+      var originalMgr = ((am.OriginalManagerName || r.managerName || "") +
+        (am.OriginalManagerEmail ? " <" + am.OriginalManagerEmail + ">" : "")).trim() || "—";
+      item("Approver override", "Yes — routed from manager " + originalMgr +
+        (am.ApproverOverrideReason ? " — reason: " + am.ApproverOverrideReason : ""), true);
+    }
+
     if (r.webUrl) {
       item("SharePoint item", PTOUI.el("a", { href: r.webUrl, target: "_blank", rel: "noopener noreferrer" }, "Open list item"));
     }
@@ -355,6 +379,10 @@
     "Status", "Short Notice", "Notice Days", "Request Mode",
     "Submitted By Name", "Submitted By Email", "Backup Contact", "Reason",
     "On Behalf Reason", "SharePoint Item Link",
+    // Alternate approver (docs/ALTERNATE_APPROVER_DESIGN.md) — appended at the
+    // end so existing columns/positions for any downstream consumer are unchanged.
+    "Approver Name", "Approver Email", "Approver Override", "Approver Override Reason",
+    "Original Manager Name", "Original Manager Email",
   ];
 
   /** RFC-4180-style field escaping: quote + double-up embedded quotes whenever
@@ -370,6 +398,7 @@
   function exportRowToCsv(r) {
     var f = r.fields || {};
     var meta = metaOf(r);
+    var am = approverOf(r);
     var mode = meta.RequestMode || (truthy(meta.OnBehalf) ? "On behalf of" : "Self");
     var backup = ((f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "")).trim();
 
@@ -393,6 +422,12 @@
       f.Reason || "",
       meta.OnBehalfReason || "",
       r.webUrl || "",
+      am.ApproverName || r.managerName || "",
+      am.ApproverEmail || r.managerEmail || "",
+      approverOverrideTruthy(am) ? "Yes" : "No",
+      am.ApproverOverrideReason || "",
+      am.OriginalManagerName || r.managerName || "",
+      am.OriginalManagerEmail || r.managerEmail || "",
     ].map(csvField).join(",");
   }
 
@@ -657,6 +692,8 @@
       // Resolve the submit-metadata internal names once so RequestMode /
       // OnBehalf / SubmittedBy* read correctly from manually-created columns.
       try { await PTORequests.resolveMetadataFieldMap(); } catch (e) { /* tolerated */ }
+      // Same for the alternate-approver columns (docs/ALTERNATE_APPROVER_DESIGN.md).
+      try { await PTORequests.resolveApproverFieldMap(); } catch (e) { /* tolerated */ }
 
       var result = await PTORequests.listAllRequests({ top: 200, maxPages: 10 });
       state.all = result.items || [];

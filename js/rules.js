@@ -117,6 +117,40 @@ window.PTORules = (function () {
     return line;
   }
 
+  function normEmail(s) { return String(s || "").trim().toLowerCase(); }
+
+  /**
+   * Approval authorization predicate (Alternate Approver aware — see
+   * docs/ALTERNATE_APPROVER_DESIGN.md). Pure function, no I/O, so the exact
+   * priority order is independently testable from approve.page.js.
+   *
+   * Priority:
+   *   1. `approverEmail`, if present (an alternate-approver override, or the
+   *      default mirror of ManagerEmail once the feature is live) — the
+   *      signed-in user must match it.
+   *   2. Otherwise (no `approverEmail` at all — legacy requests created before
+   *      this feature, or the column not yet provisioned) — fall back to
+   *      `managerEmail`, exactly the pre-existing behavior.
+   *   3. HR/Admin can always decide, regardless of 1/2.
+   *
+   * All comparisons are case-insensitive; blank/whitespace-only values are
+   * treated as absent (never match).
+   *
+   * @param {object} opts { managerEmail, approverEmail, myEmail, isHrAdmin }
+   * @returns {boolean}
+   */
+  function canDecide(opts) {
+    opts = opts || {};
+    var mine = normEmail(opts.myEmail);
+    var approver = normEmail(opts.approverEmail);
+    var manager = normEmail(opts.managerEmail);
+    var isHrAdmin = !!opts.isHrAdmin;
+
+    if (!mine) return isHrAdmin;
+    if (approver) return mine === approver || isHrAdmin;
+    return mine === manager || isHrAdmin;
+  }
+
   return {
     formatDateOnly: formatDateOnly,
     todayDateOnly: todayDateOnly,
@@ -126,6 +160,7 @@ window.PTORules = (function () {
     generateRequestKey: generateRequestKey,
     getInitialStatus: getInitialStatus,
     buildAuditLine: buildAuditLine,
+    canDecide: canDecide,
     // exposed for reference/testing
     MIN_NOTICE_DAYS: MIN_NOTICE_DAYS,
   };

@@ -36,19 +36,33 @@ window.PTORequests = (function () {
    *   { ptoType, startDate, endDate, reason, backupContactName, backupContactEmail,
    *     isPartialDay, hours, isUrgent?, requestKey?, onBehalfReason? }
    * @param {object} context - resolved identities + options:
-   *   { requester, submitter, manager, managersManager, onBehalf, submittedAt? }
+   *   { requester, submitter, manager, managersManager, onBehalf, submittedAt?,
+   *     approverOverride? }
    *   - requester      : Graph user the PTO is FOR (id, displayName, mail/UPN, department, jobTitle)
    *   - submitter      : Graph user who submitted (defaults to requester)
    *   - manager        : requester's manager (or null)
    *   - managersManager: manager's manager (or null)
    *   - onBehalf       : true if submitter !== requester (HR/Admin delegated submit)
    *   - submittedAt    : optional ISO string override (defaults to now)
+   *   - approverOverride: optional { approver: GraphUser, reason: string } — set
+   *     ONLY when an HR/Admin explicitly routes approval to someone other than
+   *     the employee's manager (see docs/ALTERNATE_APPROVER_DESIGN.md). `reason`
+   *     is REQUIRED whenever `approver` is provided (throws otherwise).
    *
    * On-behalf semantics (the contract the calendar/notification flows depend on):
    *   RequesterEmail/RequesterName/... always describe the EMPLOYEE the PTO is for.
    *   ManagerEmail is the EMPLOYEE's manager. SubmittedBy* records who filled the
    *   form. RequestMode is "Self" or "On behalf of"; OnBehalf (bool) mirrors it for
    *   any flow that already reads the boolean.
+   *
+   * Alternate-approver semantics (the contract approve.html / future notification
+   * routing depend on — additive, does NOT change on-behalf or manager semantics):
+   *   ManagerEmail/ManagerName ALWAYS remain the employee's real manager, exactly
+   *   as before. ApproverEmail/ApproverName are WHO SHOULD APPROVE this request —
+   *   default to a mirror of Manager*, or the HR/Admin-selected alternate when
+   *   `context.approverOverride` is supplied. OriginalManagerEmail/Name always
+   *   preserve the real manager snapshot (so it survives even if the org chart
+   *   changes later), independent of whether an override was used.
    * @returns {object} fields keyed by SharePoint internal name.
    */
   function buildCreateRequestFields(input, context) {
@@ -60,6 +74,14 @@ window.PTORequests = (function () {
     var manager = context.manager || null;
     var managersManager = context.managersManager || null;
     var onBehalf = !!context.onBehalf;
+
+    var override = context.approverOverride || null;
+    var overrideApprover = (override && override.approver) || null;
+    var overrideReason = override ? String(override.reason || "").trim() : "";
+    var hasOverride = !!(overrideApprover && pickEmail(overrideApprover));
+    if (overrideApprover && !overrideReason) {
+      throw new Error("buildCreateRequestFields: an alternate-approver override requires a reason.");
+    }
 
     var submittedAtIso = context.submittedAt
       ? new Date(context.submittedAt).toISOString()
@@ -81,10 +103,20 @@ window.PTORequests = (function () {
     var statusNote = isSickAutoApproved
       ? "Auto-Approved — PTO Type = Sick, no manager approval required"
       : status;
+    var managerEmail = manager ? pickEmail(manager) : "";
+    var managerName = manager ? manager.displayName || "" : "";
+
     var auditDetails =
       "PTO Central app — " +
       (onBehalf ? "on behalf of " + (requester.displayName || pickEmail(requester)) : "self-service") +
       " (" + statusNote + ")";
+    if (hasOverride) {
+      auditDetails +=
+        "; approval routed to " + (overrideApprover.displayName || pickEmail(overrideApprover)) +
+        " <" + pickEmail(overrideApprover) + "> instead of manager " +
+        (managerName || "(none)") + (managerEmail ? " <" + managerEmail + ">" : "") +
+        " — override reason: " + overrideReason;
+    }
     var auditLine = PTORules.buildAuditLine("Created", actorName, auditDetails);
 
     var fields = {
@@ -117,11 +149,22 @@ window.PTORequests = (function () {
       // Approval / manager chain snapshot
       Status: status,
       ManagerId: manager ? manager.id || "" : "",
-      ManagerEmail: manager ? pickEmail(manager) : "",
-      ManagerName: manager ? manager.displayName || "" : "",
+      ManagerEmail: managerEmail,
+      ManagerName: managerName,
       SkipManagerManagerId: managersManager ? managersManager.id || "" : "",
       SkipManagerManagerEmail: managersManager ? pickEmail(managersManager) : "",
       SkipManagerManagerName: managersManager ? managersManager.displayName || "" : "",
+
+      // Alternate approver (docs/ALTERNATE_APPROVER_DESIGN.md) — ManagerEmail/Name
+      // above are UNCHANGED by this feature and always stay the real manager.
+      // ApproverEmail/Name default to a mirror of Manager*; OriginalManager*
+      // always preserves the real-manager snapshot, override or not.
+      ApproverEmail: hasOverride ? pickEmail(overrideApprover) : managerEmail,
+      ApproverName: hasOverride ? (overrideApprover.displayName || "") : managerName,
+      ApproverOverride: hasOverride,
+      ApproverOverrideReason: hasOverride ? overrideReason : "",
+      OriginalManagerEmail: managerEmail,
+      OriginalManagerName: managerName,
 
       // Notice / urgency
       SubmittedAt: submittedAtIso,
@@ -178,6 +221,20 @@ window.PTORequests = (function () {
       .replace(/[\s\-_]/g, "")
       .toLowerCase();
   }
+
+  // Alternate-approver columns (docs/ALTERNATE_APPROVER_DESIGN.md,
+  // provisioning §3.2). New/optional — same tolerant-matching rationale as the
+  // submit-metadata fields: if these are ever hand-created on the live list
+  // before `provision-sharepoint-list.ps1` runs, their internal names may not
+  // match the canonical ones this module writes.
+  var APPROVER_FIELD_CANDIDATES = {
+    ApproverEmail: ["ApproverEmail", "Approver Email"],
+    ApproverName: ["ApproverName", "Approver Name"],
+    ApproverOverride: ["ApproverOverride", "Approver Override"],
+    ApproverOverrideReason: ["ApproverOverrideReason", "Approver Override Reason"],
+    OriginalManagerEmail: ["OriginalManagerEmail", "Original Manager Email"],
+    OriginalManagerName: ["OriginalManagerName", "Original Manager Name"],
+  };
 
   // Optional HR-cancellation metadata columns (schema §3.7). Provisioned names
   // are canonical, but tolerate manually-created variants the same way.
@@ -244,6 +301,15 @@ window.PTORequests = (function () {
     return _metaFieldMap;
   }
 
+  var _approverFieldMap = null; // canonical → real internal name (or null if absent)
+
+  /** Same pattern as resolveMetadataFieldMap, for the six approver columns. */
+  async function resolveApproverFieldMap() {
+    if (_approverFieldMap) return _approverFieldMap;
+    _approverFieldMap = await resolveFieldMap(APPROVER_FIELD_CANDIDATES, "approver");
+    return _approverFieldMap;
+  }
+
   /**
    * READ-direction helper for the submit-metadata fields: given a raw
    * `item.fields` object, return {SubmittedById, SubmittedByEmail,
@@ -263,38 +329,72 @@ window.PTORequests = (function () {
   }
 
   /**
-   * Remap the six submit-metadata fields onto the live list's internal names.
-   * Non-metadata fields pass through untouched. If column resolution itself
-   * fails (permissions/transient), fall back to the canonical names so a
-   * submit is never blocked by the mapping layer.
+   * READ-direction helper for the alternate-approver fields: given a raw
+   * `item.fields` object, return {ApproverEmail, ApproverName, ApproverOverride,
+   * ApproverOverrideReason, OriginalManagerEmail, OriginalManagerName} using the
+   * resolved internal names (falling back to canonical names when unresolved,
+   * which also correctly yields `undefined` for legacy requests / a
+   * not-yet-provisioned list — callers must treat a blank ApproverEmail as
+   * "use ManagerEmail", never as an error). Callers should
+   * `await resolveApproverFieldMap()` once before bulk use.
+   */
+  function readApproverMetadata(fields) {
+    fields = fields || {};
+    var out = {};
+    Object.keys(APPROVER_FIELD_CANDIDATES).forEach(function (canonical) {
+      var internal = (_approverFieldMap && _approverFieldMap[canonical]) || canonical;
+      out[canonical] = fields[internal];
+    });
+    return out;
+  }
+
+  // Groups of fields this module may need to remap onto the live list's real
+  // internal names before a create/PATCH (manually-created columns can have
+  // mangled internal names — see METADATA_FIELD_CANDIDATES comment above).
+  var REMAPPABLE_GROUPS = [
+    { candidates: METADATA_FIELD_CANDIDATES, resolve: resolveMetadataFieldMap },
+    { candidates: APPROVER_FIELD_CANDIDATES, resolve: resolveApproverFieldMap },
+  ];
+
+  /**
+   * Remap the submit-metadata AND alternate-approver fields onto the live
+   * list's internal names. Core fields pass through untouched. If a group's
+   * column resolution fails (permissions/transient), that group's fields fall
+   * back to their canonical names rather than blocking the create — the two
+   * groups resolve independently so one failing never affects the other.
    */
   async function applyMetadataFieldMap(fields) {
-    var map;
-    try {
-      map = await resolveMetadataFieldMap();
-    } catch (e) {
-      console.warn(
-        "[PTORequests] could not resolve list columns; sending canonical field names as-is.",
-        e
-      );
-      return fields;
-    }
+    var maps = await Promise.all(
+      REMAPPABLE_GROUPS.map(function (group) {
+        return group.resolve().catch(function (e) {
+          console.warn(
+            "[PTORequests] could not resolve some list columns; sending those canonical field names as-is.",
+            e
+          );
+          return null; // resolution failed — signal passthrough for this group
+        });
+      })
+    );
 
     var out = {};
     Object.keys(fields).forEach(function (key) {
-      if (!(key in METADATA_FIELD_CANDIDATES)) {
-        out[key] = fields[key]; // core field — never remapped
-        return;
+      for (var i = 0; i < REMAPPABLE_GROUPS.length; i++) {
+        if (key in REMAPPABLE_GROUPS[i].candidates) {
+          var map = maps[i];
+          if (!map) { out[key] = fields[key]; return; } // resolution failed — passthrough
+          var internal = map[key];
+          if (internal) {
+            out[internal] = fields[key];
+          } else {
+            console.warn(
+              "[PTORequests] column for '" + key + "' not found on the PTO Requests list — " +
+              "field dropped from the create payload. Provision/rename the column, then retry."
+            );
+          }
+          return;
+        }
       }
-      var internal = map[key];
-      if (internal) {
-        out[internal] = fields[key];
-      } else {
-        console.warn(
-          "[PTORequests] column for '" + key + "' not found on the PTO Requests list — " +
-          "field dropped from the create payload. Provision/rename the column, then retry."
-        );
-      }
+      out[key] = fields[key]; // core field — never remapped
     });
     return out;
   }
@@ -622,6 +722,10 @@ window.PTORequests = (function () {
     // columns (run `await PTORequests.resolveMetadataFieldMap()` in dev tools).
     resolveMetadataFieldMap: resolveMetadataFieldMap,
     readSubmitMetadata: readSubmitMetadata,
+    // Alternate approver (docs/ALTERNATE_APPROVER_DESIGN.md) — same pattern as
+    // the submit-metadata resolver above.
+    resolveApproverFieldMap: resolveApproverFieldMap,
+    readApproverMetadata: readApproverMetadata,
     // HR Center (hr.html — HR/Admin-gated by PTOAuthz before use)
     listAllRequests: listAllRequests,
     cancelRequest: cancelRequest,

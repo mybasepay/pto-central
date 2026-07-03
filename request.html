@@ -71,6 +71,17 @@
     .obo-badge.show { display: inline-flex; }
     .obo-badge svg { width: 16px; height: 16px; flex: 0 0 auto; }
     .obo-badge .who { word-break: break-word; }
+
+    /* Alternate approver (HR/Admin routing override) — teal accent to read as
+       distinct from both the default form and the indigo on-behalf block. */
+    .section.approver-ovr { border-color: rgba(45,212,191,0.30); background: #081514; }
+    .approver-badge { display: none; align-items: center; gap: 8px; margin: 12px 0 0; padding: 7px 13px;
+      border-radius: 999px; width: fit-content; max-width: 100%; font-size: 13px; font-weight: 600;
+      color: #99f6e4; background: linear-gradient(180deg, rgba(45,212,191,0.20), rgba(45,212,191,0.06));
+      border: 1px solid rgba(45,212,191,0.42); }
+    .approver-badge.show { display: inline-flex; }
+    .approver-badge svg { width: 16px; height: 16px; flex: 0 0 auto; }
+    .approver-badge .who { word-break: break-word; }
   </style>
 </head>
 <body>
@@ -123,6 +134,42 @@
           </div>
           <div id="oboStatus" class="note info" role="status"></div>
           <div id="oboError" class="note danger" role="alert"></div>
+        </div>
+      </div>
+
+      <!-- Alternate approver (HR/Admin only) — routes THIS request's approval
+           to someone other than the employee's manager. ManagerEmail/Name are
+           never changed by this; see docs/ALTERNATE_APPROVER_DESIGN.md. Hidden
+           unless the signed-in user has an HR/Admin role. -->
+      <div id="approver-section" class="section approver-ovr" aria-label="Alternate approver" style="display:none;">
+        <h3>Alternate approver</h3>
+        <div class="toggle-row">
+          <input type="checkbox" id="approverToggle" />
+          <label for="approverToggle" style="margin:0;">Route approval to someone else (manager unavailable)</label>
+        </div>
+        <div id="approverFields" class="obo-fields">
+          <div class="obo-lookup">
+            <div class="grow">
+              <label class="fld" for="approverEmail">Alternate approver's email</label>
+              <input type="email" id="approverEmail" placeholder="approver@mybasepay.com" autocomplete="off" />
+            </div>
+            <div>
+              <button id="approverLookup" class="btn ghost" type="button">Lookup approver</button>
+            </div>
+          </div>
+          <div style="margin-top:14px;">
+            <label class="fld" for="approverReason">Reason for routing approval to this person (required)</label>
+            <textarea id="approverReason" placeholder="e.g. Manager is on leave through July; Michelle is covering approvals."></textarea>
+          </div>
+          <div id="approverBadge" class="approver-badge" role="status" aria-live="polite">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+            </svg>
+            <span class="who" id="approverBadgeText">Approval routed to …</span>
+          </div>
+          <div id="approverStatus" class="note info" role="status"></div>
+          <div id="approverError" class="note danger" role="alert"></div>
         </div>
       </div>
 

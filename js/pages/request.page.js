@@ -33,6 +33,9 @@
     self: { requester: null, manager: null, managersManager: null, managersManagerError: null },
     // The active target the request is FOR (self or a looked-up employee).
     target: { requester: null, manager: null, managersManager: null },
+    // Alternate approver (HR/Admin only) — routes THIS request's approval to
+    // someone other than the target's manager. Independent of on-behalf.
+    approverOverride: { active: false, lookupOk: false, approver: null },
     submitted: false,
     authorized: false,
   };
@@ -50,6 +53,12 @@
     oboEmail: $("oboEmail"), oboLookup: $("oboLookup"), oboReason: $("oboReason"),
     oboStatus: $("oboStatus"), oboError: $("oboError"),
     oboBadge: $("oboBadge"), oboBadgeText: $("oboBadgeText"),
+    // Alternate approver (HR/Admin) controls.
+    approverSection: $("approver-section"), approverToggle: $("approverToggle"),
+    approverFields: $("approverFields"), approverEmail: $("approverEmail"),
+    approverLookup: $("approverLookup"), approverReason: $("approverReason"),
+    approverStatus: $("approverStatus"), approverError: $("approverError"),
+    approverBadge: $("approverBadge"), approverBadgeText: $("approverBadgeText"),
     // Dev-only approval link (Phase 3B) — display/copy only, no send.
     devApproval: $("dev-approval"), approvalLink: $("approval-link"),
     approvalLinkRel: $("approval-link-rel"), copyApproval: $("copy-approval"),
@@ -121,6 +130,9 @@
     // HR/Admin gate for the on-behalf option (fails closed on any lookup error).
     state.isHrAdmin = await PTOAuthz.hasRole(az.email, ["HR", "Admin"]);
     if (els.oboSection) els.oboSection.style.display = state.isHrAdmin ? "block" : "none";
+    // HR/Admin gate for the alternate-approver option — independent of
+    // on-behalf; available for both self and delegated requests.
+    if (els.approverSection) els.approverSection.style.display = state.isHrAdmin ? "block" : "none";
 
     // Default to the self target.
     setSelfTarget();
@@ -219,6 +231,72 @@
     els.oboError.style.display = text ? "block" : "none";
   }
   function clearOboMessages() { setOboStatus(""); showOboError(""); }
+
+  // ---- alternate-approver messages ----
+  function setApproverStatus(text) {
+    if (!els.approverStatus) return;
+    els.approverStatus.textContent = text || "";
+    els.approverStatus.style.display = text ? "block" : "none";
+  }
+  function showApproverError(text) {
+    if (!els.approverError) return;
+    els.approverError.textContent = text || "";
+    els.approverError.style.display = text ? "block" : "none";
+  }
+  function clearApproverMessages() { setApproverStatus(""); showApproverError(""); }
+
+  function updateApproverBadge() {
+    if (!els.approverBadge) return;
+    var a = state.approverOverride.active && state.approverOverride.lookupOk
+      ? state.approverOverride.approver
+      : null;
+    if (a) {
+      var who = a.displayName || emailOf(a) || "approver";
+      var email = emailOf(a);
+      els.approverBadgeText.textContent =
+        "Approval routed to " + who + (email ? " (" + email + ")" : "");
+      els.approverBadge.classList.add("show");
+    } else {
+      els.approverBadge.classList.remove("show");
+    }
+  }
+
+  // ---- alternate-approver lookup (HR/Admin) ----
+  async function onApproverLookup() {
+    clearApproverMessages();
+    var email = (els.approverEmail.value || "").trim();
+    if (!email) { showApproverError('Enter the approver’s email, then click "Lookup approver".'); return; }
+
+    var targetEmail = emailOf(state.target.requester || {});
+    if (targetEmail && email.toLowerCase() === targetEmail.toLowerCase()) {
+      showApproverError("The alternate approver must be different from the employee taking the PTO.");
+      return;
+    }
+
+    els.approverLookup.disabled = true;
+    state.approverOverride.lookupOk = false;
+    setApproverStatus("Looking up " + email + "…");
+    try {
+      var approver = await PTODirectory.getUserByEmail(email);
+      if (!approver) {
+        updateApproverBadge();
+        setApproverStatus("");
+        showApproverError('No employee found for "' + email + '". Check the email and try again.');
+        return;
+      }
+      state.approverOverride.lookupOk = true;
+      state.approverOverride.approver = approver;
+      updateApproverBadge();
+      setApproverStatus("✓ Loaded " + (approver.displayName || email) + ".");
+    } catch (e) {
+      state.approverOverride.lookupOk = false;
+      updateApproverBadge();
+      setApproverStatus("");
+      showApproverError("Lookup failed: " + friendly(e));
+    } finally {
+      els.approverLookup.disabled = false;
+    }
+  }
 
   // ---- employee lookup (on-behalf) ----
   async function onLookup() {
@@ -324,6 +402,17 @@
           "Submit Sick (auto-approved) or contact HR (pto-approvals@mybasepay.com)."
         : "No manager found in Entra ID, so this request can't be routed for approval. " +
           "Contact HR (pto-approvals@mybasepay.com), or submit Sick leave which is auto-approved.";
+    }
+
+    // Alternate approver (HR/Admin only): a valid approver + reason required
+    // whenever the toggle is on.
+    if (state.approverOverride.active) {
+      if (!state.approverOverride.lookupOk || !state.approverOverride.approver) {
+        return 'Look up the alternate approver first — enter their email and click "Lookup approver".';
+      }
+      if (!els.approverReason.value.trim()) {
+        return "Enter a reason for routing approval to an alternate approver.";
+      }
     }
 
     if (!els.confirm.checked) return 'Please check "I confirm this PTO request is accurate".';
@@ -503,18 +592,23 @@
         manager: state.target.manager,
         managersManager: state.target.managersManager,
         onBehalf: state.onBehalf,
+        approverOverride: state.approverOverride.active
+          ? { approver: state.approverOverride.approver, reason: els.approverReason.value }
+          : null,
       };
       var fields = PTORequests.buildCreateRequestFields(input, context);
       var created = await PTORequests.createRequest(fields);
 
       state.submitted = true; // prevent duplicate submits
       renderResult(fields, created);
-      setSubmitStatus(
-        state.onBehalf
-          ? "✓ Submitted on behalf of " + (state.target.requester.displayName || emailOf(state.target.requester)) +
-            ". Submit is disabled to avoid duplicates."
-          : "✓ Submitted. Submit is disabled to avoid duplicates."
-      );
+      var statusMsg = state.onBehalf
+        ? "✓ Submitted on behalf of " + (state.target.requester.displayName || emailOf(state.target.requester)) + "."
+        : "✓ Submitted.";
+      if (context.approverOverride) {
+        statusMsg += " Approval routed to " +
+          (context.approverOverride.approver.displayName || emailOf(context.approverOverride.approver)) + ".";
+      }
+      setSubmitStatus(statusMsg + " Submit is disabled to avoid duplicates.");
       els.submit.textContent = "Submitted";
     } catch (e) {
       setSubmitStatus("");
@@ -552,6 +646,29 @@
   if (els.oboEmail) {
     els.oboEmail.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); onLookup(); }
+    });
+  }
+
+  // Alternate approver (HR/Admin): toggle reveals the lookup; switching off clears it.
+  if (els.approverToggle) {
+    els.approverToggle.addEventListener("change", function () {
+      var on = els.approverToggle.checked;
+      state.approverOverride.active = on;
+      if (els.approverFields) els.approverFields.classList.toggle("show", on);
+      clearApproverMessages();
+      if (!on) {
+        state.approverOverride.lookupOk = false;
+        state.approverOverride.approver = null;
+        els.approverEmail.value = "";
+        els.approverReason.value = "";
+      }
+      updateApproverBadge();
+    });
+  }
+  if (els.approverLookup) els.approverLookup.addEventListener("click", onApproverLookup);
+  if (els.approverEmail) {
+    els.approverEmail.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); onApproverLookup(); }
     });
   }
 

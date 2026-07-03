@@ -27,9 +27,13 @@
     approve: $("approve"), reject: $("reject"), decisionStatus: $("decision-status"),
     blockNote: $("block-note"), statusNote: $("status-note"),
     error: $("error"), auditlog: $("auditlog"), raw: $("raw"),
+    approverNote: $("approver-note"),
   };
 
-  var state = { itemId: null, me: null, item: null, fields: null, decided: false, authorized: false, isHrAdmin: false, canAct: false };
+  var state = {
+    itemId: null, me: null, item: null, fields: null, approverMeta: null,
+    decided: false, authorized: false, isHrAdmin: false, canAct: false,
+  };
 
   var yearEl = $("year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
@@ -110,7 +114,26 @@
     return String(m.mail || m.userPrincipalName || "").trim().toLowerCase();
   }
 
-  function renderDetails(f, item) {
+  /** Approver-aware note under the details dl: shows nothing for the default
+   *  (no-override) case; a routing note when ApproverOverride is set; nothing
+   *  for legacy requests with no approver columns at all. */
+  function renderApproverNote(f, approverMeta) {
+    if (!els.approverNote) return;
+    var overrideTruthy = approverMeta.ApproverOverride === true ||
+      approverMeta.ApproverOverride === "Yes" || approverMeta.ApproverOverride === "yes" ||
+      approverMeta.ApproverOverride === 1;
+    if (!overrideTruthy) { showNote(els.approverNote, null); return; }
+
+    var approverName = approverMeta.ApproverName || "(unknown)";
+    var managerName = approverMeta.OriginalManagerName || f.ManagerName || "(no manager on file)";
+    showNote(els.approverNote,
+      "Approval routed to " + approverName + " instead of manager " + managerName + "." +
+      (approverMeta.ApproverOverrideReason ? " Reason: " + approverMeta.ApproverOverrideReason : "")
+    );
+  }
+
+  function renderDetails(f, item, approverMeta) {
+    approverMeta = approverMeta || {};
     PTOUI.setText("d-key", f.Title);
     PTOUI.setText("d-requester", f.RequesterName);
     PTOUI.setText("d-requester-email", f.RequesterEmail);
@@ -129,6 +152,16 @@
     PTOUI.setText("d-submitted", f.SubmittedAt ? new Date(f.SubmittedAt).toLocaleString() : "—");
     var mgr = (f.ManagerName || "") + (f.ManagerEmail ? " <" + f.ManagerEmail + ">" : "");
     PTOUI.setText("d-manager", mgr.trim() || "—");
+
+    // Approver: falls back to the manager when ApproverEmail is blank (legacy
+    // requests / column not yet provisioned) — never shown as a separate
+    // person unless it's actually different (docs/ALTERNATE_APPROVER_DESIGN.md).
+    var approverEmail = approverMeta.ApproverEmail || f.ManagerEmail || "";
+    var approverName = approverMeta.ApproverName || f.ManagerName || "";
+    var apr = (approverName || "") + (approverEmail ? " <" + approverEmail + ">" : "");
+    PTOUI.setText("d-approver", apr.trim() || "—");
+    renderApproverNote(f, approverMeta);
+
     PTOUI.setText("d-short", f.IsShortNotice ? "Yes" : "No");
     PTOUI.setText("d-notice", (f.NoticeDays === undefined || f.NoticeDays === null) ? "—" : f.NoticeDays);
 
@@ -150,18 +183,24 @@
     els.decisionUi.style.display = "none";
 
     var f = state.fields || {};
-    var managerEmail = String(f.ManagerEmail || "").trim().toLowerCase();
+    var approverMeta = state.approverMeta || {};
 
-    var mine = myEmail();
-    var isManager = !!mine && managerEmail === mine;
-    // Can act if assigned manager OR HR/Admin (HR/Admin may act on any request,
-    // even one with no assigned manager email).
-    state.canAct = isManager || state.isHrAdmin;
+    // Alternate-approver-aware authorization (docs/ALTERNATE_APPROVER_DESIGN.md):
+    // ApproverEmail (if present) > ManagerEmail (legacy/no override) > HR/Admin.
+    // Pure predicate lives in rules.js so it's independently unit-testable.
+    state.canAct = PTORules.canDecide({
+      managerEmail: f.ManagerEmail,
+      approverEmail: approverMeta.ApproverEmail,
+      myEmail: myEmail(),
+      isHrAdmin: state.isHrAdmin,
+    });
 
     if (!state.canAct) {
+      var routedTo = approverMeta.ApproverEmail || f.ManagerEmail;
       showNote(els.blockNote,
-        "You can't act on this request. You must be the assigned manager (" +
-        (managerEmail || "none set") + ") or have HR/Admin rights.");
+        "You can't act on this request. You must be the assigned " +
+        (approverMeta.ApproverEmail ? "approver" : "manager") + " (" +
+        (routedTo || "none set") + ") or have HR/Admin rights.");
       return;
     }
     if (f.Status !== "Pending") {
@@ -190,8 +229,15 @@
       var item = await PTORequests.getRequestById(state.itemId);
       state.item = item;
       state.fields = (item && item.fields) || {};
+
+      // Resolve the approver columns' live internal names once (tolerates
+      // manually-created columns / a not-yet-provisioned list — see
+      // docs/ALTERNATE_APPROVER_DESIGN.md); never blocks loading the request.
+      try { await PTORequests.resolveApproverFieldMap(); } catch (e) { /* tolerated */ }
+      state.approverMeta = PTORequests.readApproverMetadata(state.fields);
+
       els.raw.textContent = JSON.stringify(item, null, 2);
-      renderDetails(state.fields, item);
+      renderDetails(state.fields, item, state.approverMeta);
       evaluateGate();
       els.decisionStatus.textContent = "";
     } catch (e) {
