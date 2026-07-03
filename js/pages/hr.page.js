@@ -143,6 +143,15 @@
     return PTORequests.CANCELLABLE_STATUSES.indexOf(String(r.status || "").trim()) !== -1;
   }
 
+  // Sick PTO is auto-approved at creation (js/rules.js getInitialStatus) — no
+  // manager ever needs to act on it, so the approval page is never relevant.
+  // "Auto-Approved" (exact, non-escalation) is the status getInitialStatus
+  // sets ONLY for Sick; the ptoType check makes the intent explicit rather
+  // than relying on that being the only path to this status today.
+  function isSickAutoApproved(r) {
+    return String(r.ptoType || "").trim().toLowerCase() === "sick" && r.status === "Auto-Approved";
+  }
+
   // ---- HR Center action lock: PTO start date has passed ---------------------
   // UI/business-rule guard ONLY — no data is read/written differently and no
   // other page, flow, or the cancellation/approval logic itself is affected.
@@ -165,9 +174,23 @@
     return td;
   }
 
+  function collapseDetails() { state.expandedId = null; renderTable(); }
+
   function detailsRow(r) {
     var f = r.fields || {};
     var meta = metaOf(r);
+
+    // A visible, keyboard-reachable way to collapse the panel from inside it
+    // (in addition to the Details toggle in the kebab menu, unchanged).
+    var head = PTOUI.el("div", { class: "details-head" }, [
+      PTOUI.el("span", { class: "details-title" }, "Request details"),
+      PTOUI.el("button", {
+        class: "btn small", type: "button",
+        "aria-label": "Hide details for " + (r.requestKey || ("#" + r.id)),
+        onClick: collapseDetails,
+      }, "Hide details"),
+    ]);
+
     var dl = PTOUI.el("dl", { class: "details-grid" });
 
     function item(label, value, spanAll) {
@@ -200,6 +223,7 @@
     dl.appendChild(auditWrap);
 
     var td = PTOUI.el("td", { colspan: "11" });
+    td.appendChild(head);
     td.appendChild(dl);
     return PTOUI.el("tr", { class: "details-row" }, td);
   }
@@ -429,12 +453,19 @@
     state.menuAnchor = anchor;
 
     var past = isPastStart(r); // HR action lock: StartDate <= today (date-only)
+    var sickAutoApproved = isSickAutoApproved(r);
 
-    // Approval page: always shown, but disabled/grayed once PTO has started —
-    // approving/rejecting a request whose dates already began is not a normal
-    // action from here. Details stays available regardless (view-only).
+    // Approval page: hidden entirely for Sick Auto-Approved — there was never
+    // a manager decision to make, so the page has nothing relevant to show.
+    // Otherwise shown, but disabled/grayed once PTO has started — approving/
+    // rejecting a request whose dates already began is not a normal action
+    // from here. Details stays available regardless (view-only).
     var approvalEl = menuItem("approval");
-    if (past) {
+    approvalEl.style.display = sickAutoApproved ? "none" : "";
+    if (sickAutoApproved) {
+      approvalEl.removeAttribute("href");
+      setMenuItemDisabled(approvalEl, false); // hidden, not disabled — nothing to show as locked
+    } else if (past) {
       approvalEl.removeAttribute("href");
       setMenuItemDisabled(approvalEl, true);
     } else {

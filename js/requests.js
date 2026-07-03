@@ -74,10 +74,17 @@ window.PTORequests = (function () {
     var requestKey = input.requestKey || PTORules.generateRequestKey();
 
     var actorName = submitter.displayName || requester.displayName || "Unknown";
+    // Sick is the only PTO type getInitialStatus() auto-approves — call that
+    // out explicitly in the audit trail so "why was this already Approved?"
+    // never requires guessing from the status word alone.
+    var isSickAutoApproved = status === "Auto-Approved" && String(input.ptoType || "").trim().toLowerCase() === "sick";
+    var statusNote = isSickAutoApproved
+      ? "Auto-Approved — PTO Type = Sick, no manager approval required"
+      : status;
     var auditDetails =
       "PTO Central app — " +
       (onBehalf ? "on behalf of " + (requester.displayName || pickEmail(requester)) : "self-service") +
-      " (" + status + ")";
+      " (" + statusNote + ")";
     var auditLine = PTORules.buildAuditLine("Created", actorName, auditDetails);
 
     var fields = {
