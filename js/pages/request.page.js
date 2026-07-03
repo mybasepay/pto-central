@@ -36,6 +36,9 @@
     // Alternate approver (HR/Admin only) — routes THIS request's approval to
     // someone other than the target's manager. Independent of on-behalf.
     approverOverride: { active: false, lookupOk: false, approver: null },
+    // Optional backup contact, selected via employee lookup (or free-text
+    // name-only fallback). Shape: { name, email } or null.
+    backup: null,
     submitted: false,
     authorized: false,
   };
@@ -43,11 +46,16 @@
   // ---- DOM ready (script is at end of body, so elements exist) ----
   var els = {
     signin: $("signin"), signout: $("signout"), account: $("account"),
+    userChip: $("user-chip"), userChipName: $("user-chip-name"),
     ptoType: $("ptoType"), startDate: $("startDate"), endDate: $("endDate"),
-    partialDay: $("partialDay"), hours: $("hours"), reason: $("reason"),
-    backupName: $("backupName"), backupEmail: $("backupEmail"), confirm: $("confirm"),
+    reason: $("reason"), confirm: $("confirm"),
+    // Backup contact = employee lookup (fills BackupContactName/Email on submit).
+    backupSearch: $("backupSearch"), backupLookup: $("backupLookup"),
+    backupResults: $("backupResults"), backupSelected: $("backupSelected"),
+    backupSelectedText: $("backupSelectedText"), backupClear: $("backupClear"),
+    backupError: $("backupError"),
     submit: $("submit"), submitStatus: $("submit-status"), error: $("error"),
-    detailsTitle: $("details-title"),
+    detailsTitle: $("details-title-text"),
     // On-behalf (HR/Admin) controls.
     oboSection: $("obo-section"), oboToggle: $("oboToggle"), oboFields: $("oboFields"),
     oboEmail: $("oboEmail"), oboLookup: $("oboLookup"), oboReason: $("oboReason"),
@@ -92,11 +100,21 @@
   function renderAuth() {
     var acct = PTOAuth.getAccount();
     var signedIn = !!acct;
+    // Signed in: show the user chip, hide the Sign in button entirely.
+    // Signed out: show Sign in + the live status text (auto-login fallback).
     els.signin.disabled = signedIn;
+    els.signin.style.display = signedIn ? "none" : "";
     els.signout.disabled = !signedIn;
+    if (els.userChip) {
+      els.userChip.classList.toggle("show", signedIn);
+      if (signedIn && els.userChipName) {
+        els.userChipName.textContent = acct.name || acct.username || acct.homeAccountId;
+      }
+    }
+    els.account.classList.toggle("show-text", !signedIn);
     els.account.textContent = signedIn
       ? "Signed in as " + (acct.username || acct.name || acct.homeAccountId)
-      : "Not signed in.";
+      : (els.account.textContent || "Not signed in.");
     refreshSubmitEnabled();
   }
 
@@ -298,6 +316,103 @@
     }
   }
 
+  // ---- backup contact lookup (optional) --------------------------------------
+  // Employee search by name or email (PTODirectory.searchUsers). Selecting a
+  // match fills the SAME SharePoint fields as the old free-text inputs
+  // (BackupContactName/BackupContactEmail via gatherInput). Never blocks a
+  // submit: backup contact stays optional, and a failed lookup only shows a
+  // friendly message. A "name only" fallback keeps non-employee backups
+  // (e.g. an external vendor) possible.
+  function showBackupError(text) {
+    if (!els.backupError) return;
+    els.backupError.textContent = text || "";
+    els.backupError.style.display = text ? "block" : "none";
+  }
+
+  function clearBackupResults() {
+    if (!els.backupResults) return;
+    els.backupResults.innerHTML = "";
+    els.backupResults.classList.remove("show");
+  }
+
+  function renderBackupSelected() {
+    if (!els.backupSelected) return;
+    if (state.backup) {
+      els.backupSelectedText.textContent = "Selected: " + state.backup.name +
+        (state.backup.email ? " — " + state.backup.email : "");
+      els.backupSelected.classList.add("show");
+    } else {
+      els.backupSelected.classList.remove("show");
+    }
+  }
+
+  function selectBackup(name, email) {
+    state.backup = { name: name || "", email: email || "" };
+    clearBackupResults();
+    showBackupError("");
+    if (els.backupSearch) els.backupSearch.value = "";
+    renderBackupSelected();
+  }
+
+  function clearBackup() {
+    state.backup = null;
+    renderBackupSelected();
+    showBackupError("");
+  }
+
+  function backupResultRow(label, sub, onPick) {
+    var row = document.createElement("button");
+    row.type = "button";
+    row.className = "backup-result";
+    row.setAttribute("role", "option");
+    var main = document.createElement("span");
+    main.textContent = label;
+    row.appendChild(main);
+    if (sub) {
+      var s = document.createElement("span");
+      s.className = "sub";
+      s.textContent = sub;
+      row.appendChild(s);
+    }
+    row.addEventListener("click", onPick);
+    return row;
+  }
+
+  async function onBackupSearch() {
+    showBackupError("");
+    clearBackupResults();
+    var q = (els.backupSearch.value || "").trim();
+    if (!q) { showBackupError("Type a name or email to search for a backup contact."); return; }
+
+    els.backupLookup.disabled = true;
+    try {
+      var matches = await PTODirectory.searchUsers(q);
+      els.backupResults.innerHTML = "";
+      (matches || []).forEach(function (u) {
+        var email = emailOf(u);
+        els.backupResults.appendChild(backupResultRow(
+          u.displayName || email, email,
+          function () { selectBackup(u.displayName || email, email); }
+        ));
+      });
+      // Free-text fallback (name only, no email) — keeps non-employee backup
+      // contacts possible and keeps a failed/empty search from being a dead end.
+      els.backupResults.appendChild(backupResultRow(
+        (matches && matches.length ? "Or use “" : "No employee match — use “") + q + "” as the name only",
+        null,
+        function () { selectBackup(q, ""); }
+      ));
+      els.backupResults.classList.add("show");
+    } catch (e) {
+      showBackupError(
+        "Backup contact search is unavailable right now (" + friendly(e) + "). " +
+        "You can submit without a backup contact, or try again."
+      );
+    } finally {
+      els.backupLookup.disabled = false;
+    }
+  }
+
   // ---- employee lookup (on-behalf) ----
   async function onLookup() {
     clearOboMessages();
@@ -389,11 +504,6 @@
     if (!els.endDate.value) return "Choose an end date.";
     if (els.endDate.value < els.startDate.value) return "End date must be on or after the start date.";
 
-    if (els.partialDay.checked) {
-      var h = parseFloat(els.hours.value);
-      if (!(h > 0)) return "Enter the number of hours for a partial-day request.";
-    }
-
     // Manager required unless Sick (Sick is auto-approved). Applies to the
     // resolved target — the employee for on-behalf, the signed-in user otherwise.
     if (type !== "Sick" && !state.target.manager) {
@@ -432,10 +542,15 @@
       startDate: els.startDate.value,
       endDate: els.endDate.value,
       reason: els.reason.value,
-      backupContactName: els.backupName.value,
-      backupContactEmail: els.backupEmail.value,
-      isPartialDay: els.partialDay.checked,
-      hours: els.hours.value,
+      // Backup contact comes from the employee lookup (state.backup); the
+      // SharePoint fields BackupContactName/BackupContactEmail are unchanged.
+      backupContactName: state.backup ? state.backup.name : "",
+      backupContactEmail: state.backup ? state.backup.email : "",
+      // Partial day was removed from the UI (2026-07-03). Safe defaults keep
+      // buildCreateRequestFields' contract intact: IsPartialDay = false is
+      // still written; Hours is omitted (only written for partial days).
+      isPartialDay: false,
+      hours: "",
       onBehalfReason: state.onBehalf ? els.oboReason.value : "",
     };
   }
@@ -618,14 +733,19 @@
   }
 
   // ---- wiring ----
-  els.partialDay.addEventListener("change", function () {
-    els.hours.disabled = !els.partialDay.checked;
-    if (!els.partialDay.checked) els.hours.value = "";
-  });
   els.ptoType.addEventListener("change", recomputeRuleUI);
   els.startDate.addEventListener("change", recomputeRuleUI);
   els.endDate.addEventListener("change", recomputeRuleUI);
   els.confirm.addEventListener("change", refreshSubmitEnabled);
+
+  // Backup contact lookup (optional).
+  if (els.backupLookup) els.backupLookup.addEventListener("click", onBackupSearch);
+  if (els.backupSearch) {
+    els.backupSearch.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); onBackupSearch(); }
+    });
+  }
+  if (els.backupClear) els.backupClear.addEventListener("click", clearBackup);
 
   // On-behalf (HR/Admin): toggle reveals the lookup; switching off restores self.
   if (els.oboToggle) {
@@ -676,7 +796,9 @@
     clearError();
     els.signin.disabled = true;
     try {
+      // Manual, gesture-driven → popup is fine here (and preserves page state).
       await PTOAuth.signIn();
+      clearAutoLoginFlag(); // future signed-out visits may auto-login again
       renderAuth();
       await loadContext();
     } catch (e) {
@@ -695,14 +817,73 @@
   els.submit.addEventListener("click", onSubmit);
   if (els.copyApproval) els.copyApproval.addEventListener("click", onCopyApproval);
 
-  // ---- boot ----
+  // ---- boot -------------------------------------------------------------------
+  // Auto sign-in, same pattern as hr.html (validated live): browsers block
+  // popups at page load, so a same-tab loginRedirect is used instead. On return
+  // from Microsoft, PTOAuth.initialize()'s handleRedirectPromise() captures the
+  // account, so this boot simply finds getAccount() populated and takes the
+  // normal signed-in path.
+  //
+  // LOOP GUARD: the redirect is attempted at most ONCE per tab session, via a
+  // sessionStorage flag set BEFORE navigating away. Returning cancelled/failed
+  // (no account, flag present) → manual Sign in button fallback, never a second
+  // automatic redirect. If sessionStorage can't persist the flag, no
+  // auto-redirect at all (a loop there would be undetectable). The flag clears
+  // on any successful sign-in.
+  //
+  // SECURITY UNCHANGED: no directory/context data loads until PTOAuth confirms
+  // a signed-in account AND PTOAuthz.enforce (inside loadContext) authorizes;
+  // the HR/Admin gates for on-behalf + alternate approver are inside
+  // loadContext and unaffected.
+  var AUTO_LOGIN_FLAG = "request_auto_login_attempted";
+
+  function autoLoginAttempted() {
+    try { return sessionStorage.getItem(AUTO_LOGIN_FLAG) === "1"; } catch (e) { return true; }
+  }
+  function markAutoLoginAttempted() {
+    // True only if the flag VERIFIABLY persisted — the redirect is gated on
+    // that, so broken storage can never produce a redirect loop.
+    try {
+      sessionStorage.setItem(AUTO_LOGIN_FLAG, "1");
+      return sessionStorage.getItem(AUTO_LOGIN_FLAG) === "1";
+    } catch (e) { return false; }
+  }
+  function clearAutoLoginFlag() {
+    try { sessionStorage.removeItem(AUTO_LOGIN_FLAG); } catch (e) {}
+  }
+
   (async function boot() {
     try {
-      await PTOAuth.initialize();
+      await PTOAuth.initialize(); // handles a returning redirect internally
       renderAuth();
+
       if (PTOAuth.getAccount()) {
-        await loadContext(); // restore context for an already-signed-in session
+        // Signed in (cached session or just back from the redirect).
+        clearAutoLoginFlag();
+        await loadContext();
+        return;
       }
+
+      if (!autoLoginAttempted() && markAutoLoginAttempted()) {
+        els.signin.disabled = true;
+        els.account.textContent = "Redirecting to Microsoft sign-in…";
+        els.account.classList.add("show-text");
+        try {
+          await PTOAuth.signInRedirect(); // navigates away; won't resolve on success
+          return;
+        } catch (e) {
+          // The redirect call itself failed (config/init error) — fall through
+          // to the manual fallback. The flag stays set: no automatic retry.
+          console.warn("[request.page] auto sign-in redirect failed:", friendly(e));
+        }
+      }
+
+      // Already attempted this tab session (user cancelled at Microsoft, auth
+      // failed, or the redirect call errored) — or storage can't persist the
+      // guard flag. Show the manual button; never auto-retry.
+      renderAuth();
+      els.account.textContent = "Not signed in — click Sign in to continue.";
+      els.account.classList.add("show-text");
     } catch (e) {
       showError("Initialization failed: " + friendly(e));
     }

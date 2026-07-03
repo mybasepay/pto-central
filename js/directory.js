@@ -146,12 +146,47 @@ window.PTODirectory = (function () {
   }
 
   /**
-   * Search employees for the on-behalf flow (§8.2, §10 rule 15).
-   * Lookup-by-email (getUserByEmail) covers the current on-behalf UI; a broader
-   * type-ahead search can be implemented here later if needed.
+   * Search employees by name or email prefix (backup-contact lookup on
+   * request.html; usable by future type-ahead UIs).
+   * Graph: GET /users?$filter=startswith(displayName,'q') or startswith(mail,'q')
+   *        or startswith(userPrincipalName,'q')&$top=8
+   *   (classic startswith filters — no ConsistencyLevel header needed.)
+   * Uses directoryRead (User.Read.All), same consent as the other user lookups;
+   * a 403 surfaces the same clear, actionable error.
+   * @param {string} query - name or email prefix (min 2 chars).
+   * @returns {Promise<object[]>} up to 8 users (id, displayName, mail,
+   *   userPrincipalName, jobTitle, department); [] when nothing matches.
    */
   async function searchUsers(query) {
-    throw new Error("[directory] searchUsers() not implemented yet — use getUserByEmail for on-behalf.");
+    var raw = String(query === null || query === undefined ? "" : query).trim();
+    if (raw.length < 2) throw new Error("Type at least 2 characters to search.");
+
+    var safe = raw.replace(/'/g, "''"); // OData: escape single quotes by doubling
+    var select = "$select=id,displayName,mail,userPrincipalName,jobTitle,department";
+    var filter =
+      "$filter=" +
+      encodeURIComponent(
+        "startswith(displayName,'" + safe + "') or startswith(mail,'" + safe +
+        "') or startswith(userPrincipalName,'" + safe + "')"
+      );
+    var path = "/users?" + select + "&" + filter + "&$top=8";
+
+    var res;
+    try {
+      res = await PTOGraph.get(path, PTOConfig.scopes.directoryRead);
+    } catch (e) {
+      var msg = (e && e.message) || String(e);
+      if (/\b403\b|Authorization_RequestDenied|Access denied|insufficient privileges/i.test(msg)) {
+        throw new Error(
+          "Employee search was denied. This needs Microsoft Graph delegated " +
+            "User.Read.All with admin consent. Add it to the Entra app registration, " +
+            "grant admin consent, then sign out and sign in again. (Original: " + msg + ")"
+        );
+      }
+      throw e;
+    }
+
+    return (res && res.value) || [];
   }
 
   return {
