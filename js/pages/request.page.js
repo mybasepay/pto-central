@@ -67,10 +67,6 @@
     approverLookup: $("approverLookup"), approverReason: $("approverReason"),
     approverStatus: $("approverStatus"), approverError: $("approverError"),
     approverBadge: $("approverBadge"), approverBadgeText: $("approverBadgeText"),
-    // Dev-only approval link (Phase 3B) — display/copy only, no send.
-    devApproval: $("dev-approval"), approvalLink: $("approval-link"),
-    approvalLinkRel: $("approval-link-rel"), copyApproval: $("copy-approval"),
-    copyApprovalStatus: $("copy-approval-status"), devApprovalError: $("dev-approval-error"),
   };
 
   var yearEl = $("year");
@@ -555,140 +551,32 @@
     };
   }
 
-  function renderResult(fields, created) {
+  /**
+   * Production confirmation after a successful submit: request key, status
+   * badge, and the short-notice flag only when it applies. No item id, no
+   * SharePoint link, no approval link — status tracking happens in
+   * my-requests.html / hr.html. (The Phase-3B internal approval-link test
+   * panel was removed for production on 2026-07-03; manager notification
+   * behavior is unchanged by that removal.)
+   */
+  function renderResult(fields) {
     PTOUI.setText("r-key", fields.Title);
-    PTOUI.setText("r-id", created && created.id);
     var statusDd = $("r-status");
     statusDd.textContent = "";
     statusDd.appendChild(PTOUI.statusBadge(fields.Status));
-    PTOUI.setText("r-short", fields.IsShortNotice ? "Yes — flagged for HR review" : "No");
-    var linkDd = $("r-link");
-    linkDd.textContent = "";
-    if (created && created.webUrl) {
-      linkDd.appendChild(
-        PTOUI.el("a", { href: created.webUrl, target: "_blank", rel: "noopener noreferrer" }, created.webUrl)
-      );
-    } else {
-      linkDd.textContent = "—";
+
+    var isShort = !!fields.IsShortNotice;
+    var shortLabel = $("r-short-label");
+    var shortDd = $("r-short");
+    if (shortLabel) shortLabel.style.display = isShort ? "" : "none";
+    if (shortDd) {
+      shortDd.style.display = isShort ? "" : "none";
+      shortDd.textContent = "Yes — flagged for HR review";
     }
-    // Reveal the result panel. PTOUI.show now sets an explicit display:block, so
-    // it correctly overrides the stylesheet's `.result { display: none }` (this
-    // was the Phase 3B visibility bug; helper fixed in Phase 3B-Cleanup).
+
+    // Reveal the result panel (PTOUI.show sets an explicit display:block, which
+    // overrides the stylesheet's `#result { display: none }`).
     PTOUI.show("result", true);
-
-    // The dev block is a sibling of #result and is rendered independently so a
-    // hidden result panel can never gate it.
-    renderApprovalLinkDev(created);
-  }
-
-  /**
-   * Pull the SharePoint list item id out of whatever shape the create call
-   * returns. Graph's POST returns the id at the top level (`created.id`), but we
-   * check the other plausible paths too so a wrapper change can't silently break
-   * the link. Returns "" if none is found.
-   */
-  function extractItemId(created) {
-    if (!created) return "";
-    var candidates = [
-      created.id,
-      created.itemId,
-      created.sharePointItemId,
-      created.raw && created.raw.id,
-      created.raw && created.raw.fields && created.raw.fields.id,
-      created.createdItem && created.createdItem.id,
-      created.fields && created.fields.id,
-    ];
-    for (var i = 0; i < candidates.length; i++) {
-      var c = candidates[i];
-      if (c !== undefined && c !== null && String(c).trim() !== "") return String(c).trim();
-    }
-    return "";
-  }
-
-  /** Show a VISIBLE diagnostic inside the dev block (never fail silently). */
-  function showDevApprovalError(reason) {
-    console.error("[request.page] DEV approval link block failed:", reason);
-    if (els.devApprovalError) {
-      els.devApprovalError.textContent = "DEV approval link block failed: " + reason;
-      els.devApprovalError.style.display = "block";
-    }
-  }
-
-  /**
-   * DEV-ONLY (Phase 3B): show the manager approval link for the created item so
-   * it can be tested manually. Generation only — nothing is sent (no Teams,
-   * no email, no signed link).
-   *
-   * Visibility rules (acceptance criteria):
-   *   - The block is ALWAYS revealed after a successful submit.
-   *   - On a missing item id it shows "No created item ID returned. See console."
-   *   - On any other failure it shows "DEV approval link block failed: <reason>".
-   *   - It NEVER fails silently.
-   */
-  function renderApprovalLinkDev(created) {
-    if (!els.devApproval) {
-      // No block in the DOM — surface it where we can (status + console).
-      setSubmitStatus("✓ Submitted. (DEV approval link block missing from request.html.)");
-      console.error("[request.page] #dev-approval not found in the DOM — check request.html.");
-      return;
-    }
-
-    // Reveal with an EXPLICIT display value (inline "block" overrides any sheet rule).
-    els.devApproval.style.display = "block";
-    if (els.copyApprovalStatus) els.copyApprovalStatus.textContent = "";
-    if (els.devApprovalError) { els.devApprovalError.style.display = "none"; els.devApprovalError.textContent = ""; }
-
-    try {
-      var itemId = extractItemId(created);
-      console.log("[request.page] created item:", created, "→ resolved itemId:", itemId || "(none)");
-
-      if (!itemId) {
-        els.approvalLink.removeAttribute("href");
-        els.approvalLink.textContent = "—";
-        els.approvalLinkRel.textContent = "—";
-        showDevApprovalError("No created item ID returned. See console.");
-        return;
-      }
-
-      if (typeof PTOLinks === "undefined" || !PTOLinks.absoluteApprovalUrl) {
-        els.approvalLink.removeAttribute("href");
-        els.approvalLink.textContent = "—";
-        els.approvalLinkRel.textContent = "—";
-        showDevApprovalError("PTOLinks not loaded — check the js/links.js script tag in request.html.");
-        return;
-      }
-
-      var abs = PTOLinks.absoluteApprovalUrl(itemId);
-      var rel = PTOLinks.relativeApprovalUrl(itemId);
-      els.approvalLink.setAttribute("href", abs);
-      els.approvalLink.textContent = abs;
-      els.approvalLinkRel.textContent = rel;
-    } catch (e) {
-      showDevApprovalError((e && e.message) ? e.message : String(e));
-    }
-  }
-
-  async function onCopyApproval() {
-    var url = els.approvalLink ? els.approvalLink.getAttribute("href") : "";
-    if (!url || url === "#") return;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(url);
-      } else {
-        // Fallback for non-secure contexts / older browsers.
-        var ta = document.createElement("textarea");
-        ta.value = url;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      els.copyApprovalStatus.textContent = "✓ Copied.";
-    } catch (e) {
-      els.copyApprovalStatus.textContent = "Copy failed — select the link and copy manually.";
-    }
   }
 
   async function onSubmit() {
@@ -712,10 +600,10 @@
           : null,
       };
       var fields = PTORequests.buildCreateRequestFields(input, context);
-      var created = await PTORequests.createRequest(fields);
+      await PTORequests.createRequest(fields);
 
       state.submitted = true; // prevent duplicate submits
-      renderResult(fields, created);
+      renderResult(fields);
       var statusMsg = state.onBehalf
         ? "✓ Submitted on behalf of " + (state.target.requester.displayName || emailOf(state.target.requester)) + "."
         : "✓ Submitted.";
@@ -815,7 +703,6 @@
   });
 
   els.submit.addEventListener("click", onSubmit);
-  if (els.copyApproval) els.copyApproval.addEventListener("click", onCopyApproval);
 
   // ---- boot -------------------------------------------------------------------
   // Auto sign-in, same pattern as hr.html (validated live): browsers block

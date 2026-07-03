@@ -13,10 +13,12 @@
 
     All element IDs consumed by js/pages/request.page.js are PRESERVED from the
     previous design (auth, on-behalf, alternate approver, details, form,
-    result, dev approval link). Removed from the UI: Partial day + Hours
-    (the page controller now submits safe defaults), and the free-text Backup
-    Contact name/email inputs (replaced by an employee lookup that fills the
-    same BackupContactName/BackupContactEmail fields).
+    result). Removed from the UI: Partial day + Hours (the page controller now
+    submits safe defaults), the free-text Backup Contact name/email inputs
+    (replaced by an employee lookup that fills the same BackupContactName/
+    BackupContactEmail fields), and the Phase-3B internal approval-link test
+    panel (production submits show a clean confirmation only; manager
+    notification behavior is unchanged and stays in controlled testing).
   -->
   <style>
     /* ===== Request page — scoped. Loaded AFTER styles.css; element rules at
@@ -310,14 +312,13 @@
       border-left: 5px solid #dc2626; background: #1a0f12; color: #fecaca;
       white-space: pre-wrap; font-size: 13.5px; }
 
-    /* ---- Result + dev block ---- */
+    /* ---- Result (production confirmation) ---- */
     #result { display: none; }
+    .result-body { margin: 0 0 14px; font-size: 13.5px; line-height: 1.55; color: #c4d1e4; }
+    .result-body a { color: #7dd3fc; }
     .kv { display: grid; grid-template-columns: 170px 1fr; gap: 8px 14px; font-size: 13.5px; }
     .kv dt { color: var(--muted); } .kv dd { margin: 0; word-break: break-all; }
     .kv dd a { color: #7dd3fc; }
-    .dev-banner { margin-top: 16px; padding: 12px 16px; border-radius: 12px; font-size: 12.5px;
-      background: rgba(180, 83, 9, 0.1); border: 1px solid rgba(180, 83, 9, 0.5); color: #fed7aa; }
-    .dev-banner code { color: #fdba74; }
 
     /* ---- Footer / tip ---- */
     .tip-line { margin-top: 18px; font-size: 12.5px; color: var(--muted); text-align: center; }
@@ -584,42 +585,24 @@
       <div id="error" class="error" role="alert" aria-live="assertive"></div>
     </section>
 
-    <!-- Result -->
+    <!-- Result — production confirmation (no approval link, no dev/test wording) -->
     <section id="result" class="panel" aria-label="Result">
       <h3 class="panel-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M20 6L9 17l-5-5" />
         </svg>
-        Request submitted
+        Your request has been submitted
       </h3>
+      <p class="result-body">
+        Your PTO request was submitted successfully. You can track the status from
+        <a href="my-requests.html">My Requests</a> or HR Center if you have access.
+      </p>
       <dl class="kv">
         <dt>Request key</dt><dd id="r-key">—</dd>
-        <dt>Item id</dt><dd id="r-id">—</dd>
         <dt>Status</dt><dd id="r-status">—</dd>
-        <dt>Short notice</dt><dd id="r-short">—</dd>
-        <dt>SharePoint item</dt><dd id="r-link">—</dd>
+        <dt id="r-short-label">Short notice</dt><dd id="r-short">—</dd>
       </dl>
     </section>
-
-    <!--
-      DEVELOPMENT ONLY (Phase 3B): the manager approval link for this item.
-      Nothing is sent — display/copy only, to ease manual approval testing.
-      SIBLING of #result so it can never be gated by the result panel state.
-    -->
-    <div id="dev-approval" class="dev-banner" role="note" style="display:none;">
-      <strong>Development only — manager approval link.</strong>
-      No notification was sent (no Teams / email). Use this to test
-      <code>approve.html</code> manually.
-      <dl class="kv" style="margin-top:10px;">
-        <dt>Approval link</dt><dd><a id="approval-link" href="#" target="_blank" rel="noopener noreferrer">—</a></dd>
-        <dt>Relative form</dt><dd><code id="approval-link-rel">—</code></dd>
-      </dl>
-      <div id="dev-approval-error" class="error" role="alert" style="display:none; margin-top:10px;"></div>
-      <div class="actions" style="margin-top:10px;">
-        <button id="copy-approval" class="btn small" type="button">Copy approval link</button>
-        <span id="copy-approval-status" class="status" aria-live="polite"></span>
-      </div>
-    </div>
 
     <p class="tip-line"><strong>Tip:</strong> You don’t need to submit PTO for MBP recognized holidays.</p>
     <footer class="rq-footer">
@@ -635,15 +618,14 @@
     lib/msal-browser.min.js is intentionally NOT versioned (pinned v3.28.1).
   -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js?v=rq1"></script>
-  <script src="js/auth.js?v=rq1"></script>
-  <script src="js/graph.js?v=rq1"></script>
-  <script src="js/directory.js?v=rq1"></script>
-  <script src="js/rules.js?v=rq1"></script>
-  <script src="js/requests.js?v=rq1"></script>
-  <script src="js/authz.js?v=rq1"></script>
-  <script src="js/links.js?v=rq1"></script>
-  <script src="js/ui.js?v=rq1"></script>
-  <script src="js/pages/request.page.js?v=rq1"></script>
+  <script src="js/config.js?v=rq2"></script>
+  <script src="js/auth.js?v=rq2"></script>
+  <script src="js/graph.js?v=rq2"></script>
+  <script src="js/directory.js?v=rq2"></script>
+  <script src="js/rules.js?v=rq2"></script>
+  <script src="js/requests.js?v=rq2"></script>
+  <script src="js/authz.js?v=rq2"></script>
+  <script src="js/ui.js?v=rq2"></script>
+  <script src="js/pages/request.page.js?v=rq2"></script>
 </body>
 </html>
