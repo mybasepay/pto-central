@@ -172,18 +172,36 @@ window.PTORequests = (function () {
       .toLowerCase();
   }
 
-  var _metaFieldMap = null; // canonical → real internal name (or null if absent)
+  // Optional HR-cancellation metadata columns (schema §3.7). Provisioned names
+  // are canonical, but tolerate manually-created variants the same way.
+  // NOTE: the canonical internal name is `CancelReason` (display "Cancellation
+  // Reason") — "CancellationReason" is accepted as a loose candidate only.
+  var CANCEL_FIELD_CANDIDATES = {
+    CancelledById: ["CancelledById", "Cancelled By (OID)", "Cancelled By Id"],
+    CancelledByEmail: ["CancelledByEmail", "Cancelled By Email"],
+    CancelledByName: ["CancelledByName", "Cancelled By Name"],
+    CancelledAt: ["CancelledAt", "Cancelled At"],
+    CancelReason: ["CancelReason", "Cancellation Reason", "CancellationReason"],
+  };
 
-  async function resolveMetadataFieldMap() {
-    if (_metaFieldMap) return _metaFieldMap;
+  var _columnsCache = null; // one live-columns fetch per session (shared)
 
+  async function getLiveColumns() {
+    if (_columnsCache) return _columnsCache;
     var ctx = await PTOGraph.resolveContext();
     var res = await PTOGraph.getListColumns(ctx.siteId, ctx.listId);
-    var columns = (res && res.value) || [];
+    _columnsCache = (res && res.value) || [];
+    return _columnsCache;
+  }
 
+  /** Resolve a candidates map ({canonical: [names...]}) against the live list.
+   *  Returns {canonical: internalName|null}. Shared by submit metadata and
+   *  cancellation metadata. */
+  async function resolveFieldMap(candidatesMap, label) {
+    var columns = await getLiveColumns();
     var map = {};
-    Object.keys(METADATA_FIELD_CANDIDATES).forEach(function (canonical) {
-      var candidates = METADATA_FIELD_CANDIDATES[canonical];
+    Object.keys(candidatesMap).forEach(function (canonical) {
+      var candidates = candidatesMap[canonical];
 
       // 1. Exact internal-name match wins outright.
       var col = columns.filter(function (c) { return c.name === canonical; })[0];
@@ -207,9 +225,34 @@ window.PTORequests = (function () {
 
     // Always log the resolved mapping — this is the ground truth of the live
     // list's internal names and the first thing to check when a field is blank.
-    console.log("[PTORequests] submit-metadata column mapping (canonical → internal):", map);
-    _metaFieldMap = map;
+    console.log("[PTORequests] " + (label || "field") + " column mapping (canonical → internal):", map);
     return map;
+  }
+
+  var _metaFieldMap = null; // canonical → real internal name (or null if absent)
+
+  async function resolveMetadataFieldMap() {
+    if (_metaFieldMap) return _metaFieldMap;
+    _metaFieldMap = await resolveFieldMap(METADATA_FIELD_CANDIDATES, "submit-metadata");
+    return _metaFieldMap;
+  }
+
+  /**
+   * READ-direction helper for the submit-metadata fields: given a raw
+   * `item.fields` object, return {SubmittedById, SubmittedByEmail,
+   * SubmittedByName, OnBehalf, RequestMode, OnBehalfReason} using the resolved
+   * internal names (falling back to canonical names when unresolved). Callers
+   * should `await resolveMetadataFieldMap()` once before bulk use; without it
+   * this still works for lists whose internal names are canonical.
+   */
+  function readSubmitMetadata(fields) {
+    fields = fields || {};
+    var out = {};
+    Object.keys(METADATA_FIELD_CANDIDATES).forEach(function (canonical) {
+      var internal = (_metaFieldMap && _metaFieldMap[canonical]) || canonical;
+      out[canonical] = fields[internal];
+    });
+    return out;
   }
 
   /**
@@ -342,10 +385,13 @@ window.PTORequests = (function () {
       endDate: f.EndDate,
       status: f.Status,
       managerEmail: f.ManagerEmail,
+      managerName: f.ManagerName,
       isShortNotice: f.IsShortNotice,
+      isUrgent: f.IsUrgent,
       noticeDays: f.NoticeDays,
       submittedAt: submittedAt,
       requesterEmail: f.RequesterEmail, // used by the fallback filter
+      requesterName: f.RequesterName,
       _sortKey: submittedAt, // ISO strings sort lexicographically
     };
   }
@@ -411,9 +457,148 @@ window.PTORequests = (function () {
     return { items: items, warning: warning, usedFallback: usedFallback, raw: raw };
   }
 
+  /**
+   * List ALL requests (HR Center). Pages through the list via @odata.nextLink
+   * up to `maxPages` × `top` items (default 10 × 200 = 2000 most recent — the
+   * cap is logged and surfaced via `truncated`). Read-only; caller (hr.html)
+   * is HR/Admin-gated by PTOAuthz BEFORE this is invoked — this module does
+   * not re-check roles (the real boundary is SharePoint permissions).
+   *
+   * @param {object} [options] - { top?: number, maxPages?: number }
+   * @returns {Promise<{items: object[], truncated: boolean, pages: number}>}
+   *   items normalized + sorted by submittedAt (then Created) descending.
+   */
+  async function listAllRequests(options) {
+    options = options || {};
+    var top = options.top || 200;
+    var maxPages = options.maxPages || 10;
+
+    var ctx = await PTOGraph.resolveContext();
+    var url = "/sites/" + ctx.siteId + "/lists/" + ctx.listId +
+      "/items?$expand=fields&$top=" + top;
+
+    var items = [];
+    var pages = 0;
+    while (url && pages < maxPages) {
+      var res = await PTOGraph.request("GET", url, { scopes: PTOConfig.scopes.siteRead });
+      items = items.concat((((res && res.value) || [])).map(normalizeRequestItem));
+      url = (res && res["@odata.nextLink"]) || null; // absolute URL; PTOGraph passes it through
+      pages++;
+    }
+    var truncated = !!url;
+    if (truncated) {
+      console.warn("[PTORequests] listAllRequests hit the page cap (" +
+        maxPages + " × " + top + ") — older items were not loaded.");
+    }
+
+    items.sort(function (a, b) {
+      return String(b._sortKey || "").localeCompare(String(a._sortKey || ""));
+    });
+    return { items: items, truncated: truncated, pages: pages };
+  }
+
+  // Statuses an HR cancellation may act on. Anything else is a duplicate /
+  // invalid cancellation and is refused before any write.
+  var CANCELLABLE_STATUSES = ["Pending", "Approved", "Auto-Approved", "Auto-Approved (Escalation)"];
+
+  /**
+   * HR/Admin cancellation of a request (hr.html).
+   *
+   * Writes (single partial PATCH — nothing else touched):
+   *   - Status = "Cancelled"  ← the EXACT value the validated
+   *     `PTO Calendar Cancellation MVP Clean` flow triggers on. The app does
+   *     NOT touch EmployeeEventId/CorpEventId — event deletion is the flow's job.
+   *     (Pending requests have no events; the flow safely terminates.)
+   *   - AuditLog             ← APPENDED (existing preserved), with actor + reason.
+   *   - Optional metadata IF the columns exist on the live list (resolved at
+   *     runtime, same tolerant matching as submit metadata): CancelledById,
+   *     CancelledByEmail, CancelledByName, CancelledAt, CancelReason. Missing
+   *     columns are skipped — they never block the cancellation.
+   *
+   * @param {string|number} itemId
+   * @param {object} opts
+   *   { actor: {id, displayName, mail|userPrincipalName},
+   *     reason: string,             // optional free text
+   *     currentStatus: string,      // status as loaded — duplicate guard
+   *     existingAuditLog: string }
+   * @returns {Promise<{fields: object, response: any}>}
+   */
+  async function cancelRequest(itemId, opts) {
+    if (!itemId) throw new Error("cancelRequest requires an itemId.");
+    opts = opts || {};
+
+    var current = String(opts.currentStatus || "").trim();
+    if (CANCELLABLE_STATUSES.indexOf(current) === -1) {
+      throw new Error(
+        current === "Cancelled"
+          ? "This request is already Cancelled."
+          : "A request with status \"" + (current || "unknown") + "\" can't be cancelled."
+      );
+    }
+
+    var actor = opts.actor || {};
+    var actorEmail = actor.mail || actor.userPrincipalName || "";
+    var actorName = actor.displayName || actorEmail || "Unknown";
+    var reason = String(opts.reason || "").trim();
+    var nowIso = new Date().toISOString();
+
+    // Append (never overwrite) the audit trail.
+    var newLine = PTORules.buildAuditLine(
+      "Cancelled",
+      actorName,
+      "HR Center cancellation — " + (reason ? "reason: " + reason : "no reason given")
+    );
+    var existingRaw = opts.existingAuditLog;
+    var existing = (existingRaw === null || existingRaw === undefined) ? "" : String(existingRaw);
+    var auditLog = existing.trim() ? existing + "\n" + newLine : newLine;
+
+    // Core fields — always written. These are proven-good internal names.
+    var fields = {
+      Status: "Cancelled",
+      AuditLog: auditLog,
+    };
+
+    // Optional metadata — include ONLY columns that exist on the live list.
+    // (PATCH, unlike create, errors on unknown field names — so resolve first.)
+    try {
+      var map = await resolveFieldMap(CANCEL_FIELD_CANDIDATES, "cancellation");
+      var values = {
+        CancelledById: actor.id || "",
+        CancelledByEmail: actorEmail,
+        CancelledByName: actorName,
+        CancelledAt: nowIso,
+        CancelReason: reason,
+      };
+      Object.keys(values).forEach(function (canonical) {
+        if (map[canonical]) fields[map[canonical]] = values[canonical];
+      });
+    } catch (e) {
+      console.warn("[PTORequests] cancellation metadata column lookup failed — " +
+        "cancelling with Status + AuditLog only.", e);
+    }
+
+    var response;
+    try {
+      response = await PTOGraph.updateListItem(itemId, fields);
+    } catch (e) {
+      // Resilience: if an optional column was resolved stale and PATCH rejects
+      // it, retry once with the guaranteed core fields only.
+      var msg = (e && e.message) || "";
+      if (/not recognized|does not exist|invalid/i.test(msg) && Object.keys(fields).length > 2) {
+        console.warn("[PTORequests] cancellation PATCH rejected optional metadata — retrying core-only.", msg);
+        var core = { Status: "Cancelled", AuditLog: auditLog };
+        response = await PTOGraph.updateListItem(itemId, core);
+        fields = core;
+      } else {
+        throw e;
+      }
+    }
+    return { fields: fields, response: response };
+  }
+
   // --- Later phases (kept as labeled stubs) --------------------------------
 
-  /** Patch fields (approve/reject/escalate/cancel/HR edit) (Phase 2D+). */
+  /** Patch fields (approve/reject/escalate/HR edit) (Phase 2D+). */
   async function update(itemId, fields) {
     throw new Error("[requests] update() not implemented yet (Phase 2D+).");
   }
@@ -429,6 +614,11 @@ window.PTORequests = (function () {
     // Diagnostic: resolve + log the live internal names of the submit-metadata
     // columns (run `await PTORequests.resolveMetadataFieldMap()` in dev tools).
     resolveMetadataFieldMap: resolveMetadataFieldMap,
+    readSubmitMetadata: readSubmitMetadata,
+    // HR Center (hr.html — HR/Admin-gated by PTOAuthz before use)
+    listAllRequests: listAllRequests,
+    cancelRequest: cancelRequest,
+    CANCELLABLE_STATUSES: CANCELLABLE_STATUSES,
     getRequest: getRequest,
     getRequestById: getRequestById,
     updateRequestDecision: updateRequestDecision,

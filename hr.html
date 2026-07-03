@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HR Center — PTO Central</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!--
+    HR Center (hr.html) — HR/Admin ONLY.
+    Access is role-gated by js/authz.js (ROLE_REQUIRED["hr.html"] = HR/Admin from
+    the "PTO Authorized Users" list; fails CLOSED). Non-HR users get a clean
+    "Not authorized" block and NO request data is loaded.
+
+    Data source: the modern "PTO Requests" list only. The legacy "PTO Tracking"
+    list is NOT read, merged, or migrated here (see the stub section below).
+
+    Cancellation: sets Status = "Cancelled" + appends AuditLog (+ optional
+    Cancelled*/CancelReason metadata when the columns exist). Calendar event
+    deletion is the job of the validated "PTO Calendar Cancellation MVP Clean"
+    flow, which triggers on Status = Cancelled. This page NEVER touches
+    EmployeeEventId/CorpEventId and never deletes items.
+  -->
+  <style>
+    /* Reuses styles.css design language (.wrap/.card/footer); controls scoped here. */
+    .wrap { max-width: 1280px; }
+    .section { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: #0a0f1c; border: 1px solid rgba(255,255,255,0.08); }
+    .section h3 { margin: 0 0 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .btn { appearance: none; cursor: pointer; color: #fff; font: inherit; font-weight: 700; padding: 10px 16px;
+      border-radius: 12px; border: 1px solid rgba(255,255,255,0.14);
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); }
+    .btn:hover { border-color: rgba(255,255,255,0.28); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn.primary { border-left: 6px solid var(--brand); }
+    .btn.ghost { font-weight: 600; }
+    .btn.danger { border-left: 6px solid var(--brand2); }
+    .btn.small { padding: 6px 10px; font-size: 12px; border-radius: 9px; font-weight: 600; }
+    .status { font-size: 13px; color: var(--muted); }
+    .hr-banner { margin-top: 14px; padding: 10px 14px; border-radius: 10px; font-size: 13px;
+      background: rgba(129,140,248,0.08); border: 1px solid rgba(129,140,248,0.35); color: #c7d2fe; }
+
+    /* Filters */
+    .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .filters .wide { grid-column: span 2; }
+    label.fld { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .03em; }
+    input, select, textarea { width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 10px;
+      background: #050a13; color: var(--text); border: 1px solid rgba(255,255,255,0.12); font: inherit; font-size: 13px; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--ring); }
+    .checks { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+    .checks label { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text); cursor: pointer; }
+    .checks input[type=checkbox] { width: 16px; height: 16px; }
+    .filters-foot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+
+    /* Messages */
+    .msg-ok { display:none; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px;
+      background: #07261a; border: 1px solid #0a7e51; color: #a7f3d0; }
+    .warn { display:none; margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px;
+      background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
+    .error { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; border-left: 6px solid var(--brand2);
+      background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 14px; }
+    .empty { display:none; margin-top: 12px; color: var(--muted); font-size: 14px; }
+
+    /* Table */
+    .table-wrap { margin-top: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.reqs { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 1180px; }
+    table.reqs th, table.reqs td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; white-space: nowrap; }
+    table.reqs th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    table.reqs a { color: #7dd3fc; }
+    td.who { white-space: normal; min-width: 170px; max-width: 230px; overflow-wrap: anywhere; }
+    td.who .sub, .sub { display:block; font-size: 11.5px; color: var(--muted); }
+    .yes { color: #fdba74; font-weight: 600; }
+    .mode-obo { color: #a5b4fc; font-weight: 600; }
+    .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    /* Details expansion row */
+    tr.details-row > td { background: #070c17; white-space: normal; }
+    .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 22px; padding: 6px 2px; }
+    .details-grid dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+    .details-grid dd { margin: 2px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+    .details-grid .span-all { grid-column: 1 / -1; }
+    pre.audit { margin: 4px 0 0; padding: 10px; overflow: auto; background: #050a13; border-radius: 8px; font-size: 12px; max-height: 220px; white-space: pre-wrap; }
+
+    /* Cancel panel */
+    .cancel-panel { display: none; margin-top: 14px; padding: 14px 16px; border-radius: 12px;
+      background: #170c10; border: 1px solid rgba(185,28,28,0.5); }
+    .cancel-panel h4 { margin: 0 0 6px; font-size: 14px; color: #fecaca; }
+    .cancel-panel .meta { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+    .cancel-panel textarea { min-height: 56px; resize: vertical; }
+    .cancel-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card" role="region" aria-label="HR Center">
+      <header>
+        <div>
+          <h1>PTO Central</h1>
+          <p class="desc">HR Center — all PTO requests</p>
+        </div>
+      </header>
+
+      <div class="hr-banner" role="note">
+        <strong>HR/Admin only.</strong> This page reads the live
+        <code>PTO Requests</code> list. Cancelling sets
+        <code>Status = Cancelled</code> — approved requests' calendar events are
+        then removed automatically by the existing cancellation flow.
+      </div>
+
+      <!-- Auth -->
+      <div class="section" aria-label="Account">
+        <div class="actions">
+          <button id="signin" class="btn primary" type="button">Sign in</button>
+          <button id="signout" class="btn ghost" type="button" disabled>Sign out</button>
+          <span id="account" class="status" aria-live="polite">Not signed in.</span>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="section" aria-label="Filters">
+        <h3>Filters</h3>
+        <div class="filters">
+          <div class="wide">
+            <label class="fld" for="f-search">Search employee / email / request key</label>
+            <input type="text" id="f-search" placeholder="e.g. Nestor, nestor@mybasepay.com, PTO-2026…" autocomplete="off" />
+          </div>
+          <div>
+            <label class="fld" for="f-status">Status</label>
+            <select id="f-status">
+              <option value="All">All</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Auto-Approved">Auto-Approved</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label class="fld" for="f-manager">Manager (name or email)</label>
+            <input type="text" id="f-manager" placeholder="e.g. boss@mybasepay.com" autocomplete="off" />
+          </div>
+          <div>
+            <label class="fld" for="f-from">Start date from</label>
+            <input type="date" id="f-from" />
+          </div>
+          <div>
+            <label class="fld" for="f-to">Start date to</label>
+            <input type="date" id="f-to" />
+          </div>
+        </div>
+        <div class="checks">
+          <label><input type="checkbox" id="f-short" /> Short notice only</label>
+          <label><input type="checkbox" id="f-obo" /> On behalf only</label>
+        </div>
+        <div class="filters-foot">
+          <button id="refresh" class="btn ghost" type="button" disabled>Refresh</button>
+          <button id="clear-filters" class="btn ghost small" type="button">Clear filters</button>
+          <span id="count" class="status" aria-live="polite"></span>
+        </div>
+
+        <div id="ok" class="msg-ok" role="status"></div>
+        <div id="warn" class="warn" role="alert"></div>
+        <div id="error" class="error" role="alert" aria-live="assertive"></div>
+        <div id="empty" class="empty">No PTO requests found.</div>
+
+        <!-- Cancel confirmation panel (per-request; shown above the table) -->
+        <div id="cancel-panel" class="cancel-panel" role="alertdialog" aria-labelledby="cancel-title">
+          <h4 id="cancel-title">Cancel this PTO request?</h4>
+          <div class="meta" id="cancel-meta">—</div>
+          <label class="fld" for="cancel-reason">Cancellation reason (recorded in the audit log)</label>
+          <textarea id="cancel-reason" placeholder="e.g. Employee withdrew the request / dates changed"></textarea>
+          <div class="actions" style="margin-top:12px;">
+            <button id="cancel-confirm" class="btn danger" type="button">Confirm cancellation</button>
+            <button id="cancel-abort" class="btn ghost" type="button">Keep request</button>
+            <span id="cancel-status" class="status" aria-live="polite"></span>
+          </div>
+          <div class="cancel-note">
+            Sets <code>Status = Cancelled</code> and appends the audit log. The item is
+            <strong>not deleted</strong>. For approved requests, the existing cancellation
+            flow removes both calendar events automatically.
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="reqs" id="reqs-table" style="display:none;">
+            <thead>
+              <tr>
+                <th>Request Key</th>
+                <th>Requester</th>
+                <th>Type</th>
+                <th>Dates</th>
+                <th>Requested</th>
+                <th>Manager</th>
+                <th>Status</th>
+                <th>Notice</th>
+                <th>Mode</th>
+                <th>Submitted by</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="reqs-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Legacy stub — documented, read-nothing -->
+      <div class="section" aria-label="Legacy data">
+        <details>
+          <summary style="cursor:pointer; color: var(--muted);">Legacy “PTO Tracking” list (future, read-only)</summary>
+          <p class="status" style="margin: 10px 0 0;">
+            Historical requests live in the legacy <code>PTO Tracking</code> list. They are
+            <strong>not</strong> loaded, merged, or migrated here — actions on this page apply to the
+            modern <code>PTO Requests</code> list only. A read-only legacy viewer / migration is a
+            separate, explicitly-scoped future project (see <code>docs/REMAINING_WORK.md</code> §5).
+          </p>
+        </details>
+      </div>
+
+      <footer>
+        © <span id="year"></span> myBasePay · Tech Support
+      </footer>
+    </section>
+  </main>
+
+  <!-- Library + modules. Order matters; page last. -->
+  <script src="lib/msal-browser.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/graph.js"></script>
+  <script src="js/directory.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/requests.js"></script>
+  <script src="js/authz.js"></script>
+  <script src="js/links.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pages/hr.page.js"></script>
+</body>
+</html>
