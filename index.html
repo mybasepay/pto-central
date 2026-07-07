@@ -26,9 +26,37 @@
       border-color: rgba(56, 189, 248, 0.5);
     }
     .action-card--manual:hover .action-arrow { color: var(--accent-cyan); transform: translateX(3px); }
+
+    /* ================= TEMPORARY MAINTENANCE MODE (2026-07-04) =================
+       Active while post-migration cleanup runs. UI-only and fully reversible:
+       TO REVERT, remove the "maintenance" class from <body> below — nothing
+       else. The Submit / Cancel cards stay in the DOM (hidden by CSS only);
+       the User Manual card and page remain available. */
+    .maintenance-banner { display: none; }
+    .maintenance .maintenance-banner {
+      display: flex; align-items: flex-start; gap: 14px;
+      margin-top: 22px; padding: 16px 18px; border-radius: var(--r-md);
+      background: rgba(251, 191, 36, 0.08);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      color: #fde4c4; font-size: 14px; line-height: 1.55;
+    }
+    .maintenance-banner .mb-icon {
+      display: grid; place-items: center; flex: 0 0 auto;
+      width: 38px; height: 38px; border-radius: 11px; color: #fbbf24;
+      background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.35);
+    }
+    .maintenance-banner .mb-icon svg { width: 20px; height: 20px; }
+    .maintenance-banner strong { color: #fef0dc; }
+    .maintenance-banner .mb-sub { display: block; margin-top: 4px; font-size: 13px; color: #e8c9a0; }
+    /* Hide the two action cards (Submit / Cancel) — DOM untouched. */
+    .maintenance .action-card--primary,
+    .maintenance .action-card--secondary { display: none; }
+    /* The reminder toast is about submitting requests — suppress during maintenance. */
+    .maintenance .home-toast { display: none !important; }
   </style>
 </head>
-<body class="home">
+<!-- MAINTENANCE MODE: remove the "maintenance" class to restore normal home. -->
+<body class="home maintenance">
   <!-- Ambient background: subtle gradient blobs + center glow (decorative only) -->
   <div class="home-bg" aria-hidden="true">
     <span class="home-blob home-blob--teal"></span>
@@ -55,6 +83,22 @@
           </p>
         </div>
       </header>
+
+      <!-- TEMPORARY maintenance notice (visible only while <body> has the
+           "maintenance" class). -->
+      <div class="maintenance-banner" role="alert">
+        <span class="mb-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.7 6.3a4.5 4.5 0 0 0-5.9 5.9L3 18v3h3l5.8-5.8a4.5 4.5 0 0 0 5.9-5.9L14.5 12 12 9.5z" />
+          </svg>
+        </span>
+        <div>
+          <strong>PTO Central is temporarily under maintenance while we complete a system update.
+          Please check back shortly.</strong>
+          <span class="mb-sub">New PTO requests and cancellation requests are temporarily paused.</span>
+        </div>
+      </div>
 
       <div class="grid" role="navigation" aria-label="Primary actions">
 
