@@ -55,8 +55,10 @@
     .maintenance .home-toast { display: none !important; }
   </style>
 </head>
-<!-- MAINTENANCE MODE: remove the "maintenance" class to restore normal home. -->
-<body class="home maintenance">
+<!-- MAINTENANCE MODE (dormant): add class "maintenance" to <body> to re-enable
+     the maintenance banner + hide the Submit/Cancel cards. CSS kept in <style>
+     above for future reuse. Last used 2026-07-04 (post-migration cleanup). -->
+<body class="home">
   <!-- Ambient background: subtle gradient blobs + center glow (decorative only) -->
   <div class="home-bg" aria-hidden="true">
     <span class="home-blob home-blob--teal"></span>
