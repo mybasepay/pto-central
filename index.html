@@ -6,9 +6,27 @@
   <title>PTO Central — myBasePay</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
-    /* User Manual card (page-scoped; styles.css untouched). Third action card,
-       full-width under the two primary actions, cyan accent. */
-    .home .action-card--manual { grid-column: 1 / -1; }
+    /* View My Requests card — emerald accent. Restored to the home at the
+       2026-07-07 cutover. With four cards the 2-col grid lays out 2×2. */
+    .action-card--tertiary::before {
+      background: linear-gradient(180deg, var(--accent-emerald), var(--accent-teal));
+    }
+    .action-card--tertiary .action-icon {
+      color: var(--accent-emerald);
+      background: linear-gradient(160deg, rgba(52, 211, 153, 0.2), rgba(45, 212, 191, 0.07));
+      border-color: rgba(52, 211, 153, 0.28);
+    }
+    .action-card--tertiary:hover {
+      border-color: rgba(52, 211, 153, 0.4);
+      background: linear-gradient(180deg, rgba(52, 211, 153, 0.1), rgba(45, 212, 191, 0.03));
+    }
+    .action-card--tertiary:focus-visible {
+      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.45), var(--shadow-card-hover);
+      border-color: rgba(52, 211, 153, 0.5);
+    }
+    .action-card--tertiary:hover .action-arrow { color: var(--accent-emerald); transform: translateX(3px); }
+
+    /* User Manual card (page-scoped; styles.css untouched). Cyan accent. */
     .action-card--manual::before {
       background: linear-gradient(180deg, var(--accent-cyan), var(--accent-blue));
     }
@@ -104,15 +122,14 @@
 
       <div class="grid" role="navigation" aria-label="Primary actions">
 
-        <!-- PRODUCTION ROUTING: both actions still go to the legacy Microsoft
-             Forms process. The home→app cutover (request.html) is a pending,
-             explicitly-gated decision — see docs/REMAINING_WORK.md. Do not
-             point these at the app pages without that approval. -->
+        <!-- HOME CUTOVER (2026-07-07): Submit PTO Request now routes to the
+             in-app request.html (same tab). Cancel a PTO intentionally stays on
+             the legacy Microsoft Forms process for now (no in-app self-cancel
+             yet). Rollback = restore the Forms URL + target/rel below (kept in
+             git history + pages/index-backup.html). -->
         <a
           class="action-card action-card--primary"
-          href="https://forms.office.com/Pages/ResponsePage.aspx?id=lHyi4Qz7KEe3HTdm8ho6y6sGTemyH-VGqGh4tFUruAVUMzlaVklSTDU4Qk4xWUtXMVc3UVo1QTk4Ri4u"
-          target="_blank"
-          rel="noopener noreferrer"
+          href="request.html"
         >
           <span class="action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -166,6 +183,31 @@
           </span>
         </a>
 
+        <!-- View My Requests (my-requests.html) — restored at the 2026-07-07
+             cutover. Internal page, same tab. -->
+        <a class="action-card action-card--tertiary" href="my-requests.html">
+          <span class="action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="4" width="12" height="17" rx="2" />
+              <rect x="9" y="2.5" width="6" height="3.2" rx="1" />
+              <path d="M9 11h6M9 15h4" />
+            </svg>
+          </span>
+          <span class="action-body">
+            <span class="action-title">View My Requests</span>
+            <span class="action-note"
+              >Track the status of your PTO requests and history.</span
+            >
+          </span>
+          <span class="action-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
+        </a>
+
         <!-- In-app User Manual (replaces the old PDF guides). Internal page —
              same tab, no target. -->
         <a class="action-card action-card--manual" href="manual.html">
@@ -192,8 +234,8 @@
         </a>
       </div>
 
-      <!-- "View My Requests" (my-requests.html) intentionally NOT linked from
-           the production home until the app cutover is approved. -->
+      <!-- "View My Requests" is now linked (see the tertiary card above) as of
+           the 2026-07-07 home cutover. -->
 
       <div class="tips">
         <span class="tips-icon" aria-hidden="true">
