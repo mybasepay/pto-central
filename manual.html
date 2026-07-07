@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>User Manual — PTO Central</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!--
+    PTO Central User Manual (2026-07-04). Static, in-app replacement for the
+    old PDF "PTO User Guide" + "Manager PTO Approval Guide": one combined
+    manual for employees, managers, and HR/Admin. Linked from index.html.
+    Pure content page — no MSAL, no Graph, no data reads/writes.
+  -->
+  <style>
+    /* ===== Manual page — scoped. Loaded AFTER styles.css; same premium dark
+       language as request.html / approve.html. Top-down document flow. ===== */
+
+    :root {
+      --mn-surface: #0e1626;
+      --mn-surface-2: #0b1220;
+      --mn-tile: #0a101d;
+      --mn-line: rgba(120, 150, 210, 0.16);
+      --mn-line-soft: rgba(255, 255, 255, 0.07);
+      --mn-teal: #2dd4bf;
+      --mn-green: #34d399;
+      --mn-indigo: #818cf8;
+      --mn-blue: #60a5fa;
+      --mn-cyan: #38bdf8;
+      --mn-amber: #fbbf24;
+    }
+
+    html { scroll-behavior: smooth; }
+    html, body { height: auto; min-height: 100%; }
+    body {
+      display: block;
+      padding: 0 clamp(14px, 3vw, 40px) 64px;
+      background:
+        radial-gradient(1000px 600px at 12% -8%, #0d1730, transparent 60%),
+        radial-gradient(1100px 640px at 100% 0%, #0a1424, transparent 55%),
+        linear-gradient(180deg, #0a111e 0%, #070c16 60%, #05080f 100%);
+      overflow-x: hidden;
+    }
+    .wrap { width: 100%; max-width: 980px; margin: 0 auto; }
+
+    /* ---- Top bar ---- */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      flex-wrap: wrap; padding: 16px 2px 14px; margin: 0 0 4px;
+      border-bottom: 1px solid var(--mn-line-soft);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-logo {
+      width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto;
+      display: grid; place-items: center; color: var(--mn-cyan);
+      background: linear-gradient(160deg, rgba(56, 189, 248, 0.2), rgba(96, 165, 250, 0.07));
+      border: 1px solid rgba(56, 189, 248, 0.32);
+    }
+    .brand-logo svg { width: 22px; height: 22px; }
+    .brand-text { line-height: 1.15; }
+    .brand-name { font-size: 16.5px; font-weight: 800; letter-spacing: -0.01em; }
+    .brand-page { font-size: 13px; color: var(--muted); margin-top: 1px; }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+      color: var(--text); font-weight: 600; font-size: 13.5px;
+      padding: 9px 16px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.03);
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .back-link svg { width: 15px; height: 15px; }
+    .back-link:hover { border-color: rgba(147, 197, 253, 0.5); background: rgba(255, 255, 255, 0.06); }
+
+    /* ---- Page head ---- */
+    .page-head { display: flex; align-items: center; gap: 16px; margin: 22px 2px 0; }
+    .page-badge {
+      width: 52px; height: 52px; border-radius: 14px; flex: 0 0 auto;
+      display: grid; place-items: center; color: var(--mn-cyan);
+      background: linear-gradient(160deg, rgba(56, 189, 248, 0.2), rgba(96, 165, 250, 0.07));
+      border: 1px solid rgba(56, 189, 248, 0.32);
+      box-shadow: 0 10px 26px -14px rgba(56, 189, 248, 0.6);
+    }
+    .page-badge svg { width: 27px; height: 27px; }
+    .page-head h1 { font-size: clamp(22px, 3vw, 28px); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+    .page-head .desc { margin: 4px 0 0; font-size: 14px; }
+
+    /* ---- Panels / sections ---- */
+    .panel {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)), var(--mn-surface);
+      border: 1px solid var(--mn-line); border-radius: 16px;
+      box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.8);
+      padding: clamp(16px, 2vw, 24px);
+      margin-top: 16px;
+      scroll-margin-top: 18px;
+    }
+    .sec-head { display: flex; align-items: flex-start; gap: 13px; margin-bottom: 12px; }
+    .sec-ico {
+      width: 42px; height: 42px; border-radius: 12px; flex: 0 0 auto;
+      display: grid; place-items: center; border: 1px solid var(--mn-line);
+    }
+    .sec-ico svg { width: 21px; height: 21px; }
+    .sec-ico.teal   { color: var(--mn-teal);   background: linear-gradient(160deg, rgba(45,212,191,0.18), rgba(45,212,191,0.05));  border-color: rgba(45,212,191,0.3); }
+    .sec-ico.green  { color: var(--mn-green);  background: linear-gradient(160deg, rgba(52,211,153,0.18), rgba(52,211,153,0.05));  border-color: rgba(52,211,153,0.3); }
+    .sec-ico.indigo { color: var(--mn-indigo); background: linear-gradient(160deg, rgba(129,140,248,0.18), rgba(129,140,248,0.05)); border-color: rgba(129,140,248,0.3); }
+    .sec-ico.blue   { color: var(--mn-blue);   background: linear-gradient(160deg, rgba(96,165,250,0.18), rgba(96,165,250,0.05));  border-color: rgba(96,165,250,0.3); }
+    .sec-ico.cyan   { color: var(--mn-cyan);   background: linear-gradient(160deg, rgba(56,189,248,0.18), rgba(56,189,248,0.05));  border-color: rgba(56,189,248,0.3); }
+    .sec-ico.amber  { color: var(--mn-amber);  background: linear-gradient(160deg, rgba(251,191,36,0.16), rgba(251,191,36,0.05));  border-color: rgba(251,191,36,0.32); }
+    .sec-main { min-width: 0; flex: 1; }
+    .sec-head h2 { margin: 0; font-size: 17.5px; font-weight: 800; letter-spacing: -0.01em; }
+    .aud { display: inline-flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+    .aud span {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+      padding: 3px 9px; border-radius: 999px; color: #b9c7dc;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid var(--mn-line-soft);
+    }
+    .aud span.hr { color: #c7d2fe; border-color: rgba(129, 140, 248, 0.35); background: rgba(129, 140, 248, 0.1); }
+    .aud span.mgr { color: #99f6e4; border-color: rgba(45, 212, 191, 0.35); background: rgba(45, 212, 191, 0.08); }
+
+    .panel p { margin: 10px 0 0; font-size: 14px; line-height: 1.65; color: #c4d1e4; }
+    .panel strong { color: #eef2f8; }
+    .panel ul { margin: 10px 0 0; padding-left: 22px; font-size: 14px; line-height: 1.7; color: #c4d1e4; }
+    .panel li { margin-top: 5px; }
+    .panel li::marker { color: #5f708a; }
+    .panel code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px; color: #7dd3fc; background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.18); border-radius: 6px; padding: 1px 6px;
+    }
+    .callout {
+      display: flex; gap: 10px; align-items: flex-start; margin-top: 14px;
+      padding: 11px 14px; border-radius: 11px; font-size: 13px; line-height: 1.55;
+    }
+    .callout svg { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; }
+    .callout.info { background: rgba(52, 211, 153, 0.07); border: 1px solid rgba(52, 211, 153, 0.3); color: #a7f3d0; }
+    .callout.warn { background: rgba(217, 119, 6, 0.09); border: 1px solid rgba(217, 119, 6, 0.4); color: #fed7aa; }
+
+    /* ---- Table of contents ---- */
+    .toc { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 9px; margin-top: 4px; }
+    .toc a {
+      display: flex; align-items: center; gap: 9px; text-decoration: none;
+      font-size: 13px; font-weight: 600; color: #cdd9ea;
+      padding: 10px 13px; border-radius: 10px;
+      background: var(--mn-tile); border: 1px solid var(--mn-line-soft);
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .toc a:hover { border-color: rgba(147, 197, 253, 0.45); background: rgba(255, 255, 255, 0.04); color: #fff; }
+    .toc .n {
+      flex: 0 0 auto; width: 21px; height: 21px; border-radius: 6px;
+      display: grid; place-items: center; font-size: 10.5px; font-weight: 800;
+      color: var(--mn-cyan); background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    /* ---- Status badge samples (match the app's live badge colors) ---- */
+    .status-grid { display: grid; grid-template-columns: auto 1fr; gap: 9px 14px; align-items: center; margin-top: 12px; }
+    .badge { justify-self: start; font-size: 12px; font-weight: 700; letter-spacing: .02em; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+    .badge.pending  { background: #3a2f06; color: #fcd34d; }
+    .badge.approved { background: #06281a; color: #86efac; }
+    .badge.auto     { background: #06281a; color: #86efac; }
+    .badge.rejected { background: #3f1d1d; color: #fca5a5; }
+    .badge.cancelled{ background: #1f2937; color: #9ca3af; }
+    .status-grid .d { font-size: 13.5px; color: #c4d1e4; }
+
+    .mn-footer { margin-top: 22px; color: var(--muted); font-size: 12px; text-align: center; }
+
+    @media (max-width: 560px) {
+      .sec-head { gap: 10px; }
+      .sec-ico { width: 36px; height: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+        </span>
+        <div class="brand-text">
+          <div class="brand-name">PTO Central</div>
+          <div class="brand-page">User Manual</div>
+        </div>
+      </div>
+      <a class="back-link" href="index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M19 12H5M11 18l-6-6 6-6" />
+        </svg>
+        Back to PTO Central
+      </a>
+    </header>
+
+    <!-- Page head -->
+    <div class="page-head">
+      <span class="page-badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          <path d="M9 7h7M9 11h5" />
+        </svg>
+      </span>
+      <div>
+        <h1>PTO Central User Manual</h1>
+        <p class="desc">Learn how to submit, approve, cancel, and track PTO — for employees, managers, and HR.</p>
+      </div>
+    </div>
+
+    <!-- Table of contents -->
+    <section class="panel" aria-label="Contents">
+      <div class="toc">
+        <a href="#what-is"><span class="n">A</span> What is PTO Central</a>
+        <a href="#submit"><span class="n">B</span> Submit a PTO Request</a>
+        <a href="#sick"><span class="n">C</span> Sick Leave</a>
+        <a href="#approval"><span class="n">D</span> Manager Approval</a>
+        <a href="#calendar"><span class="n">E</span> Calendar Visibility</a>
+        <a href="#my-requests"><span class="n">F</span> My Requests</a>
+        <a href="#cancel"><span class="n">G</span> Cancel a PTO</a>
+        <a href="#hr-center"><span class="n">H</span> HR Center</a>
+        <a href="#legacy"><span class="n">I</span> PTO-LEGACY Records</a>
+        <a href="#support"><span class="n">J</span> Questions &amp; Support</a>
+      </div>
+    </section>
+
+    <!-- A. What is PTO Central -->
+    <section class="panel" id="what-is" aria-label="What is PTO Central">
+      <div class="sec-head">
+        <span class="sec-ico cyan" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" /><path d="m9 14.5 2 2 4-4.5" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>A. What is PTO Central</h2>
+          <div class="aud"><span>Everyone</span></div>
+        </div>
+      </div>
+      <p>
+        <strong>PTO Central</strong> is myBasePay's company tool for managing paid time off in one
+        place. Use it to <strong>submit PTO requests</strong>, <strong>cancel PTO</strong>,
+        <strong>track your requests and their statuses</strong>, and give the company clear
+        <strong>PTO visibility</strong> on the appropriate calendars. Managers use it to review and
+        decide requests, and HR uses it to oversee all PTO activity.
+      </p>
+    </section>
+
+    <!-- B. Submit a PTO Request -->
+    <section class="panel" id="submit" aria-label="Submit a PTO Request">
+      <div class="sec-head">
+        <span class="sec-ico teal" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" /><path d="M12 12.5v5M9.5 15h5" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>B. Submit a PTO Request</h2>
+          <div class="aud"><span>Everyone</span><span class="hr">HR / Admin for on-behalf</span></div>
+        </div>
+      </div>
+      <ul>
+        <li>Start from the PTO Central home page and choose <strong>Submit PTO Request</strong>.</li>
+        <li>You normally submit for <strong>yourself</strong>. Authorized <strong>HR/Admin</strong> users can also submit a request <strong>on behalf of another employee</strong> when needed — the request is always recorded under the employee taking the PTO.</li>
+        <li>Select the <strong>PTO type</strong> (PTO, MHD, Sick, Bereavement, Parental Leave, Other Leave) and add a reason/note if helpful.</li>
+        <li>Choose your <strong>start and end dates</strong> (the end date is your last day off, inclusive).</li>
+        <li>Provide a <strong>backup contact</strong> — the person covering for you — and <strong>confirm coverage with them before you submit</strong>.</li>
+        <li>Your request is automatically routed to your <strong>manager</strong> for approval. When your manager is unavailable, HR can route a request to an alternate approver.</li>
+        <li>Please submit <strong>at least 7 days in advance</strong> whenever possible. Requests with less notice are flagged as short-notice for HR awareness — they still go through, but more notice means smoother coverage.</li>
+      </ul>
+      <div class="callout info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 7.75h.01" />
+        </svg>
+        <div>You don't need to submit PTO for MBP recognized holidays.</div>
+      </div>
+    </section>
+
+    <!-- C. Sick Leave -->
+    <section class="panel" id="sick" aria-label="Sick Leave">
+      <div class="sec-head">
+        <span class="sec-ico green" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 21s-7-4.5-9-9.5C1.5 7 4 4 7.5 4c2 0 3.5 1 4.5 2.5C13 5 14.5 4 16.5 4 20 4 22.5 7 21 11.5 19 16.5 12 21 12 21z" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>C. Sick Leave</h2>
+          <div class="aud"><span>Everyone</span></div>
+        </div>
+      </div>
+      <ul>
+        <li><strong>Sick requests are auto-approved</strong> by the system — no manager decision is needed.</li>
+        <li>If you're able to access the form, <strong>submit the Sick request yourself</strong>.</li>
+        <li>If you can't access the form, <strong>your manager or HR can submit it on your behalf</strong>.</li>
+      </ul>
+    </section>
+
+    <!-- D. Manager Approval -->
+    <section class="panel" id="approval" aria-label="Manager Approval">
+      <div class="sec-head">
+        <span class="sec-ico indigo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" /><path d="M8.5 12.5l2.5 2.5 4.5-5" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>D. Manager Approval</h2>
+          <div class="aud"><span class="mgr">Managers</span><span class="hr">HR / Admin</span></div>
+        </div>
+      </div>
+      <ul>
+        <li>When an employee submits a request, the <strong>manager receives it for review</strong>.</li>
+        <li>The manager (or the assigned alternate approver, or HR/Admin) can <strong>Approve</strong> or <strong>Reject</strong> the request, optionally adding a comment.</li>
+        <li><strong>Approved</strong> requests automatically create <strong>calendar visibility</strong> (see the next section).</li>
+        <li><strong>Rejected</strong> requests do <strong>not</strong> create any calendar events.</li>
+        <li>If time off is still needed after a rejection, the employee should <strong>submit a new request</strong> (for example, with adjusted dates) rather than reusing the rejected one.</li>
+      </ul>
+    </section>
+
+    <!-- E. Calendar Visibility -->
+    <section class="panel" id="calendar" aria-label="Calendar Visibility">
+      <div class="sec-head">
+        <span class="sec-ico blue" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" /><circle cx="12" cy="15" r="2.2" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>E. Calendar Visibility</h2>
+          <div class="aud"><span>Everyone</span></div>
+        </div>
+      </div>
+      <ul>
+        <li><strong>Approved and Auto-Approved</strong> requests are automatically reflected on the appropriate calendars.</li>
+        <li>Two calendars are used for PTO visibility: your <strong>own calendar</strong> (an out-of-office event delivered as an invitation) and the <strong>myBasePay Corporate Calendar</strong> (company-wide visibility).</li>
+        <li>After your request is approved, <strong>check your calendar</strong> to verify the PTO event appears as expected — and accept the invitation so it shows as Out of Office.</li>
+      </ul>
+    </section>
+
+    <!-- F. My Requests -->
+    <section class="panel" id="my-requests" aria-label="My Requests">
+      <div class="sec-head">
+        <span class="sec-ico teal" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="4" width="12" height="17" rx="2" /><rect x="9" y="2.5" width="6" height="3.2" rx="1" /><path d="M9 11h6M9 15h4" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>F. My Requests</h2>
+          <div class="aud"><span>Everyone</span></div>
+        </div>
+      </div>
+      <p>
+        Open <strong>My Requests</strong> to view your full PTO history and the current status of
+        every request you've made. Statuses mean:
+      </p>
+      <div class="status-grid">
+        <span class="badge pending">Pending</span><span class="d">Waiting for your manager (or assigned approver) to decide.</span>
+        <span class="badge approved">Approved</span><span class="d">Approved — calendar visibility is created automatically.</span>
+        <span class="badge auto">Auto-Approved</span><span class="d">Approved automatically by the system (for example, Sick requests).</span>
+        <span class="badge rejected">Rejected</span><span class="d">Not approved. Submit a new request if time off is still needed.</span>
+        <span class="badge cancelled">Cancelled</span><span class="d">Cancelled after submission — no longer active.</span>
+      </div>
+      <p>
+        Requests whose key starts with <code>PTO-LEGACY-</code> are <strong>imported historical
+        records</strong> from the previous PTO system — see the PTO-LEGACY section below.
+      </p>
+    </section>
+
+    <!-- G. Cancel a PTO -->
+    <section class="panel" id="cancel" aria-label="Cancel a PTO">
+      <div class="sec-head">
+        <span class="sec-ico amber" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" /><path d="m9 9 6 6M15 9l-6 6" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>G. Cancel a PTO</h2>
+          <div class="aud"><span>Everyone</span><span class="hr">HR / Admin</span></div>
+        </div>
+      </div>
+      <ul>
+        <li>Start from the PTO Central home page and choose <strong>Cancel a PTO</strong>.</li>
+        <li>Cancellations are processed through the <strong>PTO Central / HR workflow</strong> — the request's status changes to <strong>Cancelled</strong> and it stops counting as active PTO.</li>
+        <li>For approved PTO whose calendar events were <strong>created by PTO Central</strong>, cancellation <strong>removes those calendar events automatically</strong>.</li>
+      </ul>
+      <div class="callout warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3l10 18H2z" /><path d="M12 10v5" /><path d="M12 18.4h.01" />
+        </svg>
+        <div>
+          <strong>Legacy note:</strong> some upcoming PTO was imported from the previous system
+          (<code>PTO-LEGACY-…</code>). Those calendar events were created by the <em>old</em> system,
+          so cancelling one of these records may require <strong>manual calendar cleanup</strong> —
+          HR/Tech Support will handle removing the old event.
+        </div>
+      </div>
+    </section>
+
+    <!-- H. HR Center -->
+    <section class="panel" id="hr-center" aria-label="HR Center">
+      <div class="sec-head">
+        <span class="sec-ico indigo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="8" r="3" /><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5" /><circle cx="17.5" cy="9" r="2.2" /><path d="M17 14.6c2.4.3 4 1.9 4 4.2" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>H. HR Center</h2>
+          <div class="aud"><span class="hr">HR / Admin only</span></div>
+        </div>
+      </div>
+      <ul>
+        <li>The HR Center is restricted to <strong>HR/Admin users</strong> — other accounts cannot load its data.</li>
+        <li>View <strong>all PTO requests</strong> across the company in one dashboard.</li>
+        <li><strong>Search and filter</strong> by employee, status, manager, date range, short-notice, and on-behalf requests.</li>
+        <li>Review statuses and full request details, including the audit history.</li>
+        <li><strong>Cancel records when appropriate</strong> — the cancellation is recorded in the audit log, and PTO Central-created calendar events are removed automatically.</li>
+        <li><strong>Export reports</strong> (CSV) of the currently filtered requests for HR reporting.</li>
+      </ul>
+    </section>
+
+    <!-- I. PTO-LEGACY Records -->
+    <section class="panel" id="legacy" aria-label="PTO-LEGACY Records">
+      <div class="sec-head">
+        <span class="sec-ico amber" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 4v4h4" /><path d="M12 8v4l3 2" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>I. PTO-LEGACY Records</h2>
+          <div class="aud"><span>Everyone</span><span class="hr">HR / Admin</span></div>
+        </div>
+      </div>
+      <ul>
+        <li>Records with keys like <code>PTO-LEGACY-123</code> are <strong>historical PTO records imported from the legacy system</strong>.</li>
+        <li>They appear in <strong>HR Center</strong> and in each employee's <strong>My Requests</strong>, so your PTO history is complete in one place.</li>
+        <li>They <strong>preserve history</strong> — they should not be edited unless there is a specific, approved correction.</li>
+        <li>Some <strong>upcoming</strong> legacy records have calendar events that were created by the <em>old</em> system. PTO Central does not manage those events, so cancelling one of these records may require <strong>manual calendar cleanup</strong> by HR/Tech Support.</li>
+      </ul>
+    </section>
+
+    <!-- J. Questions & Support -->
+    <section class="panel" id="support" aria-label="Questions and Support">
+      <div class="sec-head">
+        <span class="sec-ico cyan" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" /><path d="M9.2 9a2.8 2.8 0 0 1 5.5.7c0 1.8-2.7 2.3-2.7 3.8" /><path d="M12 17h.01" />
+          </svg>
+        </span>
+        <div class="sec-main">
+          <h2>J. Questions &amp; Support</h2>
+          <div class="aud"><span>Everyone</span></div>
+        </div>
+      </div>
+      <p>
+        If you have questions or experience issues with PTO Central, please contact
+        <strong>Tech Support</strong>.
+      </p>
+    </section>
+
+    <footer class="mn-footer">
+      © <span id="year"></span> myBasePay · Tech Support
+    </footer>
+  </main>
+
+  <script>
+    (function () { var y = document.getElementById("year"); if (y) y.textContent = new Date().getFullYear(); })();
+  </script>
+</body>
+</html>

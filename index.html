@@ -5,6 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PTO Central — myBasePay</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* User Manual card (page-scoped; styles.css untouched). Third action card,
+       full-width under the two primary actions, cyan accent. */
+    .home .action-card--manual { grid-column: 1 / -1; }
+    .action-card--manual::before {
+      background: linear-gradient(180deg, var(--accent-cyan), var(--accent-blue));
+    }
+    .action-card--manual .action-icon {
+      color: var(--accent-cyan);
+      background: linear-gradient(160deg, rgba(56, 189, 248, 0.2), rgba(96, 165, 250, 0.07));
+      border-color: rgba(56, 189, 248, 0.28);
+    }
+    .action-card--manual:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.1), rgba(96, 165, 250, 0.03));
+    }
+    .action-card--manual:focus-visible {
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.45), var(--shadow-card-hover);
+      border-color: rgba(56, 189, 248, 0.5);
+    }
+    .action-card--manual:hover .action-arrow { color: var(--accent-cyan); transform: translateX(3px); }
+  </style>
 </head>
 <body class="home">
   <!-- Ambient background: subtle gradient blobs + center glow (decorative only) -->
@@ -88,6 +110,31 @@
             <span class="action-note"
               >Request cancellation for pending, already-submitted or approved
               PTO.</span
+            >
+          </span>
+          <span class="action-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
+        </a>
+
+        <!-- In-app User Manual (replaces the old PDF guides). Internal page —
+             same tab, no target. -->
+        <a class="action-card action-card--manual" href="manual.html">
+          <span class="action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              <path d="M9 7h7M9 11h5" />
+            </svg>
+          </span>
+          <span class="action-body">
+            <span class="action-title">PTO Central User Manual</span>
+            <span class="action-note"
+              >Learn how to submit, approve, cancel, and track PTO.</span
             >
           </span>
           <span class="action-arrow" aria-hidden="true">
