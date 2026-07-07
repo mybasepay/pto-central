@@ -6,44 +6,48 @@
   <title>PTO Central — myBasePay</title>
   <link rel="stylesheet" href="styles.css" />
   <style>
-    /* View My Requests card — emerald accent. Restored to the home at the
-       2026-07-07 cutover. With four cards the 2-col grid lays out 2×2. */
-    .action-card--tertiary::before {
-      background: linear-gradient(180deg, var(--accent-emerald), var(--accent-teal));
+    /* ---- Quick Links (top-right of the header) ---------------------------
+       Secondary nav for My Requests + User Manual. Deliberately small and
+       subordinate to the two main action cards below. Page-scoped; styles.css
+       untouched. */
+    .home .home-header { align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+    .home-heading { flex: 1 1 300px; }
+    .quick-links { margin-left: auto; display: flex; flex-direction: column; gap: 9px; align-items: flex-start; }
+    .ql-title {
+      display: inline-flex; align-items: center; gap: 6px; padding-left: 2px;
+      font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #8aa0bd;
     }
-    .action-card--tertiary .action-icon {
-      color: var(--accent-emerald);
-      background: linear-gradient(160deg, rgba(52, 211, 153, 0.2), rgba(45, 212, 191, 0.07));
-      border-color: rgba(52, 211, 153, 0.28);
+    .ql-title svg { width: 13px; height: 13px; }
+    .ql-items { display: flex; gap: 10px; flex-wrap: wrap; }
+    .ql-card {
+      display: inline-flex; align-items: center; gap: 11px; text-decoration: none; color: var(--text);
+      padding: 11px 14px; border-radius: var(--r-md); border: 1px solid var(--home-line);
+      background: linear-gradient(180deg, var(--home-surface-2), rgba(255, 255, 255, 0.012));
+      box-shadow: var(--shadow-card);
+      transition: transform .16s ease, border-color .16s ease, background .16s ease;
     }
-    .action-card--tertiary:hover {
-      border-color: rgba(52, 211, 153, 0.4);
-      background: linear-gradient(180deg, rgba(52, 211, 153, 0.1), rgba(45, 212, 191, 0.03));
+    .ql-card:hover { transform: translateY(-2px); }
+    .ql-card:focus-visible { outline: none; box-shadow: var(--home-focus); }
+    .ql-icon { display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px;
+      border-radius: 9px; border: 1px solid var(--home-line); }
+    .ql-icon svg { width: 17px; height: 17px; }
+    .ql-label { font-size: 13.5px; font-weight: 650; white-space: nowrap; }
+    .ql-arrow { display: grid; place-items: center; color: #7f92ab; margin-left: 2px; transition: transform .16s ease, color .16s ease; }
+    .ql-arrow svg { width: 16px; height: 16px; }
+    .ql-card:hover .ql-arrow { color: var(--text); transform: translateX(2px); }
+    /* Accents: My Requests = emerald, User Manual = cyan */
+    .ql-card--requests .ql-icon { color: var(--accent-emerald);
+      background: linear-gradient(160deg, rgba(52, 211, 153, 0.2), rgba(45, 212, 191, 0.06)); border-color: rgba(52, 211, 153, 0.28); }
+    .ql-card--requests:hover { border-color: rgba(52, 211, 153, 0.4); }
+    .ql-card--manual .ql-icon { color: var(--accent-cyan);
+      background: linear-gradient(160deg, rgba(56, 189, 248, 0.2), rgba(96, 165, 250, 0.06)); border-color: rgba(56, 189, 248, 0.28); }
+    .ql-card--manual:hover { border-color: rgba(56, 189, 248, 0.4); }
+    /* Mobile: Quick Links drops below the title and the two cards fill the width. */
+    @media (max-width: 620px) {
+      .quick-links { margin-left: 0; width: 100%; }
+      .ql-items { width: 100%; }
+      .ql-card { flex: 1 1 140px; }
     }
-    .action-card--tertiary:focus-visible {
-      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.45), var(--shadow-card-hover);
-      border-color: rgba(52, 211, 153, 0.5);
-    }
-    .action-card--tertiary:hover .action-arrow { color: var(--accent-emerald); transform: translateX(3px); }
-
-    /* User Manual card (page-scoped; styles.css untouched). Cyan accent. */
-    .action-card--manual::before {
-      background: linear-gradient(180deg, var(--accent-cyan), var(--accent-blue));
-    }
-    .action-card--manual .action-icon {
-      color: var(--accent-cyan);
-      background: linear-gradient(160deg, rgba(56, 189, 248, 0.2), rgba(96, 165, 250, 0.07));
-      border-color: rgba(56, 189, 248, 0.28);
-    }
-    .action-card--manual:hover {
-      border-color: rgba(56, 189, 248, 0.4);
-      background: linear-gradient(180deg, rgba(56, 189, 248, 0.1), rgba(96, 165, 250, 0.03));
-    }
-    .action-card--manual:focus-visible {
-      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.45), var(--shadow-card-hover);
-      border-color: rgba(56, 189, 248, 0.5);
-    }
-    .action-card--manual:hover .action-arrow { color: var(--accent-cyan); transform: translateX(3px); }
 
     /* ================= TEMPORARY MAINTENANCE MODE (2026-07-04) =================
        Active while post-migration cleanup runs. UI-only and fully reversible:
@@ -102,6 +106,56 @@
             Submit a new PTO or cancel an existing one from a single place.
           </p>
         </div>
+
+        <!-- Quick Links (secondary): My Requests + User Manual. Small,
+             top-right, subordinate to the two main action cards. -->
+        <nav class="quick-links" aria-label="Quick links">
+          <span class="ql-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1" />
+              <path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" />
+            </svg>
+            Quick Links
+          </span>
+          <div class="ql-items">
+            <a class="ql-card ql-card--requests" href="my-requests.html">
+              <span class="ql-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="6" y="4" width="12" height="17" rx="2" />
+                  <rect x="9" y="2.5" width="6" height="3.2" rx="1" />
+                  <path d="M9 11h6M9 15h4" />
+                </svg>
+              </span>
+              <span class="ql-label">My Requests</span>
+              <span class="ql-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            </a>
+
+            <a class="ql-card ql-card--manual" href="manual.html">
+              <span class="ql-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  <path d="M9 7h7M9 11h5" />
+                </svg>
+              </span>
+              <span class="ql-label">User Manual</span>
+              <span class="ql-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            </a>
+          </div>
+        </nav>
       </header>
 
       <!-- TEMPORARY maintenance notice (visible only while <body> has the
@@ -183,59 +237,10 @@
           </span>
         </a>
 
-        <!-- View My Requests (my-requests.html) — restored at the 2026-07-07
-             cutover. Internal page, same tab. -->
-        <a class="action-card action-card--tertiary" href="my-requests.html">
-          <span class="action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <rect x="6" y="4" width="12" height="17" rx="2" />
-              <rect x="9" y="2.5" width="6" height="3.2" rx="1" />
-              <path d="M9 11h6M9 15h4" />
-            </svg>
-          </span>
-          <span class="action-body">
-            <span class="action-title">View My Requests</span>
-            <span class="action-note"
-              >Track the status of your PTO requests and history.</span
-            >
-          </span>
-          <span class="action-arrow" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-          </span>
-        </a>
-
-        <!-- In-app User Manual (replaces the old PDF guides). Internal page —
-             same tab, no target. -->
-        <a class="action-card action-card--manual" href="manual.html">
-          <span class="action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-              <path d="M9 7h7M9 11h5" />
-            </svg>
-          </span>
-          <span class="action-body">
-            <span class="action-title">PTO Central User Manual</span>
-            <span class="action-note"
-              >Learn how to submit, approve, cancel, and track PTO.</span
-            >
-          </span>
-          <span class="action-arrow" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-          </span>
-        </a>
       </div>
-
-      <!-- "View My Requests" is now linked (see the tertiary card above) as of
-           the 2026-07-07 home cutover. -->
+      <!-- My Requests + User Manual now live in the header Quick Links
+           (2026-07-07 layout refresh) — the main grid is the two primary
+           actions only. -->
 
       <div class="tips">
         <span class="tips-icon" aria-hidden="true">
