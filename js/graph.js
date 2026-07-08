@@ -91,7 +91,18 @@ window.PTOGraph = (function () {
           : typeof body === "string" && body
           ? body
           : response.statusText || "Unknown error";
-      throw new Error("Graph " + response.status + ": " + detail);
+      // Log the exact failing endpoint/method/status so we can pinpoint WHICH
+      // Graph call was denied (e.g. POST .../items vs GET .../columns) without
+      // showing raw internals to the user. Callers map .status to friendly copy.
+      console.error(
+        "[PTOGraph] " + verb + " " + url + " → HTTP " + response.status + " · " + detail
+      );
+      var err = new Error("Graph " + response.status + ": " + detail);
+      err.status = response.status;          // e.g. 403
+      err.graphMethod = verb;                // GET | POST | PATCH
+      err.graphUrl = url;                     // relative path or absolute nextLink
+      err.graphErrorCode = (body && body.error && body.error.code) || null; // e.g. "accessDenied"
+      throw err;
     }
 
     return body;

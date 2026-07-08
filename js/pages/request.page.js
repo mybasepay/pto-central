@@ -615,7 +615,34 @@
       els.submit.textContent = "Submitted";
     } catch (e) {
       setSubmitStatus("");
-      showError("Could not submit the request: " + friendly(e));
+      // Detailed INTERNAL diagnostics (console only) — endpoint, method, HTTP
+      // status, Graph error code, and stage. Never shown to the user.
+      var status = e && e.status;
+      console.error("[request.page] Submit failed", {
+        stage: "PTORequests.createRequest",
+        httpStatus: status || "(none)",
+        graphMethod: (e && e.graphMethod) || "(n/a)",
+        endpoint: (e && e.graphUrl) || "(n/a)",
+        graphErrorCode: (e && e.graphErrorCode) || "(n/a)",
+        reason: friendly(e),
+        requesterEmail: emailOf(state.target.requester || {}),
+        onBehalf: state.onBehalf,
+      });
+      // User-facing copy: friendly, never the raw "Graph 403: Access denied".
+      var accessDenied = status === 403 ||
+        /\b403\b|access denied|accessdenied|authorization/i.test(friendly(e));
+      if (accessDenied) {
+        showError(
+          "We couldn't submit your request because of a system permissions issue on the PTO " +
+          "list — this is not a problem with your account. Please contact Tech Support " +
+          "(reference PTO-SP-403) so they can enable submissions for you or file the request on your behalf."
+        );
+      } else {
+        showError(
+          "We couldn't submit your request right now. Please try again in a moment, and contact " +
+          "Tech Support if the problem continues."
+        );
+      }
       els.submit.disabled = false; // allow retry on failure
     }
   }
