@@ -30,7 +30,8 @@
 
   var state = {
     me: null,            // always the signed-in user (the submitter)
-    isHrAdmin: false,    // gates ONLY the alternate-approver override (on-behalf is open to all employees)
+    // (No role gates remain on this page: on-behalf AND alternate approver
+    // are available to every authenticated employee as of 2026-07-08.)
     onBehalf: false,     // is the on-behalf toggle active
     lookupOk: false,     // has a valid requester been resolved for the current mode
     // The signed-in user's own chain (the default "self" target).
@@ -154,10 +155,13 @@
     // always recorded separately (SubmittedBy*, audit) from the authenticated
     // session — never from form input.
     if (els.oboSection) els.oboSection.style.display = "block";
-    // HR/Admin gate stays ONLY for the alternate-approver routing override
-    // (fails closed on any lookup error).
-    state.isHrAdmin = await PTOAuthz.hasRole(az.email, ["HR", "Admin"]);
-    if (els.approverSection) els.approverSection.style.display = state.isHrAdmin ? "block" : "none";
+    // "Route approval to someone else" is ALSO available to every
+    // authenticated employee (2026-07-08 — was HR/Admin-only, which is why
+    // non-HR accounts couldn't see it). The approver must still resolve from
+    // the directory and pass PTORules.userSelectionProblem + context checks;
+    // this also unblocks requesters with NO manager in Entra (they can route
+    // approval to a chosen approver instead of being stuck).
+    if (els.approverSection) els.approverSection.style.display = "block";
 
     // Default to the self target.
     setSelfTarget();
@@ -180,11 +184,11 @@
     // Manager-missing warning (same rule for self and on-behalf: required unless Sick).
     var w = $("mgr-warn");
     if (r.id && !t.manager) {
-      w.textContent = state.onBehalf
-        ? "This employee has no manager in Entra ID. Non-Sick requests can't be routed for approval — " +
-          "submit Sick (auto-approved) or contact HR (pto-approvals@mybasepay.com)."
-        : "No manager found in Entra ID. Non-Sick requests cannot be routed for approval — " +
-          "please contact HR (pto-approvals@mybasepay.com). Sick leave is auto-approved and can still be submitted.";
+      w.textContent = (state.onBehalf
+        ? "This employee has no manager in Entra ID. "
+        : "No manager found in Entra ID for your account. ") +
+        "To submit a non-Sick request, enable \"Route approval to someone else\" and select an " +
+        "approver — or contact HR (pto-approvals@mybasepay.com). Sick leave is auto-approved either way.";
       w.style.display = "block";
     } else {
       w.style.display = "none";
@@ -309,10 +313,33 @@
         showApproverError('No employee found for "' + email + '". Check the email and try again.');
         return;
       }
+      // The approver is a directory-resolved object only (never free text).
+      // Shared pure checks: active / Member / @mybasepay.com / valid email.
+      var problem = PTORules.userSelectionProblem(approver);
+      // Context rules: an approver may not be the PTO employee (self-approval
+      // of the request) nor the signed-in submitter (routing your own filing
+      // to yourself). HR/Admin can always decide via approve.html regardless.
+      if (!problem && emailOf(approver).toLowerCase() === emailOf(state.me).toLowerCase()) {
+        problem = "You can't route approval to yourself.";
+      }
+      if (!problem) {
+        var reqEmail = emailOf(state.target.requester || {});
+        if (reqEmail && emailOf(approver).toLowerCase() === reqEmail.toLowerCase()) {
+          problem = "The alternate approver must be different from the employee taking the PTO.";
+        }
+      }
+      if (problem) {
+        state.approverOverride.lookupOk = false;
+        state.approverOverride.approver = null;
+        updateApproverBadge();
+        setApproverStatus("");
+        showApproverError(problem);
+        return;
+      }
       state.approverOverride.lookupOk = true;
       state.approverOverride.approver = approver;
       updateApproverBadge();
-      setApproverStatus("✓ Loaded " + (approver.displayName || email) + ".");
+      setApproverStatus("✓ Approval will be routed to " + (approver.displayName || email) + ".");
     } catch (e) {
       state.approverOverride.lookupOk = false;
       updateApproverBadge();
@@ -428,15 +455,13 @@
   // authenticated session (state.me from /me), plus SharePoint's built-in
   // Created By (Author) column records the true creator server-side.
   function employeeSelectionProblem(u) {
-    var email = emailOf(u);
-    if (!email) return "That account has no email address and can't be selected.";
-    if (email.toLowerCase() === emailOf(state.me).toLowerCase()) {
+    // Shared pure checks (active / Member / @mybasepay.com / valid email).
+    var base = PTORules.userSelectionProblem(u);
+    if (base) return base;
+    // Context rule: can't select yourself as the on-behalf employee.
+    if (emailOf(u).toLowerCase() === emailOf(state.me).toLowerCase()) {
       return "That's you — choose \"Myself\" above to submit your own PTO.";
     }
-    if (u.accountEnabled === false) return "That account is inactive and can't be selected for PTO.";
-    if (String(u.userType || "").toLowerCase() === "guest") return "Guest accounts can't be selected for PTO.";
-    var domain = email.split("@").pop().toLowerCase();
-    if (domain !== "mybasepay.com") return "Only active myBasePay employees can be selected.";
     return null; // selectable
   }
 
@@ -566,14 +591,17 @@
     if (!els.endDate.value) return "Choose an end date.";
     if (els.endDate.value < els.startDate.value) return "End date must be on or after the start date.";
 
-    // Manager required unless Sick (Sick is auto-approved). Applies to the
-    // resolved target — the employee for on-behalf, the signed-in user otherwise.
-    if (type !== "Sick" && !state.target.manager) {
+    // An approval route is required unless Sick (auto-approved): either the
+    // resolved target has a manager in Entra, OR the user enabled "Route
+    // approval to someone else" (the override block below enforces that a
+    // valid approver is selected + a reason is given). This unblocks
+    // requesters with no manager configured (e.g. service-style accounts).
+    if (type !== "Sick" && !state.target.manager && !state.approverOverride.active) {
       return state.onBehalf
-        ? "This employee has no manager in Entra ID, so the request can't be routed for approval. " +
-          "Submit Sick (auto-approved) or contact HR (pto-approvals@mybasepay.com)."
-        : "No manager found in Entra ID, so this request can't be routed for approval. " +
-          "Contact HR (pto-approvals@mybasepay.com), or submit Sick leave which is auto-approved.";
+        ? "This employee has no manager in Entra ID. Enable \"Route approval to someone else\" " +
+          "and select an approver, submit Sick (auto-approved), or contact HR (pto-approvals@mybasepay.com)."
+        : "No manager found in Entra ID for your account. Enable \"Route approval to someone else\" " +
+          "and select an approver, or contact HR (pto-approvals@mybasepay.com).";
     }
 
     // Alternate approver (HR/Admin only): a valid approver + reason required

@@ -120,6 +120,45 @@ window.PTORules = (function () {
   function normEmail(s) { return String(s || "").trim().toLowerCase(); }
 
   /**
+   * Validate a Graph user object as a selectable PTO participant (on-behalf
+   * employee, alternate approver, backup contact). PURE — no I/O — so it is
+   * unit-testable and shared by every selection flow. The object must come
+   * from the directory (PTODirectory lookups $select accountEnabled,userType);
+   * free-text values never reach this because callers only pass Graph results.
+   *
+   * Returns a human-readable problem string, or null when selectable.
+   * Rejects: non-objects/free text, missing/invalid email, inactive accounts
+   * (accountEnabled === false), Guest/external accounts, and non-company
+   * domains. Context rules (not yourself, not the requester, ...) are the
+   * caller's job.
+   *
+   * @param {object} user - Graph user (mail/userPrincipalName, accountEnabled, userType)
+   * @param {object} [options] - { allowedDomain?: string } default "mybasepay.com"
+   * @returns {string|null}
+   */
+  function userSelectionProblem(user, options) {
+    options = options || {};
+    var allowedDomain = normEmail(options.allowedDomain || "mybasepay.com");
+    if (!user || typeof user !== "object") {
+      return "Select a person from the directory first.";
+    }
+    var email = normEmail(user.mail || user.userPrincipalName);
+    if (!email || email.indexOf("@") === -1) {
+      return "That account has no valid email address and can't be selected.";
+    }
+    if (user.accountEnabled === false) {
+      return "That account is inactive and can't be selected.";
+    }
+    if (normEmail(user.userType) === "guest") {
+      return "Guest accounts can't be selected.";
+    }
+    if (email.split("@").pop() !== allowedDomain) {
+      return "Only " + allowedDomain + " employees can be selected.";
+    }
+    return null; // selectable
+  }
+
+  /**
    * Approval authorization predicate (Alternate Approver aware — see
    * docs/ALTERNATE_APPROVER_DESIGN.md). Pure function, no I/O, so the exact
    * priority order is independently testable from approve.page.js.
@@ -161,6 +200,7 @@ window.PTORules = (function () {
     getInitialStatus: getInitialStatus,
     buildAuditLine: buildAuditLine,
     canDecide: canDecide,
+    userSelectionProblem: userSelectionProblem,
     // exposed for reference/testing
     MIN_NOTICE_DAYS: MIN_NOTICE_DAYS,
   };
