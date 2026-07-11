@@ -120,7 +120,7 @@ window.PTODirectory = (function () {
     if (!raw) throw new Error("getUserByEmail requires an email.");
 
     var safe = raw.replace(/'/g, "''"); // OData: escape single quotes by doubling
-    var select = "$select=id,displayName,mail,userPrincipalName,jobTitle,department";
+    var select = "$select=id,displayName,mail,userPrincipalName,jobTitle,department,accountEnabled,userType";
     var filter =
       "$filter=" +
       encodeURIComponent("mail eq '" + safe + "' or userPrincipalName eq '" + safe + "'");
@@ -162,7 +162,7 @@ window.PTODirectory = (function () {
     if (raw.length < 2) throw new Error("Type at least 2 characters to search.");
 
     var safe = raw.replace(/'/g, "''"); // OData: escape single quotes by doubling
-    var select = "$select=id,displayName,mail,userPrincipalName,jobTitle,department";
+    var select = "$select=id,displayName,mail,userPrincipalName,jobTitle,department,accountEnabled,userType";
     var filter =
       "$filter=" +
       encodeURIComponent(

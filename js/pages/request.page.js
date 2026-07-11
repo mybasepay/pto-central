@@ -11,10 +11,14 @@
  *     duplicate submits.
  *
  * Phase 2B scope: create only. No Teams / calendar / email.
- * On-behalf (HR/Admin delegated submit) added later: an HR/Admin user can look up
- * another employee and file PTO FOR them. RequesterEmail/ManagerEmail then describe
- * the EMPLOYEE; SubmittedBy* records the HR/Admin who filled the form; RequestMode =
- * "On behalf of". Self-service behavior is unchanged when the toggle is off.
+ * On-behalf (2026-07-08: open to ALL employees): any authenticated active
+ * employee can search for another ACTIVE employee and file PTO FOR them.
+ * RequesterEmail/ManagerEmail then describe the EMPLOYEE (approval routing,
+ * calendar, notifications); SubmittedBy* records the authenticated submitter
+ * (from /me, never from form input — SharePoint's Author column is the
+ * server-side backstop); RequestMode = "On behalf of". Selection is validated
+ * against Entra (active, member, @mybasepay.com). Self-service is the default
+ * ("Myself") and unchanged. The alternate-approver override stays HR/Admin.
  * Pages call domain modules, never Graph directly (§7).
  */
 
@@ -26,7 +30,7 @@
 
   var state = {
     me: null,            // always the signed-in user (the submitter)
-    isHrAdmin: false,    // may use the on-behalf option
+    isHrAdmin: false,    // gates ONLY the alternate-approver override (on-behalf is open to all employees)
     onBehalf: false,     // is the on-behalf toggle active
     lookupOk: false,     // has a valid requester been resolved for the current mode
     // The signed-in user's own chain (the default "self" target).
@@ -56,9 +60,11 @@
     backupError: $("backupError"),
     submit: $("submit"), submitStatus: $("submit-status"), error: $("error"),
     detailsTitle: $("details-title-text"),
-    // On-behalf (HR/Admin) controls.
-    oboSection: $("obo-section"), oboToggle: $("oboToggle"), oboFields: $("oboFields"),
-    oboEmail: $("oboEmail"), oboLookup: $("oboLookup"), oboReason: $("oboReason"),
+    // "Who is this request for?" (all employees) controls.
+    oboSection: $("obo-section"), oboFields: $("oboFields"),
+    forWhoMyself: $("forWhoMyself"), forWhoOther: $("forWhoOther"),
+    oboSearch: $("oboSearch"), oboResults: $("oboResults"),
+    oboLookup: $("oboLookup"), oboReason: $("oboReason"),
     oboStatus: $("oboStatus"), oboError: $("oboError"),
     oboBadge: $("oboBadge"), oboBadgeText: $("oboBadgeText"),
     // Alternate approver (HR/Admin) controls.
@@ -141,11 +147,16 @@
       }
     }
 
-    // HR/Admin gate for the on-behalf option (fails closed on any lookup error).
+    // "Who is this request for?" is available to EVERY authenticated employee
+    // (decision 2026-07-08): any active employee may submit on behalf of
+    // another active employee. The PTO EMPLOYEE (selected) drives Requester*,
+    // manager routing, calendar, and notifications; the signed-in SUBMITTER is
+    // always recorded separately (SubmittedBy*, audit) from the authenticated
+    // session — never from form input.
+    if (els.oboSection) els.oboSection.style.display = "block";
+    // HR/Admin gate stays ONLY for the alternate-approver routing override
+    // (fails closed on any lookup error).
     state.isHrAdmin = await PTOAuthz.hasRole(az.email, ["HR", "Admin"]);
-    if (els.oboSection) els.oboSection.style.display = state.isHrAdmin ? "block" : "none";
-    // HR/Admin gate for the alternate-approver option — independent of
-    // on-behalf; available for both self and delegated requests.
     if (els.approverSection) els.approverSection.style.display = state.isHrAdmin ? "block" : "none";
 
     // Default to the self target.
@@ -409,28 +420,84 @@
     }
   }
 
-  // ---- employee lookup (on-behalf) ----
-  async function onLookup() {
-    clearOboMessages();
-    var email = (els.oboEmail.value || "").trim();
-    if (!email) { showOboError('Enter the employee’s email, then click "Lookup employee".'); return; }
+  // ---- employee search + selection (on-behalf — all employees) --------------
+  // The selectable-employee source of truth is Entra ID via Graph
+  // (PTODirectory.searchUsers / getManagerChainForUser) — never free text. An
+  // arbitrary email cannot be injected: the target is only ever set from a
+  // Graph user object, and the SUBMITTER is always derived from the
+  // authenticated session (state.me from /me), plus SharePoint's built-in
+  // Created By (Author) column records the true creator server-side.
+  function employeeSelectionProblem(u) {
+    var email = emailOf(u);
+    if (!email) return "That account has no email address and can't be selected.";
     if (email.toLowerCase() === emailOf(state.me).toLowerCase()) {
-      showOboError('That’s your own account. Turn off "Request PTO for someone else" to submit your own PTO.');
-      return;
+      return "That's you — choose \"Myself\" above to submit your own PTO.";
     }
+    if (u.accountEnabled === false) return "That account is inactive and can't be selected for PTO.";
+    if (String(u.userType || "").toLowerCase() === "guest") return "Guest accounts can't be selected for PTO.";
+    var domain = email.split("@").pop().toLowerCase();
+    if (domain !== "mybasepay.com") return "Only active myBasePay employees can be selected.";
+    return null; // selectable
+  }
+
+  function clearOboResults() {
+    if (!els.oboResults) return;
+    els.oboResults.innerHTML = "";
+    els.oboResults.classList.remove("show");
+  }
+
+  function oboResultRow(u) {
+    var row = document.createElement("button");
+    row.type = "button";
+    row.className = "backup-result";
+    row.setAttribute("role", "option");
+    var main = document.createElement("span");
+    main.textContent = u.displayName || emailOf(u);
+    row.appendChild(main);
+    var s = document.createElement("span");
+    s.className = "sub";
+    s.textContent = emailOf(u) + (u.department ? " · " + u.department : "");
+    row.appendChild(s);
+    row.addEventListener("click", function () { selectEmployee(u); });
+    return row;
+  }
+
+  async function onOboSearch() {
+    clearOboMessages();
+    clearOboResults();
+    var q = (els.oboSearch.value || "").trim();
+    if (!q) { showOboError("Type the employee's name or email, then click Search."); return; }
 
     els.oboLookup.disabled = true;
-    state.lookupOk = false;
-    setOboStatus("Looking up " + email + "…");
+    setOboStatus("Searching for \"" + q + "\"…");
     try {
-      var employee = await PTODirectory.getUserByEmail(email);
-      if (!employee) {
-        updateOboBadge();
-        setOboStatus("");
-        showOboError('No employee found for "' + email + '". Check the email and try again.');
+      var matches = await PTODirectory.searchUsers(q);
+      setOboStatus("");
+      if (!matches || !matches.length) {
+        showOboError('No employee found for "' + q + '". Check the spelling and try again.');
         return;
       }
+      els.oboResults.innerHTML = "";
+      matches.forEach(function (u) { els.oboResults.appendChild(oboResultRow(u)); });
+      els.oboResults.classList.add("show");
+    } catch (e) {
+      setOboStatus("");
+      showOboError("Employee search failed: " + friendly(e));
+    } finally {
+      els.oboLookup.disabled = false;
+    }
+  }
 
+  async function selectEmployee(employee) {
+    clearOboMessages();
+    // Validate against the trusted directory record BEFORE accepting.
+    var problem = employeeSelectionProblem(employee);
+    if (problem) { showOboError(problem); return; }
+
+    clearOboResults();
+    state.lookupOk = false;
+    setOboStatus("Loading " + (employee.displayName || emailOf(employee)) + "…");
+    try {
       // Resolve the EMPLOYEE's manager chain (User.Read.All). A hard failure here
       // throws and is caught below → submit stays blocked with a clear message.
       var chain = await PTODirectory.getManagerChainForUser(employee.id);
@@ -445,14 +512,13 @@
       if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
       renderTargetDetails();
       recomputeRuleUI();
-      setOboStatus("✓ Loaded " + (employee.displayName || email) + ".");
+      setOboStatus("✓ Submitting on behalf of " + (employee.displayName || emailOf(employee)) + ".");
     } catch (e) {
       state.lookupOk = false;
       updateOboBadge();
       setOboStatus("");
-      showOboError("Lookup failed: " + friendly(e));
+      showOboError("Could not load the employee's details: " + friendly(e));
     } finally {
-      els.oboLookup.disabled = false;
       refreshSubmitEnabled();
     }
   }
@@ -491,7 +557,7 @@
 
     // On-behalf: a valid employee must be resolved before anything else.
     if (state.onBehalf && (!state.lookupOk || !state.target.requester)) {
-      return 'Look up the employee first — enter their email and click "Lookup employee".';
+      return 'Select the employee first — search by name or email and pick them from the results.';
     }
 
     var type = els.ptoType.value;
@@ -663,24 +729,26 @@
   if (els.backupClear) els.backupClear.addEventListener("click", clearBackup);
 
   // On-behalf (HR/Admin): toggle reveals the lookup; switching off restores self.
-  if (els.oboToggle) {
-    els.oboToggle.addEventListener("change", function () {
-      var on = els.oboToggle.checked;
-      if (els.oboFields) els.oboFields.classList.toggle("show", on);
-      clearOboMessages();
-      if (on) {
-        enterOnBehalfMode();
-      } else {
-        els.oboEmail.value = "";
-        els.oboReason.value = "";
-        setSelfTarget();
-      }
-    });
+  // "Who is this request for?" radios — Myself (default) / Another employee.
+  function onForWhoChange() {
+    var other = !!(els.forWhoOther && els.forWhoOther.checked);
+    if (els.oboFields) els.oboFields.classList.toggle("show", other);
+    clearOboMessages();
+    clearOboResults();
+    if (other) {
+      enterOnBehalfMode();
+    } else {
+      if (els.oboSearch) els.oboSearch.value = "";
+      els.oboReason.value = "";
+      setSelfTarget();
+    }
   }
-  if (els.oboLookup) els.oboLookup.addEventListener("click", onLookup);
-  if (els.oboEmail) {
-    els.oboEmail.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); onLookup(); }
+  if (els.forWhoMyself) els.forWhoMyself.addEventListener("change", onForWhoChange);
+  if (els.forWhoOther) els.forWhoOther.addEventListener("change", onForWhoChange);
+  if (els.oboLookup) els.oboLookup.addEventListener("click", onOboSearch);
+  if (els.oboSearch) {
+    els.oboSearch.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); onOboSearch(); }
     });
   }
 

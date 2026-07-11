@@ -119,8 +119,26 @@ window.PTOAuthz = (function () {
   async function hasRole(email, allowed) {
     try {
       var info = await lookup(email);
-      return info.active && info.roles.some(function (r) { return allowed.indexOf(r) !== -1; });
+      var ok = info.active && info.roles.some(function (r) { return allowed.indexOf(r) !== -1; });
+      if (!ok) {
+        // Diagnostic (console only): distinguishes "no matching Active row /
+        // wrong role" from the list-permission failure logged in the catch.
+        console.warn("[PTOAuthz] hasRole(" + norm(email) + ", [" + allowed.join(",") + "]) → false. " +
+          "Row lookup succeeded; active=" + info.active + ", roles=[" + info.roles.join(",") + "]. " +
+          "Fix: add/repair the row in \"" + LIST_NAME + "\" (Email must be the primary address, Active=Yes, Role in allowed set).");
+      }
+      return ok;
     } catch (e) {
+      // Fail closed, but say WHY in the console — the most common real-world
+      // cause is the signed-in user lacking SharePoint READ permission on the
+      // authorization list (delegated Graph = intersection of app scope AND
+      // the user's own site/list permission). A row in the list does NOT help
+      // if the user cannot read the list.
+      console.warn("[PTOAuthz] hasRole(" + norm(email) + ") failed closed — could not read \"" +
+        LIST_NAME + "\": " + ((e && e.message) || e) +
+        ((e && e.status === 403) || /\b403\b|access denied/i.test((e && e.message) || "")
+          ? "  → HTTP 403: grant this user (or the employees/HR group) Read on the \"" + LIST_NAME + "\" list."
+          : ""));
       return false;
     }
   }
