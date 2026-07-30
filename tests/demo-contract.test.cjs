@@ -73,13 +73,14 @@ test("review summary distinguishes self and another employee", () => {
   assert(js.includes("Selected approver"));
 });
 
-test("HR Open action targets standalone detail page in a new tab", () => {
+test("HR Open action renders modal-only detail", () => {
   const html = read("hr.html");
   const js = read("js/pages/hr.page.js");
   assert(html.includes('data-act="open"'));
-  assert(html.includes('target="_blank"'));
-  assert(html.includes('rel="noopener noreferrer"'));
-  assert(js.includes("relativeDetailUrl"));
+  assert(html.includes("hr-detail-modal"));
+  assert(!html.includes('data-act="open" role="menuitem" href='));
+  assert(!js.includes("relativeDetailUrl"));
+  assert(js.includes("openDetailsModal"));
   assert(js.includes("openDetailLink"));
 });
 
@@ -91,13 +92,24 @@ test("detail page renders selected record", () => {
   assert(js.includes("itemIdFromUrl"));
 });
 
+test("cancel workspace is routed internally and uses existing cancellation API", () => {
+  const home = read("index.html");
+  const html = read("cancel.html");
+  const js = read("js/pages/cancel.page.js");
+  assert(home.includes('href="cancel.html"'));
+  assert(html.includes("Active and Upcoming"));
+  assert(html.includes("Past and Closed"));
+  assert(js.includes("PTORequests.cancelRequest"));
+  assert(js.includes("PTORequests.listMyRequests"));
+});
+
 test("demo fixtures include required statuses and reminder examples", () => {
   const context = { window: {} };
   vm.createContext(context);
   vm.runInContext(read("js/demo-fixtures.js"), context);
   const requests = context.window.PTODemoFixtures.requests;
   const statuses = new Set(requests.map((r) => r.fields.Status));
-  ["Pending", "Approved", "Rejected", "Auto-Approved", "Cancelled"].forEach((s) => assert(statuses.has(s), s));
+  ["Pending", "Approved", "Rejected", "Auto-Approved", "Cancelled", "Cancellation Requested"].forEach((s) => assert(statuses.has(s), s));
   assert(requests.some((r) => r.fields.IsShortNotice), "needs short-notice request");
   assert(requests.some((r) => r.fields.DemoReminderStage === "Awaiting Reminder 2"), "needs reminder 2 example");
   assert(requests.some((r) =>

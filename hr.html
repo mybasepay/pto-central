@@ -212,9 +212,6 @@
     .details-grid dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
     .details-grid dd { margin: 3px 0 0; font-size: 13.5px; overflow-wrap: anywhere; }
     .details-grid .span-all { grid-column: 1 / -1; }
-    pre.audit { margin: 4px 0 0; padding: 11px; overflow: auto; background: #05090f; border: 1px solid var(--hr-line-soft);
-      border-radius: 8px; font-size: 12px; max-height: 240px; white-space: pre-wrap; }
-
     /* ---- Pager ---- */
     .pager { display: none; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
       margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hr-line-soft); font-size: 13px; color: var(--muted); }
@@ -291,8 +288,8 @@
 
       <div class="filters">
         <div class="wide">
-          <label class="fld" for="f-search">Search employee / email / request key</label>
-          <input type="text" id="f-search" placeholder="Employee, email, or PTO-2026…" autocomplete="off" />
+          <label class="fld" for="f-search">Search employee or email</label>
+          <input type="text" id="f-search" placeholder="Employee name or email…" autocomplete="off" />
         </div>
         <div>
           <label class="fld" for="f-status">Status</label>
@@ -306,8 +303,16 @@
           </select>
         </div>
         <div>
-          <label class="fld" for="f-manager">Manager (name or email)</label>
-          <input type="text" id="f-manager" placeholder="e.g. boss@mybasepay.com" autocomplete="off" />
+          <label class="fld" for="f-type">PTO type</label>
+          <select id="f-type">
+            <option value="All">All</option>
+            <option value="PTO">PTO</option>
+            <option value="MHD">MHD</option>
+            <option value="Sick">Sick</option>
+            <option value="Bereavement">Bereavement</option>
+            <option value="Parental Leave">Parental Leave</option>
+            <option value="Other Leave">Other Leave</option>
+          </select>
         </div>
         <div>
           <label class="fld" for="f-from">Start date from</label>
@@ -344,7 +349,7 @@
       <div id="cancel-panel" class="cancel-panel" role="alertdialog" aria-labelledby="cancel-title">
         <h4 id="cancel-title">Cancel this PTO request?</h4>
         <div class="meta" id="cancel-meta">—</div>
-        <label class="fld" for="cancel-reason">Cancellation reason (recorded in the audit log)</label>
+        <label class="fld" for="cancel-reason">Cancellation reason</label>
         <textarea id="cancel-reason" placeholder="e.g. Employee withdrew the request / dates changed"></textarea>
         <div class="filters-foot" style="margin-top:12px;">
           <button id="cancel-confirm" class="btn danger" type="button">Confirm cancellation</button>
@@ -352,7 +357,7 @@
           <span id="cancel-status" class="status-text" aria-live="polite"></span>
         </div>
         <div class="cancel-note">
-          Sets <code>Status = Cancelled</code> and appends the audit log. The item is
+          Updates the PTO record to <strong>Cancelled</strong>. The item is
           <strong>not deleted</strong>. For approved requests, the existing cancellation flow
           removes both calendar events automatically.
         </div>
@@ -365,12 +370,11 @@
         <table class="reqs" id="reqs-table" style="display:none;">
           <thead>
             <tr>
-              <th>Request Key</th>
               <th>Requester</th>
               <th>Type</th>
               <th>Dates</th>
               <th>Requested</th>
-              <th>Manager</th>
+              <th>Approver</th>
               <th>Status</th>
               <th>Notice</th>
               <th>Mode</th>
@@ -424,12 +428,12 @@
   <!-- Shared per-row action menu (one at a time; positioned in JS; kept outside
        .table-wrap so overflow can't clip it). -->
   <div id="row-menu" class="row-menu" role="menu" aria-label="Row actions" hidden>
-    <a class="row-menu-item" data-act="open" role="menuitem" href="#" target="_blank" rel="noopener noreferrer">
+    <button type="button" class="row-menu-item" data-act="open" role="menuitem">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
       </svg>
       Open detail
-    </a>
+    </button>
     <button type="button" class="row-menu-item" data-act="details" role="menuitem">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
@@ -449,6 +453,19 @@
       </svg>
       Cancel request
     </button>
+  </div>
+
+  <div class="modal-backdrop" id="hr-detail-backdrop" hidden>
+    <section class="modal-panel hr-detail-modal" id="hr-detail-modal" role="dialog" aria-modal="true" aria-labelledby="hr-detail-title" tabindex="-1">
+      <header class="modal-head">
+        <div>
+          <h2 class="modal-title" id="hr-detail-title">PTO request details</h2>
+          <p class="modal-subtitle" id="hr-detail-subtitle">Review request information without leaving HR Center.</p>
+        </div>
+        <button class="btn small" type="button" data-modal-close>Close</button>
+      </header>
+      <div class="modal-body" id="hr-detail-body"></div>
+    </section>
   </div>
 
   <!--

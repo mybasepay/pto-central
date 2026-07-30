@@ -27,7 +27,7 @@
     decisionUi: $("decision-ui"), comment: $("comment"), commentCount: $("comment-count"),
     approve: $("approve"), reject: $("reject"), decisionStatus: $("decision-status"),
     blockNote: $("block-note"), statusNote: $("status-note"),
-    error: $("error"), auditlog: $("auditlog"), raw: $("raw"),
+    error: $("error"),
     approverNote: $("approver-note"),
   };
 
@@ -171,7 +171,6 @@
 
     PTOUI.setText("d-submitted", f.SubmittedAt ? new Date(f.SubmittedAt).toLocaleString() : "—");
     var mgr = (f.ManagerName || "") + (f.ManagerEmail ? " <" + f.ManagerEmail + ">" : "");
-    PTOUI.setText("d-manager", mgr.trim() || "—");
 
     // Approver: falls back to the manager when ApproverEmail is blank (legacy
     // requests / column not yet provisioned) — never shown as a separate
@@ -179,21 +178,15 @@
     var approverEmail = approverMeta.ApproverEmail || f.ManagerEmail || "";
     var approverName = approverMeta.ApproverName || f.ManagerName || "";
     var apr = (approverName || "") + (approverEmail ? " <" + approverEmail + ">" : "");
+    var sameApprover = String(approverEmail || "").toLowerCase() === String(f.ManagerEmail || "").toLowerCase();
+    var mgrEl = $("d-manager");
+    if (mgrEl && mgrEl.closest(".sum-row")) mgrEl.closest(".sum-row").style.display = sameApprover ? "none" : "";
+    PTOUI.setText("d-manager", mgr.trim() || "—");
     PTOUI.setText("d-approver", apr.trim() || "—");
     renderApproverNote(f, approverMeta);
 
     PTOUI.setText("d-short", f.IsShortNotice ? "Yes" : "No");
     PTOUI.setText("d-notice", (f.NoticeDays === undefined || f.NoticeDays === null) ? "—" : f.NoticeDays);
-
-    var linkDd = $("d-link");
-    linkDd.textContent = "";
-    if (item && item.webUrl) {
-      linkDd.appendChild(PTOUI.el("a", { href: item.webUrl, target: "_blank", rel: "noopener noreferrer" }, "Open"));
-    } else {
-      linkDd.textContent = "—";
-    }
-
-    els.auditlog.textContent = f.AuditLog || "—";
   }
 
   /** Decide what the decision panel shows based on auth + status. */
@@ -256,7 +249,6 @@
       try { await PTORequests.resolveApproverFieldMap(); } catch (e) { /* tolerated */ }
       state.approverMeta = PTORequests.readApproverMetadata(state.fields);
 
-      els.raw.textContent = JSON.stringify(item, null, 2);
       renderDetails(state.fields, item, state.approverMeta);
       evaluateGate();
       els.decisionStatus.textContent = "";
@@ -288,8 +280,6 @@
       var statusDd = $("d-status");
       statusDd.textContent = "";
       statusDd.appendChild(PTOUI.statusBadge(state.fields.Status));
-      els.auditlog.textContent = state.fields.AuditLog || "—";
-
       // Lock the panel and show the outcome.
       els.decisionUi.style.display = "none";
       showNote(els.statusNote, "Decision recorded: this request is now " + state.fields.Status + ".");

@@ -13,7 +13,7 @@
 
     All element IDs consumed by js/pages/my-requests.page.js are PRESERVED
     (auth + user chip, refresh, statusFilter, search, count, warn, error,
-    empty, reqs-table, reqs-body, raw, the three stat-* counters, and the
+    empty, reqs-table, reqs-body, the three stat-* counters, and the
     page-size / page-prev / page-next pager).
   -->
   <style>
@@ -258,7 +258,7 @@
           <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
           </svg>
-          <input type="text" id="search" placeholder="Search requests…" autocomplete="off" aria-label="Search requests by key or PTO type" />
+          <input type="text" id="search" placeholder="Search requests..." autocomplete="off" aria-label="Search requests by PTO type, date, or status" />
         </div>
         <select id="statusFilter" aria-label="Filter by status">
           <option value="All">All Statuses</option>
@@ -284,7 +284,6 @@
         <table class="reqs" id="reqs-table" style="display:none;">
           <thead>
             <tr>
-              <th>Request Key</th>
               <th>PTO Type</th>
               <th>Dates</th>
               <th>Status</th>
@@ -313,14 +312,6 @@
         </div>
       </div>
     </section>
-
-    <details class="debug">
-      <summary>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-        Show raw JSON (debug)
-      </summary>
-      <pre id="raw">—</pre>
-    </details>
 
     <footer class="mr-footer">
       © <span id="year"></span> myBasePay · Tech Support

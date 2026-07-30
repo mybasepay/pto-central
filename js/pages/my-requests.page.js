@@ -7,7 +7,7 @@
  *     PTORequests.listMyRequests(email).
  *   - Simple summary counts (total / pending / approved), a search + status
  *     filter, a Refresh button, and a clean 4-column table with status badges.
- *   - Empty state, error panel, and a collapsed raw-JSON debug section.
+ *   - Empty state and error panel.
  *
  * READ-ONLY: no cancel/edit. Data source, user-filtering, and status values
  * are unchanged. Pages call domain modules, never Graph directly (§7).
@@ -23,7 +23,7 @@
     userChip: $("user-chip"), userChipName: $("user-chip-name"), userChipAvatar: $("user-chip-avatar"),
     refresh: $("refresh"), statusFilter: $("statusFilter"), search: $("search"), count: $("count"),
     warn: $("warn"), error: $("error"), empty: $("empty"),
-    table: $("reqs-table"), body: $("reqs-body"), raw: $("raw"),
+    table: $("reqs-table"), body: $("reqs-body"),
     statTotal: $("stat-total"), statPending: $("stat-pending"), statApproved: $("stat-approved"),
     pageSize: $("page-size"), pagePrev: $("page-prev"), pageNext: $("page-next"),
   };
@@ -82,10 +82,15 @@
     return status === filter;
   }
 
-  /** Free-text search over request key + PTO type (case-insensitive). */
+  /** Free-text search over user-facing request fields (case-insensitive). */
   function matchesSearch(r, q) {
     if (!q) return true;
-    var hay = (String(r.requestKey || "") + " " + String(r.ptoType || "")).toLowerCase();
+    var hay = ([
+      r.ptoType,
+      r.startDate,
+      r.endDate,
+      r.status,
+    ].join(" ")).toLowerCase();
     return hay.indexOf(q) !== -1;
   }
 
@@ -136,7 +141,6 @@
     els.body.innerHTML = "";
     pageRows.forEach(function (r) {
       var tr = PTOUI.el("tr", null, [
-        PTOUI.el("td", { class: "key" }, r.requestKey || "—"),
         PTOUI.el("td", null, r.ptoType || "—"),
         PTOUI.el("td", null, PTOUI.formatRange(r.startDate, r.endDate)),
         PTOUI.el("td", null, PTOUI.statusBadge(r.status)),
@@ -177,7 +181,6 @@
 
       var result = await PTORequests.listMyRequests(state.email);
       state.all = result.items || [];
-      els.raw.textContent = JSON.stringify(result.raw || result, null, 2);
 
       if (result.warning) {
         showWarn(result.warning + (result.usedFallback ? " (showing client-side filtered results)" : ""));

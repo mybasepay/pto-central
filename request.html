@@ -376,9 +376,10 @@
         </svg>
       </span>
       <div>
-        <h1>Submit PTO Request</h1>
-        <p class="desc">Create a PTO request for yourself or for another employee.</p>
+        <h1 id="request-page-title">Submit PTO Request</h1>
+        <p class="desc" id="request-page-desc">Choose who this request is for to begin.</p>
       </div>
+      <button id="requestTypeChange" class="link-button request-type-change" type="button" hidden>Change request type</button>
     </div>
 
     <!-- Pilot phase banner -->
@@ -424,12 +425,12 @@
     <div id="request-form-shell" class="request-form-shell" hidden>
     <div id="request-context" class="request-context" role="status" aria-live="polite"></div>
 
-    <!-- Option cards: selected employee + alternate approver. Both hidden until signed in. -->
-    <div class="option-grid">
+    <!-- Selected employee context. Hidden for self-service. -->
+    <div class="option-grid request-mode-context">
       <!-- Who is this request for? — available to every authenticated employee.
            The selected employee becomes the PTO EMPLOYEE (Requester*, manager
            routing, calendar, notifications); the signed-in user is always the
-           SUBMITTER (SubmittedBy*, audit trail), derived from the
+           SUBMITTER (SubmittedBy*), derived from the
            authenticated session — never from form input. -->
       <div id="obo-section" class="option-card obo" aria-label="Who is this request for" style="display:none;">
         <div class="option-head">
@@ -460,62 +461,14 @@
               <label class="fld" for="oboSearch">Employee receiving PTO <span class="req">*</span></label>
               <input type="text" id="oboSearch" placeholder="Search for an employee by name or email…" autocomplete="off" />
             </div>
-            <div>
-              <button id="oboLookup" class="btn" type="button">Search</button>
-            </div>
           </div>
-          <div id="oboResults" class="backup-results" role="listbox" aria-label="Employee matches"></div>
+          <div id="oboResults" class="people-results" role="listbox" aria-label="Employee matches"></div>
           <div style="margin-top:12px;">
             <label class="fld" for="oboReason">Reason for submitting on their behalf (optional)</label>
             <textarea id="oboReason" placeholder="e.g. Employee is out and asked me to file this request."></textarea>
           </div>
           <div id="oboStatus" class="note info" role="status"></div>
           <div id="oboError" class="note danger" role="alert"></div>
-        </div>
-      </div>
-
-      <!-- Alternate approver — available to all employees; approver must resolve
-           from the directory and pass validation (active/Member/company domain,
-           not the requester, not the submitter). Reason required. -->
-      <div id="approver-section" class="option-card approver" aria-label="Alternate approver" style="display:none;">
-        <div class="option-head">
-          <span class="option-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="7" cy="7" r="2.8" /><path d="M2.8 17.5c0-2.5 1.9-4.2 4.2-4.2" />
-              <path d="M13 7h8" /><path d="M18 4l3 3-3 3" /><path d="M13 15.5h8" /><path d="M16 12.5l-3 3 3 3" />
-            </svg>
-          </span>
-          <div class="option-main">
-            <label class="option-toggle" for="approverToggle">
-              <input type="checkbox" id="approverToggle" />
-              <span class="t">Route approval to someone else</span>
-            </label>
-            <p class="option-note">Select an alternate approver if the manager is unavailable — or when no manager is configured.</p>
-          </div>
-        </div>
-        <div id="approverFields" class="obo-fields">
-          <div class="lookup-row">
-            <div class="grow">
-              <label class="fld" for="approverEmail">Alternate approver's email</label>
-              <input type="email" id="approverEmail" placeholder="approver@mybasepay.com" autocomplete="off" />
-            </div>
-            <div>
-              <button id="approverLookup" class="btn" type="button">Lookup approver</button>
-            </div>
-          </div>
-          <div id="approverResults" class="backup-results" role="listbox" aria-label="Approver matches"></div>
-          <div style="margin-top:12px;">
-            <label class="fld" for="approverReason">Reason for routing approval to this person <span class="req">*</span></label>
-            <textarea id="approverReason" placeholder="e.g. Manager is on leave through July; Michelle is covering approvals."></textarea>
-          </div>
-          <div id="approverBadge" class="approver-badge" role="status" aria-live="polite">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
-            </svg>
-            <span class="who" id="approverBadgeText">Approval routed to …</span>
-          </div>
-          <div id="approverStatus" class="note info" role="status"></div>
-          <div id="approverError" class="note danger" role="alert"></div>
         </div>
       </div>
     </div>
@@ -540,6 +493,29 @@
         <div class="tile"><span class="lbl">Department / Title</span><span class="val" id="c-dept">—</span></div>
         <div class="tile span2"><span class="lbl">Manager</span><span class="val" id="c-mgr">—</span></div>
         <div class="tile"><span class="lbl">Manager's manager</span><span class="val" id="c-mm">—</span></div>
+      </div>
+      <div id="approver-section" class="approval-route-panel" aria-label="Approval routing" style="display:none;">
+        <input type="checkbox" id="approverToggle" hidden />
+        <div class="route-summary">
+          <div>
+            <span class="lbl">Default manager</span>
+            <strong id="routeDefault">—</strong>
+          </div>
+          <button id="approverEdit" class="link-button" type="button">Change approver</button>
+        </div>
+        <div id="approverBadge" class="approver-badge" role="status" aria-live="polite">
+          <span class="who" id="approverBadgeText">Approval routed to …</span>
+          <button id="approverRestore" class="link-button" type="button">Restore default</button>
+        </div>
+        <div id="approverFields" class="route-edit-fields">
+          <label class="fld" for="approverEmail">Search approver</label>
+          <input type="text" id="approverEmail" placeholder="Type name or email…" autocomplete="off" />
+          <div id="approverResults" class="people-results" role="listbox" aria-label="Approver matches"></div>
+          <label class="fld route-reason" for="approverReason">Reason for changing approver <span class="req">*</span></label>
+          <textarea id="approverReason" class="route-reason" placeholder="Brief reason for routing approval to this person."></textarea>
+          <div id="approverStatus" class="picker-message" role="status"></div>
+          <div id="approverError" class="note danger" role="alert"></div>
+        </div>
       </div>
       <div id="mgr-warn" class="note warn" role="alert"></div>
       <div id="mm-warn" class="note warn" role="alert"></div>
@@ -589,12 +565,9 @@
                 <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
               </svg>
             </div>
-            <div>
-              <button id="backupLookup" class="btn" type="button">Search</button>
-            </div>
           </div>
           <div class="backup-hint">When selected, name and email will be filled automatically.</div>
-          <div id="backupResults" class="backup-results" role="listbox" aria-label="Backup contact matches"></div>
+          <div id="backupResults" class="people-results" role="listbox" aria-label="Backup contact matches"></div>
           <span id="backupSelected" class="backup-selected">
             <span class="txt" id="backupSelectedText">—</span>
             <button id="backupClear" class="clear" type="button" aria-label="Clear selected backup contact">

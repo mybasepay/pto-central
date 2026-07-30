@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cancel PTO Request - PTO Central</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body.cancel-page {
+      display: block;
+      min-height: 100vh;
+      padding: 0 clamp(16px, 3vw, 42px) 52px;
+      background:
+        radial-gradient(860px 520px at 100% 0%, rgba(47, 128, 237, 0.16), transparent 58%),
+        radial-gradient(780px 560px at 0% 100%, rgba(45, 212, 191, 0.14), transparent 60%),
+        linear-gradient(180deg, #f7fbff 0%, #eef5ff 54%, #f8fbff 100%);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    .cancel-page .wrap { width: 100%; max-width: 1220px; margin: 0 auto; }
+    .cancel-page .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 18px 0 14px; flex-wrap: wrap;
+    }
+    .cancel-page .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .cancel-page .brand-logo {
+      width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+      color: #0b63ce; background: linear-gradient(145deg, #eff6ff, #e0f2fe);
+      border: 1px solid rgba(37, 99, 235, 0.18);
+    }
+    .cancel-page .brand-logo svg { width: 22px; height: 22px; }
+    .cancel-page .brand-name { font-size: 18px; font-weight: 800; color: #071a3f; }
+    .cancel-page .brand-page { font-size: 12px; color: #5b6b86; margin-top: 1px; }
+    .cancel-page .auth-area { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+    .cancel-page .user-chip {
+      display: none; align-items: center; gap: 10px; padding: 6px 12px 6px 7px;
+      border-radius: 999px; border: 1px solid rgba(15, 44, 84, 0.12);
+      background: rgba(255, 255, 255, 0.76);
+    }
+    .cancel-page .user-chip.show { display: inline-flex; }
+    .cancel-page .avatar {
+      width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center;
+      color: #0b63ce; font-size: 11px; font-weight: 800; background: #e8f1ff;
+    }
+    .cancel-page .who { color: #172744; font-size: 13px; font-weight: 700; }
+    .cancel-page #account { display: none; color: #5b6b86; font-size: 13px; }
+    .cancel-page #account.show-text { display: inline; }
+
+    .cancel-page .page-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 18px;
+      padding: 24px 0 18px; flex-wrap: wrap;
+    }
+    .cancel-page h1 { margin: 0; color: #071a3f; font-size: clamp(28px, 4vw, 42px); line-height: 1.05; }
+    .cancel-page .desc { margin: 8px 0 0; color: #51627d; font-size: 15px; max-width: 700px; }
+    .cancel-page .head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .cancel-page .btn {
+      appearance: none; border: 1px solid rgba(15, 72, 150, 0.18); background: #fff; color: #0b2b5f;
+      border-radius: 10px; min-height: 40px; padding: 9px 15px; font: inherit; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+      box-shadow: 0 8px 18px -15px rgba(10, 28, 60, 0.55);
+    }
+    .cancel-page .btn svg { width: 16px; height: 16px; }
+    .cancel-page .btn.primary { color: #fff; background: #0b63ce; border-color: #0b63ce; }
+    .cancel-page .btn.danger { color: #fff; background: #b42318; border-color: #b42318; }
+    .cancel-page .btn:disabled { opacity: .48; cursor: not-allowed; }
+    .cancel-page .btn:focus-visible,
+    .cancel-page input:focus-visible,
+    .cancel-page textarea:focus-visible {
+      outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+    }
+
+    .cancel-page .panel {
+      background: rgba(255, 255, 255, 0.84);
+      border: 1px solid rgba(15, 44, 84, 0.12);
+      border-radius: 16px;
+      box-shadow: 0 24px 60px -46px rgba(9, 30, 66, 0.55);
+      overflow: hidden;
+    }
+    .cancel-page .toolbar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 16px clamp(16px, 2vw, 22px); border-bottom: 1px solid rgba(15, 44, 84, 0.1);
+    }
+    .cancel-page .search-wrap { position: relative; flex: 1 1 320px; min-width: 220px; }
+    .cancel-page .search-wrap svg {
+      position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+      width: 16px; height: 16px; color: #74839a; pointer-events: none;
+    }
+    .cancel-page input,
+    .cancel-page textarea {
+      width: 100%; box-sizing: border-box; border: 1px solid rgba(15, 44, 84, 0.16);
+      background: #fff; color: #172744; border-radius: 10px; font: inherit; font-size: 14px;
+      padding: 10px 12px;
+    }
+    .cancel-page .search-wrap input { padding-left: 38px; }
+    .cancel-page textarea { min-height: 92px; resize: vertical; }
+    .cancel-page .notice,
+    .cancel-page .error {
+      display: none; margin: 14px clamp(16px, 2vw, 22px) 0; padding: 12px 14px;
+      border-radius: 12px; font-size: 13.5px; line-height: 1.45;
+    }
+    .cancel-page .notice { color: #23425f; background: #edf6ff; border: 1px solid rgba(14, 116, 144, 0.2); }
+    .cancel-page .error { color: #842029; background: #fff1f2; border: 1px solid rgba(220, 38, 38, 0.22); }
+
+    .cancel-page .section { padding: 18px clamp(16px, 2vw, 22px) 20px; }
+    .cancel-page .section + .section { border-top: 1px solid rgba(15, 44, 84, 0.1); }
+    .cancel-page .section-head {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+      margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .cancel-page .section-title { margin: 0; color: #0a1c3f; font-size: 18px; }
+    .cancel-page .section-count { color: #687895; font-size: 13px; }
+    .cancel-page .request-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px;
+    }
+    .cancel-page .request-card {
+      border: 1px solid rgba(15, 44, 84, 0.12); border-radius: 12px; background: #fff;
+      padding: 14px; display: grid; gap: 12px; min-width: 0;
+    }
+    .cancel-page .request-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .cancel-page .request-type { color: #0a1c3f; font-size: 16px; font-weight: 800; }
+    .cancel-page .request-dates { color: #40516d; font-size: 13.5px; margin-top: 2px; }
+    .cancel-page .request-meta {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+      color: #51627d; font-size: 12.5px;
+    }
+    .cancel-page .request-meta strong { display: block; color: #172744; font-size: 13.5px; margin-top: 2px; }
+    .cancel-page .request-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+    .cancel-page .empty { color: #61728f; font-size: 14px; padding: 14px 0; }
+    .cancel-page .ineligible { color: #687895; font-size: 13px; }
+    .cancel-page .modal-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .cancel-page .field-note { margin: 7px 0 0; color: #687895; font-size: 12.5px; line-height: 1.45; }
+    .cancel-page .footer { margin-top: 18px; color: #687895; font-size: 12px; text-align: center; }
+
+    @media (max-width: 700px) {
+      .cancel-page .page-head { align-items: flex-start; }
+      .cancel-page .head-actions, .cancel-page .btn { width: 100%; }
+      .cancel-page .request-meta { grid-template-columns: 1fr; }
+      .cancel-page .request-actions { justify-content: stretch; }
+      .cancel-page .request-actions .btn { width: 100%; }
+    }
+  </style>
+  <link rel="stylesheet" href="styles.css?v=corporate-light" />
+</head>
+<body class="app-page cancel-page">
+  <main class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" /><path d="m9 9 6 6M15 9l-6 6" />
+          </svg>
+        </span>
+        <div>
+          <div class="brand-name">PTO Central</div>
+          <div class="brand-page">Cancellation Workspace</div>
+        </div>
+      </div>
+      <div class="auth-area">
+        <span id="user-chip" class="user-chip">
+          <span class="avatar" id="user-chip-avatar" aria-hidden="true">--</span>
+          <span class="who" id="user-chip-name">-</span>
+        </span>
+        <span id="account" aria-live="polite">Not signed in.</span>
+        <button id="signin" class="btn" type="button">Sign in</button>
+        <button id="signout" class="btn" type="button" disabled>Sign out</button>
+      </div>
+    </header>
+
+    <div class="page-head">
+      <div>
+        <h1>Cancel PTO Request</h1>
+        <p class="desc">Review your existing PTO records and request cancellation for eligible upcoming items.</p>
+      </div>
+      <div class="head-actions">
+        <a class="btn" href="index.html">PTO Central Home</a>
+        <button id="refresh" class="btn primary" type="button" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 11a8 8 0 1 0-.9 4.3" /><path d="M20 4v5h-5" />
+          </svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <section class="panel" aria-label="My PTO cancellation workspace">
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+          </svg>
+          <input id="search" type="search" placeholder="Search by PTO type, date, or status" autocomplete="off" />
+        </div>
+      </div>
+      <div id="notice" class="notice" role="status"></div>
+      <div id="error" class="error" role="alert" aria-live="assertive"></div>
+
+      <section class="section" aria-labelledby="active-title">
+        <div class="section-head">
+          <h2 class="section-title" id="active-title">Active and Upcoming</h2>
+          <span class="section-count" id="active-count"></span>
+        </div>
+        <div class="request-grid" id="active-list"></div>
+        <div class="empty" id="active-empty">No active or upcoming PTO requests found.</div>
+      </section>
+
+      <section class="section" aria-labelledby="past-title">
+        <div class="section-head">
+          <h2 class="section-title" id="past-title">Past and Closed</h2>
+          <span class="section-count" id="past-count"></span>
+        </div>
+        <div class="request-grid" id="past-list"></div>
+        <div class="empty" id="past-empty">No past or closed PTO requests found.</div>
+      </section>
+    </section>
+
+    <footer class="footer">&copy; <span id="year"></span> myBasePay &middot; Tech Support</footer>
+  </main>
+
+  <div class="modal-backdrop" id="cancel-modal-backdrop" hidden>
+    <section class="modal-panel" id="cancel-modal" role="dialog" aria-modal="true" aria-labelledby="cancel-modal-title" tabindex="-1">
+      <header class="modal-head">
+        <div>
+          <h2 class="modal-title" id="cancel-modal-title">Request Cancellation</h2>
+          <p class="modal-subtitle" id="cancel-modal-subtitle">Review the PTO details before continuing.</p>
+        </div>
+        <button class="btn" type="button" data-modal-close>Close</button>
+      </header>
+      <div class="modal-body">
+        <div class="modal-grid" id="cancel-detail"></div>
+        <label>
+          Cancellation reason
+          <textarea id="cancel-reason" placeholder="Add a brief reason for the cancellation request."></textarea>
+        </label>
+        <p class="field-note">The request record stays in PTO Central. Submitting uses the existing cancellation process and updates the request status.</p>
+        <div class="modal-actions">
+          <button class="btn" type="button" data-modal-close>Keep Request</button>
+          <button class="btn danger" type="button" id="confirm-cancel">Submit Cancellation</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="lib/msal-browser.min.js"></script>
+  <script src="js/config.js?v=cancel1"></script>
+  <script src="js/auth.js?v=cancel1"></script>
+  <script src="js/graph.js?v=cancel1"></script>
+  <script src="js/directory.js?v=cancel1"></script>
+  <script src="js/rules.js?v=cancel1"></script>
+  <script src="js/requests.js?v=cancel1"></script>
+  <script src="js/authz.js?v=cancel1"></script>
+  <script src="js/ui.js?v=cancel1"></script>
+  <script src="js/demo-fixtures.js?v=demo2"></script>
+  <script src="js/demo-mode.js?v=demo2"></script>
+  <script src="js/pages/cancel.page.js?v=cancel1"></script>
+</body>
+</html>

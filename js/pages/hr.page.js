@@ -6,11 +6,11 @@
  *     fails CLOSED: any lookup problem -> blocked, and NO request data is loaded).
  *   - Load ALL requests from the modern "PTO Requests" list
  *     (PTORequests.listAllRequests — paged, read-only).
- *   - Client-side filters: search, status, manager, start-date range,
+ *   - Client-side filters: search, status, PTO type, start-date range,
  *     short-notice only, on-behalf only. Client-side pagination (view only).
  *   - Per-row kebab menu: Details expansion, Approval-page link, and SAFE
  *     cancellation (PTORequests.cancelRequest):
- *       confirm + reason -> Status = "Cancelled" + AuditLog append (+ optional
+ *       confirm + reason -> Status = "Cancelled" (+ optional
  *       Cancelled-by/CancelReason metadata when the columns exist). The validated
  *       "PTO Calendar Cancellation MVP Clean" flow reacts to the status — this
  *       page never touches calendar event ids and never deletes items.
@@ -31,7 +31,7 @@
     signin: $("signin"), signout: $("signout"), account: $("account"),
     refresh: $("refresh"), applyFilters: $("apply-filters"), clearFilters: $("clear-filters"), count: $("count"),
     exportReport: $("export-report"),
-    fSearch: $("f-search"), fStatus: $("f-status"), fManager: $("f-manager"),
+    fSearch: $("f-search"), fStatus: $("f-status"), fType: $("f-type"),
     fFrom: $("f-from"), fTo: $("f-to"), fShort: $("f-short"), fObo: $("f-obo"),
     ok: $("ok"), warn: $("warn"), error: $("error"), empty: $("empty"),
     table: $("reqs-table"), body: $("reqs-body"),
@@ -39,6 +39,8 @@
     cancelReason: $("cancel-reason"), cancelConfirm: $("cancel-confirm"),
     cancelAbort: $("cancel-abort"), cancelStatus: $("cancel-status"),
     rowMenu: $("row-menu"),
+    detailModal: $("hr-detail-modal"), detailBody: $("hr-detail-body"), detailTitle: $("hr-detail-title"),
+    detailSubtitle: $("hr-detail-subtitle"),
     pager: $("pager"), pageSize: $("page-size"), pageRange: $("page-range"),
     pagePrev: $("page-prev"), pageNext: $("page-next"), pageNums: $("page-nums"),
   };
@@ -47,7 +49,7 @@
     me: null,
     authorized: false,
     all: [],            // normalized requests (PTORequests.listAllRequests)
-    expandedId: null,   // row id with the details expansion open
+    detailDialog: null,
     cancelTarget: null, // normalized request pending cancellation confirm
     cancelling: false,
     // view-only pagination
@@ -110,7 +112,7 @@
 
     var q = els.fSearch.value.trim().toLowerCase();
     if (q) {
-      var hay = [r.requestKey, r.requesterName, r.requesterEmail]
+      var hay = [r.requesterName, r.requesterEmail, r.ptoType]
         .map(function (s) { return String(s || "").toLowerCase(); })
         .join(" | ");
       if (hay.indexOf(q) === -1) return false;
@@ -123,11 +125,8 @@
       } else if (r.status !== st) return false;
     }
 
-    var mgr = els.fManager.value.trim().toLowerCase();
-    if (mgr) {
-      var mhay = (String(r.managerName || "") + " " + String(r.managerEmail || "")).toLowerCase();
-      if (mhay.indexOf(mgr) === -1) return false;
-    }
+    var type = els.fType ? els.fType.value : "All";
+    if (type !== "All" && r.ptoType !== type) return false;
 
     // Start-date range (date-only lexicographic compare on YYYY-MM-DD).
     var start = String(r.startDate || "").slice(0, 10);
@@ -184,72 +183,79 @@
     return td;
   }
 
-  function collapseDetails() { state.expandedId = null; renderTable(); }
+  function addInfo(dl, label, value) {
+    var wrap = PTOUI.el("div", null, [
+      PTOUI.el("dt", null, label),
+      PTOUI.el("dd", null, (value === undefined || value === null || value === "") ? "—" : String(value)),
+    ]);
+    dl.appendChild(wrap);
+  }
 
-  function detailsRow(r) {
+  function requestDuration(r) {
+    var s = new Date(String(r.startDate || "") + "T00:00:00");
+    var e = new Date(String(r.endDate || r.startDate || "") + "T00:00:00");
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return "—";
+    var days = Math.round((e - s) / 86400000) + 1;
+    return days + " day" + (days === 1 ? "" : "s");
+  }
+
+  function renderDetailModal(r) {
     var f = r.fields || {};
     var meta = metaOf(r);
-
-    // A visible, keyboard-reachable way to collapse the panel from inside it
-    // (in addition to the Details toggle in the kebab menu, unchanged).
-    var head = PTOUI.el("div", { class: "details-head" }, [
-      PTOUI.el("span", { class: "details-title" }, "Request details"),
-      PTOUI.el("button", {
-        class: "btn small", type: "button",
-        "aria-label": "Hide details for " + (r.requestKey || ("#" + r.id)),
-        onClick: collapseDetails,
-      }, "Hide details"),
-    ]);
-
-    var dl = PTOUI.el("dl", { class: "details-grid" });
-
-    function item(label, value, spanAll) {
-      var wrap = PTOUI.el("div", spanAll ? { class: "span-all" } : null);
-      wrap.appendChild(PTOUI.el("dt", null, label));
-      var dd = PTOUI.el("dd", null);
-      if (value instanceof Node) dd.appendChild(value); else dd.textContent = (value === undefined || value === null || value === "") ? "—" : String(value);
-      wrap.appendChild(dd);
-      dl.appendChild(wrap);
-    }
-
-    item("Reason / notes", f.Reason);
-    item("Backup contact", ((f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "")).trim() || "—");
-    item("Partial day / hours", f.IsPartialDay ? ("Yes" + (f.Hours ? " (" + f.Hours + " hrs)" : "")) : "No");
-    item("Notice days", (r.noticeDays === undefined || r.noticeDays === null) ? "—" : r.noticeDays);
-    item("Urgent", truthy(r.isUrgent) ? "Yes" : "No");
-    item("Request mode", meta.RequestMode || (truthy(meta.OnBehalf) ? "On behalf of" : "Self"));
-    item("On-behalf reason", meta.OnBehalfReason);
-    item("Submitted by", ((meta.SubmittedByName || "") + (meta.SubmittedByEmail ? " <" + meta.SubmittedByEmail + ">" : "")).trim() || "—");
-    item("Decision", f.DecisionByName
-      ? f.Status + " by " + f.DecisionByName + (f.DecisionDate ? " on " + fmtDateTime(f.DecisionDate) : "")
-      : "—");
-
-    // Approver (docs/ALTERNATE_APPROVER_DESIGN.md) — falls back to the manager
-    // when ApproverEmail is blank (legacy request / column not yet provisioned).
     var am = approverOf(r);
-    var approverEmail = am.ApproverEmail || r.managerEmail || "";
     var approverName = am.ApproverName || r.managerName || "";
-    item("Approver", ((approverName || "") + (approverEmail ? " <" + approverEmail + ">" : "")).trim() || "—");
-    if (approverOverrideTruthy(am)) {
-      var originalMgr = ((am.OriginalManagerName || r.managerName || "") +
-        (am.OriginalManagerEmail ? " <" + am.OriginalManagerEmail + ">" : "")).trim() || "—";
-      item("Approver override", "Yes — routed from manager " + originalMgr +
-        (am.ApproverOverrideReason ? " — reason: " + am.ApproverOverrideReason : ""), true);
+    var approverEmail = am.ApproverEmail || r.managerEmail || "";
+    var defaultManager = ((am.OriginalManagerName || r.managerName || "") +
+      ((am.OriginalManagerEmail || r.managerEmail) ? " <" + (am.OriginalManagerEmail || r.managerEmail) + ">" : "")).trim();
+    var selectedApprover = ((approverName || "") + (approverEmail ? " <" + approverEmail + ">" : "")).trim();
+    var decision = f.DecisionByName
+      ? f.Status + " by " + f.DecisionByName + (f.DecisionDate ? " on " + fmtDateTime(f.DecisionDate) : "")
+      : "";
+    els.detailTitle.textContent = (r.requesterName || r.requesterEmail || "Employee") + " · " + (r.ptoType || "PTO");
+    els.detailSubtitle.textContent = PTOUI.formatRange(r.startDate, r.endDate);
+    els.detailBody.innerHTML = "";
+    var grid = PTOUI.el("div", { class: "modal-grid" });
+    function section(title) {
+      var sec = PTOUI.el("section", { class: "modal-section" }, [PTOUI.el("h3", null, title)]);
+      var dl = PTOUI.el("dl", { class: "info-list" });
+      sec.appendChild(dl);
+      grid.appendChild(sec);
+      return dl;
     }
+    var overview = section("Request overview");
+    addInfo(overview, "Employee", r.requesterName || r.requesterEmail);
+    var statusDdWrap = PTOUI.el("div", null, [PTOUI.el("dt", null, "Status"), PTOUI.el("dd", null, PTOUI.statusBadge(r.status))]);
+    overview.appendChild(statusDdWrap);
+    addInfo(overview, "PTO type", r.ptoType);
+    addInfo(overview, "Dates", PTOUI.formatRange(r.startDate, r.endDate));
+    addInfo(overview, "Duration", requestDuration(r));
 
-    if (r.webUrl) {
-      item("SharePoint item", PTOUI.el("a", { href: r.webUrl, target: "_blank", rel: "noopener noreferrer" }, "Open list item"));
-    }
+    var employee = section("Employee details");
+    addInfo(employee, "Name", r.requesterName);
+    addInfo(employee, "Email", r.requesterEmail);
+    addInfo(employee, "Department", f.RequesterDepartment);
+    addInfo(employee, "Title", f.RequesterJobTitle);
 
-    var auditWrap = PTOUI.el("div", { class: "span-all" });
-    auditWrap.appendChild(PTOUI.el("dt", null, "Audit log"));
-    auditWrap.appendChild(PTOUI.el("pre", { class: "audit" }, f.AuditLog || "—"));
-    dl.appendChild(auditWrap);
+    var details = section("Request details");
+    addInfo(details, "Reason", f.Reason);
+    addInfo(details, "Backup", ((f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "")).trim());
+    addInfo(details, "Partial day", f.IsPartialDay ? "Yes" + (f.Hours ? " (" + f.Hours + " hrs)" : "") : "No");
+    addInfo(details, "Notice", r.noticeDays === undefined || r.noticeDays === null ? "" : r.noticeDays + " day(s)");
+    addInfo(details, "Short notice", truthy(r.isShortNotice) ? "Yes" : "No");
 
-    var td = PTOUI.el("td", { colspan: "11" });
-    td.appendChild(head);
-    td.appendChild(dl);
-    return PTOUI.el("tr", { class: "details-row" }, td);
+    var route = section("Approval routing");
+    addInfo(route, "Default manager", defaultManager);
+    if (selectedApprover && selectedApprover !== defaultManager) addInfo(route, "Selected approver", selectedApprover);
+    else addInfo(route, "Approver", selectedApprover || defaultManager);
+    addInfo(route, "Submitted by", ((meta.SubmittedByName || "") + (meta.SubmittedByEmail ? " <" + meta.SubmittedByEmail + ">" : "")).trim());
+    addInfo(route, "Decision", decision);
+    els.detailBody.appendChild(grid);
+  }
+
+  function openDetailsModal(r, trigger) {
+    renderDetailModal(r);
+    if (!state.detailDialog) state.detailDialog = PTOUI.modal({ id: "hr-detail-modal" });
+    state.detailDialog.open(trigger);
   }
 
   var KEBAB_SVG =
@@ -259,7 +265,7 @@
   function rowKebab(r) {
     var btn = PTOUI.el("button", {
       class: "kebab", type: "button", "aria-haspopup": "menu", "aria-expanded": "false",
-      "aria-label": "Actions for " + (r.requestKey || ("#" + r.id)),
+      "aria-label": "Actions for " + (r.requesterName || r.requesterEmail || "request"),
       html: KEBAB_SVG,
     });
     btn.addEventListener("click", function (ev) {
@@ -269,19 +275,12 @@
     return btn;
   }
 
-  function detailUrlFor(r) {
-    var detailUrl = PTOLinks.relativeDetailUrl(r.id);
-    if (window.PTODemo && window.PTODemo.active) detailUrl += "&demo=1";
-    return detailUrl;
-  }
-
   function openDetailLink(r) {
-    return PTOUI.el("a", {
+    return PTOUI.el("button", {
       class: "btn small open-detail-link",
-      href: detailUrlFor(r),
-      target: "_blank",
-      rel: "noopener noreferrer",
-      "aria-label": "Open request detail for " + (r.requestKey || ("#" + r.id)),
+      type: "button",
+      "aria-label": "Open request detail for " + (r.requesterName || r.requesterEmail || "request"),
+      onClick: function (e) { openDetailsModal(r, e.currentTarget); },
     }, "Open");
   }
 
@@ -311,12 +310,11 @@
       ]);
 
       var tr = PTOUI.el("tr", null, [
-        PTOUI.el("td", null, r.requestKey || ("#" + r.id)),
         whoCell(r.requesterName, r.requesterEmail),
         PTOUI.el("td", null, r.ptoType || "—"),
         PTOUI.el("td", null, PTOUI.formatRange(r.startDate, r.endDate)),
         PTOUI.el("td", null, fmtDateTime(r.submittedAt)),
-        whoCell(r.managerName, r.managerEmail),
+        whoCell((approverOf(r).ApproverName || r.managerName), (approverOf(r).ApproverEmail || r.managerEmail)),
         PTOUI.el("td", null, PTOUI.statusBadge(r.status)),
         truthy(r.isShortNotice)
           ? PTOUI.el("td", { class: "flag-short" }, "Short")
@@ -326,7 +324,6 @@
         actionsTd,
       ]);
       els.body.appendChild(tr);
-      if (state.expandedId === r.id) els.body.appendChild(detailsRow(r));
     });
 
     var hasRows = total > 0;
@@ -393,13 +390,12 @@
 
   // ---- export (CSV of the currently FILTERED rows — ignores pagination) -----
   var EXPORT_HEADERS = [
-    "Request Key", "Requester Name", "Requester Email", "PTO Type",
+    "Requester Name", "Requester Email", "PTO Type",
     "Start Date", "End Date", "Date Requested", "Manager Name", "Manager Email",
     "Status", "Short Notice", "Notice Days", "Request Mode",
     "Submitted By Name", "Submitted By Email", "Backup Contact", "Reason",
-    "On Behalf Reason", "SharePoint Item Link",
-    // Alternate approver (docs/ALTERNATE_APPROVER_DESIGN.md) — appended at the
-    // end so existing columns/positions for any downstream consumer are unchanged.
+    "On Behalf Reason",
+    // Alternate approver columns are appended for HR review context.
     "Approver Name", "Approver Email", "Approver Override", "Approver Override Reason",
     "Original Manager Name", "Original Manager Email",
   ];
@@ -422,7 +418,6 @@
     var backup = ((f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "")).trim();
 
     return [
-      r.requestKey || ("#" + r.id),
       r.requesterName || "",
       r.requesterEmail || "",
       r.ptoType || "",
@@ -440,7 +435,6 @@
       backup,
       f.Reason || "",
       meta.OnBehalfReason || "",
-      r.webUrl || "",
       am.ApproverName || r.managerName || "",
       am.ApproverEmail || r.managerEmail || "",
       approverOverrideTruthy(am) ? "Yes" : "No",
@@ -516,7 +510,6 @@
     // from here. Details stays available regardless (view-only).
     var approvalEl = menuItem("approval");
     var openEl = menuItem("open");
-    openEl.setAttribute("href", detailUrlFor(r));
     approvalEl.style.display = sickAutoApproved ? "none" : "";
     if (sickAutoApproved) {
       approvalEl.removeAttribute("href");
@@ -582,11 +575,15 @@
   // `disabled` attribute / removed `href`, which already block interaction).
   menuItem("details").addEventListener("click", function () {
     var r = state.menuRequest;
+    var trigger = state.menuAnchor;
     closeRowMenu();
-    if (r) { state.expandedId = state.expandedId === r.id ? null : r.id; renderTable(); }
+    if (r) openDetailsModal(r, trigger);
   });
   menuItem("open").addEventListener("click", function () {
+    var r = state.menuRequest;
+    var trigger = state.menuAnchor;
     closeRowMenu();
+    if (r) openDetailsModal(r, trigger);
   });
   menuItem("approval").addEventListener("click", function (e) {
     if (this.getAttribute("aria-disabled") === "true") { e.preventDefault(); return; }
@@ -624,12 +621,16 @@
   window.addEventListener("resize", function () { closeRowMenu(); });
 
   // ---- cancellation (UNCHANGED behavior) ------------------------------------
+  function requestLabel(r) {
+    return (r.requesterName || r.requesterEmail || "Unknown requester") + " - " +
+      (r.ptoType || "PTO") + " - " + PTOUI.formatRange(r.startDate, r.endDate);
+  }
+
   function openCancelPanel(r) {
     state.cancelTarget = r;
     els.cancelMeta.textContent =
-      (r.requestKey || ("#" + r.id)) + " — " +
-      (r.requesterName || r.requesterEmail || "unknown requester") + " · " +
-      (r.ptoType || "?") + " · " + PTOUI.formatRange(r.startDate, r.endDate) +
+      (r.requesterName || r.requesterEmail || "unknown requester") + " - " +
+      (r.ptoType || "?") + " - " + PTOUI.formatRange(r.startDate, r.endDate) +
       " · current status: " + (r.status || "?");
     els.cancelReason.value = "";
     els.cancelStatus.textContent = "";
@@ -660,7 +661,7 @@
     // stale tab) could otherwise still write after the PTO has started.
     if (isPastStart(r)) {
       showError(
-        "Cannot cancel " + (r.requestKey || ("#" + r.id)) + ": the PTO start date has passed. " +
+        "Cannot cancel " + requestLabel(r) + ": the PTO start date has passed. " +
         PAST_START_REASON + "."
       );
       closeCancelPanel();
@@ -685,12 +686,12 @@
       closeCancelPanel();
       renderTable();
       showOk(
-        "✓ " + (r.requestKey || ("#" + r.id)) + " cancelled. Audit log updated." +
+        "✓ " + requestLabel(r) + " cancelled." +
         " If it was approved, the calendar events will be removed automatically by the cancellation flow."
       );
     } catch (e) {
       els.cancelStatus.textContent = "";
-      showError("Could not cancel " + (r.requestKey || ("#" + r.id)) + ": " + friendly(e));
+      showError("Could not cancel " + requestLabel(r) + ": " + friendly(e));
     } finally {
       state.cancelling = false;
       els.cancelConfirm.disabled = false;
@@ -724,7 +725,6 @@
       if (result.truncated) {
         showWarn("Showing the " + state.all.length + " most recent requests — older items beyond the page cap were not loaded.");
       }
-      state.expandedId = null;
       state.page = 1;
       closeCancelPanel();
       renderTable();
@@ -739,16 +739,17 @@
 
   // ---- wiring ----------------------------------------------------------------
   // Live filtering (responsive) + explicit "Apply filters". Both reset to page 1.
-  [els.fSearch, els.fManager].forEach(function (el) {
+  [els.fSearch].forEach(function (el) {
     el.addEventListener("input", resetToFirstPage);
   });
-  [els.fStatus, els.fFrom, els.fTo, els.fShort, els.fObo].forEach(function (el) {
+  [els.fStatus, els.fType, els.fFrom, els.fTo, els.fShort, els.fObo].forEach(function (el) {
     el.addEventListener("change", resetToFirstPage);
   });
   els.applyFilters.addEventListener("click", resetToFirstPage);
   els.clearFilters.addEventListener("click", function () {
-    els.fSearch.value = ""; els.fManager.value = "";
+    els.fSearch.value = "";
     els.fStatus.value = "All"; els.fFrom.value = ""; els.fTo.value = "";
+    if (els.fType) els.fType.value = "All";
     els.fShort.checked = false; els.fObo.checked = false;
     resetToFirstPage();
   });

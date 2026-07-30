@@ -184,11 +184,9 @@
 
       <div class="grid" role="navigation" aria-label="Primary actions">
 
-        <!-- HOME CUTOVER (2026-07-07): Submit PTO Request now routes to the
-             in-app request.html (same tab). Cancel a PTO intentionally stays on
-             the legacy Microsoft Forms process for now (no in-app self-cancel
-             yet). Rollback = restore the Forms URL + target/rel below (kept in
-             git history + pages/index-backup.html). -->
+        <!-- HOME CUTOVER (2026-07-30): Submit and Cancel now route to in-app
+             PTO Central flows. Rollback = restore the Forms URL from git
+             history + pages/index-backup.html. -->
         <a
           class="action-card action-card--primary"
           href="request.html"
@@ -219,9 +217,7 @@
 
         <a
           class="action-card action-card--secondary"
-          href="https://forms.office.com/Pages/ResponsePage.aspx?id=lHyi4Qz7KEe3HTdm8ho6y6sGTemyH-VGqGh4tFUruAVUM0ZOWktWMlA2VDcwMERWSUM3RDY0TExYWC4u"
-          target="_blank"
-          rel="noopener noreferrer"
+          href="cancel.html"
         >
           <span class="action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"

@@ -58,8 +58,7 @@
   function render(item) {
     var f = item.fields || {};
     document.title = (f.Title || "PTO Request") + " — PTO Central";
-    setText("detail-title", f.Title || "PTO Request");
-    setText("d-key", f.Title);
+    setText("detail-title", "PTO Request");
     var status = $("d-status");
     status.textContent = "";
     status.appendChild(PTOUI.statusBadge(f.Status));
@@ -74,7 +73,6 @@
     setText("d-backup", ((f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "")).trim());
     setText("d-notice", (f.IsShortNotice ? "Short notice · " : "") + ((f.NoticeDays === undefined || f.NoticeDays === null) ? "—" : f.NoticeDays + " day(s)"));
     setText("d-reason", f.Reason);
-    setText("d-audit", f.AuditLog);
   }
 
   async function load() {

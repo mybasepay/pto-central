@@ -19,7 +19,7 @@
 
     All element IDs consumed by js/pages/approve.page.js are PRESERVED
     (auth + user chip, d-* summary fields, decision-ui/comment/approve/reject,
-    block-note/status-note, approver-note, auditlog, raw, error).
+    block-note/status-note, approver-note, error).
   -->
   <style>
     /* ===== Approval page — scoped. Loaded AFTER styles.css; equal-specificity
@@ -222,7 +222,7 @@
     .error { display: none; margin-top: 14px; padding: 12px 15px; border-radius: 12px;
       border-left: 5px solid #dc2626; background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 13.5px; }
 
-    /* ---- Collapsible sections (audit + debug) ---- */
+    /* ---- Collapsible sections (legacy styling, retained for compatibility) ---- */
     details.collapsible { margin: 0; }
     details.collapsible > summary {
       list-style: none; cursor: pointer; display: flex; align-items: center; gap: 14px;
@@ -329,7 +329,6 @@
           <h2 class="panel-title">Review PTO Request</h2>
           <p class="panel-sub">Approve or reject a PTO request assigned to you.</p>
         </div>
-        <span class="head-pill" id="d-key">—</span>
       </div>
 
       <div class="summary">
@@ -401,11 +400,6 @@
           <span class="sum-label">Notice days</span>
           <span class="sum-val" id="d-notice">—</span>
         </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg></span>
-          <span class="sum-label">SharePoint item</span>
-          <span class="sum-val" id="d-link">—</span>
-        </div>
       </div>
 
       <div id="approver-note" class="approver-note" role="status"></div>
@@ -456,38 +450,6 @@
 
       <span id="decision-status" class="decision-status" aria-live="polite"></span>
       <div id="error" class="error" role="alert" aria-live="assertive"></div>
-    </section>
-
-    <!-- Audit log (collapsible) -->
-    <section class="panel" aria-label="Audit log">
-      <details class="collapsible" open>
-        <summary>
-          <span class="panel-ico purple" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 4v4h4" /><path d="M12 8v4l3 2" />
-            </svg>
-          </span>
-          <span class="panel-head-main">
-            <span class="panel-title" style="display:block;">Audit log</span>
-            <span class="panel-sub" style="display:block;">Recent activity for this request.</span>
-          </span>
-          <span class="summary-caret">
-            <span class="lbl-open">Collapse</span><span class="lbl-closed">Expand</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>
-          </span>
-        </summary>
-        <pre class="mono" id="auditlog">—</pre>
-      </details>
-
-      <div class="debug-row">
-        <details class="debug">
-          <summary>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-            Show raw JSON (debug)
-          </summary>
-          <pre class="mono" id="raw">—</pre>
-        </details>
-      </div>
     </section>
 
     <footer class="ap-footer">

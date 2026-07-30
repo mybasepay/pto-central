@@ -23,7 +23,7 @@ window.PTOAuthz = (function () {
   "use strict";
 
   // Pages that only require an authenticated myBasePay account (no list row).
-  var AUTH_ONLY = ["request.html", "my-requests.html", "approve.html"];
+  var AUTH_ONLY = ["request.html", "my-requests.html", "cancel.html", "approve.html", "pto-detail.html"];
   // Pages that REQUIRE a role row in PTO Authorized Users.
   var ROLE_REQUIRED = { "hr.html": ["HR", "Admin"] };
   // Email domains treated as internal myBasePay accounts.

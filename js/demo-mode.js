@@ -187,7 +187,7 @@
       enforce: async function (me) { return { authorized: true, email: emailOf(me) }; },
       hasRole: async function () { return getPersona() === "hr"; },
       lookup: async function () { return { active: true, roles: getPersona() === "hr" ? ["HR"] : [] }; },
-      AUTH_ONLY: ["request.html", "my-requests.html", "approve.html", "pto-detail.html"],
+      AUTH_ONLY: ["request.html", "my-requests.html", "cancel.html", "approve.html", "pto-detail.html"],
       ROLE_REQUIRED: { "hr.html": ["HR", "Admin"] },
     };
   }
