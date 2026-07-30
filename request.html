@@ -227,19 +227,6 @@
     textarea { min-height: 74px; resize: vertical; }
     input:disabled { opacity: .5; }
 
-    /* ---- Details tiles ---- */
-    .tile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    @media (max-width: 860px) { .tile-grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 560px) { .tile-grid { grid-template-columns: 1fr; } }
-    .tile {
-      border: 1px solid var(--rq-line-soft); border-radius: 12px; padding: 11px 14px;
-      background: var(--rq-tile); min-width: 0;
-    }
-    .tile .lbl { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; letter-spacing: .02em; }
-    .tile .val { font-size: 13.5px; font-weight: 600; color: #e8eef7; overflow-wrap: anywhere; }
-    .tile.span2 { grid-column: span 2; }
-    @media (max-width: 560px) { .tile.span2 { grid-column: auto; } }
-
     /* ---- Form grid ---- */
     .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 16px; }
     @media (max-width: 760px) { .form-grid { grid-template-columns: 1fr; } }
@@ -328,7 +315,7 @@
     .tip-line { margin-top: 18px; font-size: 12.5px; color: var(--muted); text-align: center; }
     .rq-footer { margin-top: 10px; color: var(--muted); font-size: 12px; text-align: center; }
   </style>
-  <link rel="stylesheet" href="styles.css?v=corporate-light" />
+  <link rel="stylesheet" href="styles.css?v=corporate-light-submit3" />
 </head>
 <body class="app-page request-page">
   <main class="wrap">
@@ -423,112 +410,159 @@
     </section>
 
     <div id="request-form-shell" class="request-form-shell" hidden>
-    <div id="request-context" class="request-context" role="status" aria-live="polite"></div>
+      <div id="request-context" class="request-context" role="status" aria-live="polite"></div>
 
-    <!-- Selected employee context. Hidden for self-service. -->
-    <div class="option-grid request-mode-context">
-      <!-- Who is this request for? — available to every authenticated employee.
-           The selected employee becomes the PTO EMPLOYEE (Requester*, manager
-           routing, calendar, notifications); the signed-in user is always the
-           SUBMITTER (SubmittedBy*), derived from the
-           authenticated session — never from form input. -->
-      <div id="obo-section" class="option-card obo" aria-label="Who is this request for" style="display:none;">
-        <div class="option-head">
-          <span class="option-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="9" cy="8" r="3.2" /><path d="M3.5 19.5c0-3 2.4-5 5.5-5s5.5 2 5.5 5" />
-              <circle cx="17" cy="9" r="2.4" /><path d="M16.5 14.6c2.6.3 4.3 2 4.3 4.4" />
+      <!-- Selected employee context. Hidden for self-service. -->
+      <section id="obo-section" class="panel selected-employee-card" aria-label="Employee receiving PTO" style="display:none;">
+        <div class="card-heading">
+          <span class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
             </svg>
           </span>
-          <div class="option-main">
-            <span class="t" style="font-size:14.5px;font-weight:750;letter-spacing:-0.01em;">Employee receiving PTO</span>
-            <p class="option-note">Search the employee directory and select the employee whose PTO this is for.</p>
-            <div class="forwho-row sr-only" role="radiogroup" aria-label="Who is this request for">
-              <label class="forwho-opt">
-                <input type="radio" name="forWho" id="forWhoMyself" checked />
-                <span>Myself</span>
-              </label>
-              <label class="forwho-opt">
-                <input type="radio" name="forWho" id="forWhoOther" />
-                <span>Another employee</span>
-              </label>
-            </div>
-          </div>
-        </div>
-        <div id="oboFields" class="obo-fields">
-          <div class="lookup-row">
-            <div class="grow backup-search-wrap">
-              <label class="fld" for="oboSearch">Employee receiving PTO <span class="req">*</span></label>
-              <input type="text" id="oboSearch" placeholder="Search for an employee by name or email…" autocomplete="off" />
-            </div>
-          </div>
-          <div id="oboResults" class="people-results" role="listbox" aria-label="Employee matches"></div>
-          <div style="margin-top:12px;">
-            <label class="fld" for="oboReason">Reason for submitting on their behalf (optional)</label>
-            <textarea id="oboReason" placeholder="e.g. Employee is out and asked me to file this request."></textarea>
-          </div>
-          <div id="oboStatus" class="note info" role="status"></div>
-          <div id="oboError" class="note danger" role="alert"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Requester details -->
-    <section class="panel" aria-label="Requester details">
-      <h3 class="panel-title" id="details-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
-        </svg>
-        <span id="details-title-text">Your details</span>
-      </h3>
-      <div id="oboBadge" class="obo-badge" role="status" aria-live="polite" style="margin: 0 0 12px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
-        </svg>
-        <span class="who" id="oboBadgeText">Submitting on behalf of …</span>
-      </div>
-      <div class="tile-grid">
-        <div class="tile"><span class="lbl">Requester</span><span class="val" id="c-name">—</span></div>
-        <div class="tile"><span class="lbl">Email</span><span class="val" id="c-email">—</span></div>
-        <div class="tile"><span class="lbl">Department / Title</span><span class="val" id="c-dept">—</span></div>
-        <div class="tile span2"><span class="lbl">Manager</span><span class="val" id="c-mgr">—</span></div>
-        <div class="tile"><span class="lbl">Manager's manager</span><span class="val" id="c-mm">—</span></div>
-      </div>
-      <div id="approver-section" class="approval-route-panel" aria-label="Approval routing" style="display:none;">
-        <input type="checkbox" id="approverToggle" hidden />
-        <div class="route-summary">
           <div>
-            <span class="lbl">Default manager</span>
-            <strong id="routeDefault">—</strong>
+            <h3 class="panel-title" id="obo-title">Employee receiving PTO</h3>
+            <p class="panel-subtitle">Search the directory and select the employee whose PTO this is for.</p>
           </div>
-          <button id="approverEdit" class="link-button" type="button">Change approver</button>
         </div>
-        <div id="approverBadge" class="approver-badge" role="status" aria-live="polite">
-          <span class="who" id="approverBadgeText">Approval routed to …</span>
-          <button id="approverRestore" class="link-button" type="button">Restore default</button>
+        <div class="forwho-row sr-only" role="radiogroup" aria-label="Who is this request for">
+          <label class="forwho-opt">
+            <input type="radio" name="forWho" id="forWhoMyself" checked />
+            <span>Myself</span>
+          </label>
+          <label class="forwho-opt">
+            <input type="radio" name="forWho" id="forWhoOther" />
+            <span>Another employee</span>
+          </label>
         </div>
-        <div id="approverFields" class="route-edit-fields">
-          <label class="fld" for="approverEmail">Search approver</label>
-          <input type="text" id="approverEmail" placeholder="Type name or email…" autocomplete="off" />
-          <div id="approverResults" class="people-results" role="listbox" aria-label="Approver matches"></div>
-          <label class="fld route-reason" for="approverReason">Reason for changing approver <span class="req">*</span></label>
-          <textarea id="approverReason" class="route-reason" placeholder="Brief reason for routing approval to this person."></textarea>
-          <div id="approverStatus" class="picker-message" role="status"></div>
-          <div id="approverError" class="note danger" role="alert"></div>
+        <div id="oboFields" class="obo-fields employee-picker-layout">
+          <div class="person-picker-field">
+            <label class="fld" for="oboSearch">Search employee by name or email <span class="req">*</span></label>
+            <div class="search-input-wrap">
+              <input type="text" id="oboSearch" placeholder="Type a name or email..." autocomplete="off" />
+              <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+              </svg>
+            </div>
+            <div id="oboResults" class="people-results" role="listbox" aria-label="Employee matches"></div>
+            <span id="oboSelected" class="person-chip" role="status" aria-live="polite">
+              <span class="txt" id="oboSelectedText">-</span>
+              <button id="oboClear" class="clear" type="button" aria-label="Clear selected employee">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </span>
+            <div id="oboStatus" class="picker-message" role="status"></div>
+            <div id="oboError" class="note danger" role="alert"></div>
+          </div>
+          <div>
+            <div class="label-row">
+              <label class="fld" for="oboReason">Reason for submitting on their behalf (optional)</label>
+              <span class="char-count" id="oboReasonCount">0 / 250</span>
+            </div>
+            <textarea id="oboReason" maxlength="250" placeholder="Employee is out and asked me to file this request."></textarea>
+          </div>
         </div>
-      </div>
-      <div id="mgr-warn" class="note warn" role="alert"></div>
-      <div id="mm-warn" class="note warn" role="alert"></div>
-    </section>
+      </section>
 
-    <!-- Request details -->
-    <section class="panel" aria-label="Request details">
-      <h3 class="panel-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
-        </svg>
-        Request details
-      </h3>
+      <!-- Requester details -->
+      <section class="panel person-details-card" aria-label="Requester details">
+        <div class="card-heading">
+          <span class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
+            </svg>
+          </span>
+          <div>
+            <h3 class="panel-title" id="details-title"><span id="details-title-text">Your details</span></h3>
+            <p class="panel-subtitle">Details about this request</p>
+          </div>
+        </div>
+        <div id="oboBadge" class="obo-badge" role="status" aria-live="polite">
+          <span class="who" id="oboBadgeText">Submitting on behalf of...</span>
+        </div>
+        <div class="person-info-list">
+          <div class="person-info-row">
+            <span class="row-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" /></svg>
+            </span>
+            <div><span class="lbl">Requester</span><span class="val" id="c-name">-</span></div>
+          </div>
+          <div class="person-info-row">
+            <span class="row-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /></svg>
+            </span>
+            <div><span class="lbl">Email</span><span class="val" id="c-email">-</span></div>
+          </div>
+          <div class="person-info-row">
+            <span class="row-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5h8v2" /></svg>
+            </span>
+            <div><span class="lbl">Department / Title</span><span class="val" id="c-dept">-</span></div>
+          </div>
+          <div class="person-info-row manager-row">
+            <span class="row-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 2.5-5 6-5" /><path d="M16 11h5M18.5 8.5v5" /></svg>
+            </span>
+            <div>
+              <span class="lbl">Manager</span>
+              <span class="val" id="c-mgr">-</span>
+            </div>
+            <button id="approverEdit" class="link-button inline-approver-action" type="button">Change approver</button>
+          </div>
+          <div class="person-info-row">
+            <span class="row-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v5" /><path d="M6 18h12" /><path d="M6 18a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z" /><path d="M18 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /><path d="M12 6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></svg>
+            </span>
+            <div><span class="lbl">Manager's manager</span><span class="val" id="c-mm">-</span></div>
+          </div>
+        </div>
+        <div id="approver-section" class="approval-route-panel" aria-label="Approval routing" style="display:none;">
+          <input type="checkbox" id="approverToggle" hidden />
+          <div class="route-summary">
+            <div>
+              <span class="lbl">Default manager</span>
+              <strong id="routeDefault">-</strong>
+            </div>
+            <button id="approverRestore" class="link-button" type="button">Restore default</button>
+          </div>
+          <div id="approverBadge" class="approver-badge" role="status" aria-live="polite">
+            <span class="who" id="approverBadgeText">Approval routed to...</span>
+          </div>
+          <div id="approverFields" class="route-edit-fields">
+            <label class="fld" for="approverEmail">Search approver</label>
+            <div class="search-input-wrap">
+              <input type="text" id="approverEmail" placeholder="Type name or email..." autocomplete="off" />
+              <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+              </svg>
+            </div>
+            <div id="approverResults" class="people-results" role="listbox" aria-label="Approver matches"></div>
+            <label class="fld route-reason" for="approverReason">Reason for changing approver <span class="req">*</span></label>
+            <textarea id="approverReason" class="route-reason" maxlength="250" placeholder="Brief reason for routing approval to this person."></textarea>
+            <div id="approverStatus" class="picker-message" role="status"></div>
+            <div id="approverError" class="note danger" role="alert"></div>
+          </div>
+        </div>
+        <div id="mgr-warn" class="note warn" role="alert"></div>
+        <div id="mm-warn" class="note warn" role="alert"></div>
+        <p class="workflow-helper">Approvals follow your organization's workflow.</p>
+      </section>
+
+      <!-- Request details -->
+      <section class="panel request-details-card" aria-label="Request details">
+        <div class="card-heading">
+          <span class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
+            </svg>
+          </span>
+          <div>
+            <h3 class="panel-title">PTO request details</h3>
+            <p class="panel-subtitle">Tell us about your time off</p>
+          </div>
+        </div>
 
       <div class="form-grid">
         <div>
@@ -552,24 +586,24 @@
         </div>
 
         <div class="full">
-          <label class="fld" for="reason">Reason / Notes (optional)</label>
-          <textarea id="reason" placeholder="Optional note for your manager / HR"></textarea>
+          <div class="label-row">
+            <label class="fld" for="reason">Reason / Notes (optional)</label>
+            <span class="char-count" id="reasonCount">0 / 250</span>
+          </div>
+          <textarea id="reason" maxlength="250" placeholder="Optional note for your manager / HR"></textarea>
         </div>
 
         <div class="full">
           <label class="fld" for="backupSearch">Backup contact *</label>
-          <div class="lookup-row">
-            <div class="grow backup-search-wrap">
-              <input type="text" id="backupSearch" placeholder="Search for an employee by name or email…" autocomplete="off" />
+          <div class="search-input-wrap">
+              <input type="text" id="backupSearch" placeholder="Type a name or email..." autocomplete="off" />
               <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
               </svg>
-            </div>
           </div>
-          <div class="backup-hint">When selected, name and email will be filled automatically.</div>
           <div id="backupResults" class="people-results" role="listbox" aria-label="Backup contact matches"></div>
-          <span id="backupSelected" class="backup-selected">
-            <span class="txt" id="backupSelectedText">—</span>
+          <span id="backupSelected" class="person-chip">
+            <span class="txt" id="backupSelectedText">-</span>
             <button id="backupClear" class="clear" type="button" aria-label="Clear selected backup contact">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
                 <path d="M6 6l12 12M18 6L6 18" />
@@ -598,22 +632,23 @@
       </section>
 
       <!-- Confirm + submit -->
-      <div class="confirm-box">
-        <input type="checkbox" id="confirm" />
-        <label for="confirm">
-          <span class="t">I confirm this PTO request is accurate</span>
-          <span class="s">By checking this box, you confirm the information provided is correct.</span>
-        </label>
-      </div>
-
-      <div class="actions">
+      <div class="final-action-row">
+        <div class="confirm-box">
+          <input type="checkbox" id="confirm" />
+          <label for="confirm">
+            <span class="t">I confirm this PTO request is accurate</span>
+            <span class="s">By checking this box, you confirm the information provided is correct.</span>
+          </label>
+        </div>
+        <div class="actions">
         <button id="submit" class="btn submit-btn" type="button" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
           </svg>
-          Submit PTO Request
+          <span id="submitText">Submit PTO Request</span>
         </button>
         <span id="submit-status" class="status" aria-live="polite"></span>
+        </div>
       </div>
 
       <div id="error" class="error" role="alert" aria-live="assertive"></div>
@@ -654,16 +689,16 @@
     lib/msal-browser.min.js is intentionally NOT versioned (pinned v3.28.1).
   -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js?v=rq5"></script>
-  <script src="js/auth.js?v=rq5"></script>
-  <script src="js/graph.js?v=rq5"></script>
-  <script src="js/directory.js?v=rq5"></script>
-  <script src="js/rules.js?v=rq5"></script>
-  <script src="js/requests.js?v=rq5"></script>
-  <script src="js/authz.js?v=rq5"></script>
-  <script src="js/ui.js?v=rq5"></script>
+  <script src="js/config.js?v=rq6"></script>
+  <script src="js/auth.js?v=rq6"></script>
+  <script src="js/graph.js?v=rq6"></script>
+  <script src="js/directory.js?v=rq6"></script>
+  <script src="js/rules.js?v=rq6"></script>
+  <script src="js/requests.js?v=rq6"></script>
+  <script src="js/authz.js?v=rq6"></script>
+  <script src="js/ui.js?v=rq6"></script>
   <script src="js/demo-fixtures.js?v=demo1"></script>
   <script src="js/demo-mode.js?v=demo1"></script>
-  <script src="js/pages/request.page.js?v=rq5"></script>
+  <script src="js/pages/request.page.js?v=rq6"></script>
 </body>
 </html>

@@ -61,7 +61,7 @@
     backupResults: $("backupResults"), backupSelected: $("backupSelected"),
     backupSelectedText: $("backupSelectedText"), backupClear: $("backupClear"),
     backupError: $("backupError"),
-    submit: $("submit"), submitStatus: $("submit-status"), error: $("error"),
+    submit: $("submit"), submitText: $("submitText"), submitStatus: $("submit-status"), error: $("error"),
     detailsTitle: $("details-title-text"),
     // "Who is this request for?" (all employees) controls.
     oboSection: $("obo-section"), oboFields: $("oboFields"),
@@ -69,6 +69,7 @@
     oboSearch: $("oboSearch"), oboResults: $("oboResults"),
     oboReason: $("oboReason"),
     oboStatus: $("oboStatus"), oboError: $("oboError"),
+    oboSelected: $("oboSelected"), oboSelectedText: $("oboSelectedText"), oboClear: $("oboClear"),
     oboBadge: $("oboBadge"), oboBadgeText: $("oboBadgeText"),
     // Alternate approver (HR/Admin) controls.
     approverSection: $("approver-section"), approverToggle: $("approverToggle"),
@@ -84,6 +85,7 @@
     approverEdit: $("approverEdit"), approverRestore: $("approverRestore"),
     requestTypeError: $("requestTypeError"), requestContext: $("request-context"),
     reviewList: $("review-list"),
+    reasonCount: $("reasonCount"), oboReasonCount: $("oboReasonCount"),
   };
   var backupPicker = null;
   var employeePicker = null;
@@ -137,7 +139,18 @@
   // ---- employee context ----
   function fmtUser(u) {
     if (!u) return "—";
-    return (u.displayName || "?") + " · " + (u.mail || u.userPrincipalName || "no email");
+    return (u.displayName || "?") + "\n" + (u.mail || u.userPrincipalName || "no email");
+  }
+
+  function setSubmitText(text) {
+    if (els.submitText) els.submitText.textContent = text;
+    else if (els.submit) els.submit.textContent = text;
+  }
+
+  function updateCharCount(input, counter) {
+    if (!input || !counter) return;
+    var max = Number(input.getAttribute("maxlength")) || 250;
+    counter.textContent = String(input.value.length) + " / " + max;
   }
 
   async function loadContext() {
@@ -188,6 +201,12 @@
       els.requestTypeStep.classList.toggle("is-chosen", !!state.requestType);
     }
     if (els.requestFormShell) els.requestFormShell.hidden = !state.requestType;
+    if (els.requestFormShell) {
+      els.requestFormShell.classList.toggle("is-self", state.requestType === "self");
+      els.requestFormShell.classList.toggle("is-other", state.requestType === "other");
+    }
+    document.body.classList.toggle("request-mode-self", state.requestType === "self");
+    document.body.classList.toggle("request-mode-other", state.requestType === "other");
     if (els.requestTypeChange) els.requestTypeChange.hidden = !state.requestType;
     if (els.requestPageTitle) {
       els.requestPageTitle.textContent = state.requestType === "self"
@@ -227,6 +246,8 @@
     state.target = { requester: null, manager: null, managersManager: null };
     if (els.oboSearch) els.oboSearch.value = "";
     if (els.oboReason) els.oboReason.value = "";
+    if (employeePicker) employeePicker.clear(false);
+    updateCharCount(els.oboReason, els.oboReasonCount);
     clearOboMessages();
     clearOboResults();
     resetApproverOverride();
@@ -272,8 +293,8 @@
       if (els.oboSection) els.oboSection.style.display = "none";
       if (els.oboFields) els.oboFields.classList.remove("show");
       if (els.approverSection) els.approverSection.style.display = "block";
-      if (els.submit) els.submit.lastChild.nodeValue = " Submit my PTO request";
-      setRequestContext("My PTO request — " + (state.me.displayName || emailOf(state.me)) + " (" + emailOf(state.me) + ")", false);
+      setSubmitText("Submit my PTO request");
+      setRequestContext("", false);
       setSelfTarget();
     } else {
       if (!state.canSubmitForOthers) {
@@ -290,8 +311,8 @@
       if (els.oboSection) els.oboSection.style.display = "block";
       if (els.oboFields) els.oboFields.classList.add("show");
       if (els.approverSection) els.approverSection.style.display = "block";
-      if (els.submit) els.submit.lastChild.nodeValue = " Submit PTO request for employee";
-      setRequestContext("On behalf of another employee", true);
+      setSubmitText("Submit PTO request for employee");
+      setRequestContext("", true);
       enterOnBehalfMode();
     }
     renderRequestTypeGate();
@@ -309,8 +330,8 @@
     PTOUI.setText("c-name", r.displayName);
     PTOUI.setText("c-email", emailOf(r));
     PTOUI.setText("c-dept", (r.department || "—") + " / " + (r.jobTitle || "—"));
-    PTOUI.setText("c-mgr", t.manager ? fmtUser(t.manager) : (r.id ? "(none found)" : "—"));
-    PTOUI.setText("c-mm", t.managersManager ? fmtUser(t.managersManager) : (r.id ? "(none / unavailable)" : "—"));
+    PTOUI.setText("c-mgr", t.manager ? fmtUser(t.manager) : (r.id ? "No default manager found" : "—"));
+    PTOUI.setText("c-mm", t.managersManager ? fmtUser(t.managersManager) : (r.id ? "—" : "—"));
 
     // Manager-missing warning (same rule for self and on-behalf: required unless Sick).
     var w = $("mgr-warn");
@@ -416,7 +437,7 @@
       var who = a.displayName || emailOf(a) || "approver";
       var email = emailOf(a);
       els.approverBadgeText.textContent =
-        "Approval routed to " + who + (email ? " (" + email + ")" : "");
+        "Selected approver: " + who + (email ? " (" + email + ")" : "");
       els.approverBadge.classList.add("show");
     } else {
       els.approverBadge.classList.remove("show");
@@ -428,10 +449,21 @@
     if (els.approverEdit) {
       els.approverEdit.textContent = state.target.manager ? "Change approver" : "Select approver";
     }
+    if (els.approverSection) {
+      var hasSelected = !!(state.approverOverride.active && state.approverOverride.lookupOk);
+      var needsRoute = !!(state.target.requester && !state.target.manager && els.ptoType && els.ptoType.value !== "Sick");
+      els.approverSection.classList.toggle("has-selected-approver", hasSelected);
+      els.approverSection.classList.toggle("needs-approver", needsRoute);
+      var managerWarn = $("mgr-warn");
+      if (managerWarn && needsRoute) {
+        managerWarn.style.display = hasSelected ? "none" : "block";
+      }
+    }
     if (els.approverFields) {
       var needsRoute = !!(state.target.requester && !state.target.manager && els.ptoType && els.ptoType.value !== "Sick");
       var editing = state.approverOverride.active && !state.approverOverride.lookupOk;
-      els.approverFields.style.display = (needsRoute || editing) ? "block" : "none";
+      var hasSelectedApprover = !!(state.approverOverride.active && state.approverOverride.lookupOk);
+      els.approverFields.style.display = ((needsRoute && !hasSelectedApprover) || editing) ? "block" : "none";
     }
     updateApproverBadge();
   }
@@ -493,6 +525,7 @@
     if (els.approverEmail) els.approverEmail.value = approver.displayName || emailOf(approver);
     if (els.approverFields) els.approverFields.style.display = "none";
     updateApproverBadge();
+    renderApprovalRoute();
     setApproverStatus("✓ Approval will be routed to " + (approver.displayName || emailOf(approver)) + ".");
     renderReview();
   }
@@ -517,7 +550,7 @@
   function renderBackupSelected() {
     if (!els.backupSelected) return;
     if (state.backup) {
-      els.backupSelectedText.textContent = "Selected: " + state.backup.name +
+      els.backupSelectedText.textContent = state.backup.name +
         (state.backup.email ? " — " + state.backup.email : "");
       els.backupSelected.classList.add("show");
     } else {
@@ -589,6 +622,10 @@
       resetApproverOverride();
       renderTargetDetails();
       recomputeRuleUI();
+      if (els.oboSelectedText) {
+        els.oboSelectedText.textContent = (employee.displayName || emailOf(employee)) +
+          (emailOf(employee) ? " — " + emailOf(employee) : "");
+      }
       setOboStatus("✓ Submitting on behalf of " + (employee.displayName || emailOf(employee)) + ".");
     } catch (e) {
       state.lookupOk = false;
@@ -618,6 +655,9 @@
       employeePicker = PTOUI.peoplePicker({
         input: els.oboSearch,
         results: els.oboResults,
+        selected: els.oboSelected,
+        selectedText: els.oboSelectedText,
+        clear: els.oboClear,
         status: els.oboError,
         onSelect: selectEmployee,
         onClear: function () {
@@ -699,10 +739,8 @@
     // requesters with no manager configured (e.g. service-style accounts).
     if (type !== "Sick" && !state.target.manager && !state.approverOverride.active) {
       return state.onBehalf
-        ? "This employee has no manager in Entra ID. Enable \"Route approval to someone else\" " +
-          "and select an approver, submit Sick (auto-approved), or contact HR (pto-approvals@mybasepay.com)."
-        : "No manager found in Entra ID for your account. Enable \"Route approval to someone else\" " +
-          "and select an approver, or contact HR (pto-approvals@mybasepay.com).";
+        ? "This employee has no manager in Entra ID. Select an approver, submit Sick (auto-approved), or contact HR (pto-approvals@mybasepay.com)."
+        : "No manager found in Entra ID for your account. Select an approver or contact HR (pto-approvals@mybasepay.com).";
     }
 
     // Alternate approver (HR/Admin only): a valid approver + reason required
@@ -728,15 +766,20 @@
 
   function defaultApproverLabel() {
     var m = state.target.manager;
-    return m ? ((m.displayName || emailOf(m)) + (emailOf(m) ? " <" + emailOf(m) + ">" : "")) : "No default manager found";
+    return m ? ((m.displayName || emailOf(m)) + (emailOf(m) ? "\n" + emailOf(m) : "")) : "No default manager found";
   }
 
   function selectedApproverLabel() {
     if (state.approverOverride.active && state.approverOverride.lookupOk && state.approverOverride.approver) {
       var a = state.approverOverride.approver;
-      return (a.displayName || emailOf(a)) + (emailOf(a) ? " <" + emailOf(a) + ">" : "");
+      return (a.displayName || emailOf(a)) + (emailOf(a) ? "\n" + emailOf(a) : "");
     }
     return defaultApproverLabel();
+  }
+
+  function reviewPerson(u, fallback) {
+    if (!u) return fallback || "—";
+    return (u.displayName || emailOf(u) || fallback || "—") + (emailOf(u) ? "\n" + emailOf(u) : "");
   }
 
   function addReviewItem(label, value) {
@@ -755,19 +798,24 @@
     if (!els.reviewList) return;
     els.reviewList.innerHTML = "";
     var requester = state.target.requester;
-    var backup = state.backup ? state.backup.name + (state.backup.email ? " <" + state.backup.email + ">" : "") : "Required";
+    var backup = state.backup ? state.backup.name + (state.backup.email ? "\n" + state.backup.email : "") : "Required";
     if (state.requestType === "other") {
-      addReviewItem("Submitted by", state.me ? state.me.displayName + " <" + emailOf(state.me) + ">" : "—");
-      addReviewItem("Employee receiving PTO", requester ? requester.displayName + " <" + emailOf(requester) + ">" : "Select an employee");
+      addReviewItem("Submitted by", reviewPerson(state.me));
+      addReviewItem("Employee receiving PTO", reviewPerson(requester, "Select an employee"));
       addReviewItem("Default manager", defaultApproverLabel());
       addReviewItem("Selected approver", selectedApproverLabel());
+      addReviewItem("PTO type", els.ptoType ? els.ptoType.value : "");
+      addReviewItem("Dates", PTOUI.formatRange(els.startDate.value, els.endDate.value));
+      addReviewItem("Backup contact", backup);
     } else {
-      addReviewItem("Requester", requester ? requester.displayName + " <" + emailOf(requester) + ">" : "—");
-      addReviewItem("Approver", selectedApproverLabel());
+      addReviewItem("Requester", reviewPerson(requester));
+      addReviewItem("PTO type", els.ptoType ? els.ptoType.value : "");
+      addReviewItem("Start date", PTOUI.formatDateOnly(els.startDate.value));
+      addReviewItem("End date", PTOUI.formatDateOnly(els.endDate.value));
+      addReviewItem("Manager", defaultApproverLabel());
+      addReviewItem("Manager's manager", state.target.managersManager ? reviewPerson(state.target.managersManager) : "—");
+      addReviewItem("Backup contact", backup);
     }
-    addReviewItem("PTO type", els.ptoType ? els.ptoType.value : "");
-    addReviewItem("Dates", PTOUI.formatRange(els.startDate.value, els.endDate.value));
-    addReviewItem("Backup contact", backup);
   }
 
   // ---- submit ----
@@ -890,7 +938,16 @@
   els.ptoType.addEventListener("change", function () { recomputeRuleUI(); renderReview(); });
   els.startDate.addEventListener("change", function () { recomputeRuleUI(); renderReview(); });
   els.endDate.addEventListener("change", function () { recomputeRuleUI(); renderReview(); });
-  els.reason.addEventListener("input", renderReview);
+  els.reason.addEventListener("input", function () {
+    updateCharCount(els.reason, els.reasonCount);
+    renderReview();
+  });
+  if (els.oboReason) {
+    els.oboReason.addEventListener("input", function () {
+      updateCharCount(els.oboReason, els.oboReasonCount);
+      renderReview();
+    });
+  }
   els.confirm.addEventListener("change", refreshSubmitEnabled);
   if (els.requestTypeSelf) els.requestTypeSelf.addEventListener("click", function () { chooseRequestType("self"); });
   if (els.requestTypeOther) els.requestTypeOther.addEventListener("click", function () { chooseRequestType("other"); });
@@ -911,6 +968,7 @@
     } else {
       if (els.oboSearch) els.oboSearch.value = "";
       els.oboReason.value = "";
+      updateCharCount(els.oboReason, els.oboReasonCount);
       setSelfTarget();
     }
   }
@@ -945,6 +1003,8 @@
     });
   }
   if (els.approverReason) els.approverReason.addEventListener("input", renderReview);
+  updateCharCount(els.reason, els.reasonCount);
+  updateCharCount(els.oboReason, els.oboReasonCount);
 
   els.signin.addEventListener("click", async function () {
     clearError();

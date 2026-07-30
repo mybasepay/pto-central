@@ -31,12 +31,31 @@ test("request first-step gate is present and required", () => {
   assert(html.includes("requestTypeSelf"));
   assert(html.includes("requestTypeOther"));
   assert(js.includes("if (!state.requestType) return"));
+  assert(js.includes('els.requestTypeStep.style.display = state.requestType ? "none" : "block"'));
+  assert(js.includes("function changeRequestType"));
+  assert(js.includes("state.requestType = null"));
 });
 
 test("self request does not show employee picker and another employee does", () => {
   const js = read("js/pages/request.page.js");
   assert(/chooseRequestType\(type\)[\s\S]*type === "self"[\s\S]*oboSection\) els\.oboSection\.style\.display = "none"/.test(js));
   assert(/type === "self"[\s\S]*else[\s\S]*oboSection\) els\.oboSection\.style\.display = "block"/.test(js));
+  assert(js.includes('classList.toggle("is-self", state.requestType === "self")'));
+  assert(js.includes('classList.toggle("is-other", state.requestType === "other")'));
+  assert(js.includes('setSubmitText("Submit my PTO request")'));
+  assert(js.includes('setSubmitText("Submit PTO request for employee")'));
+});
+
+test("approved submit selected-state layout is present", () => {
+  const html = read("request.html");
+  const css = read("styles.css");
+  assert(html.includes("person-details-card"));
+  assert(html.includes("request-details-card"));
+  assert(html.includes("selected-employee-card"));
+  assert(html.includes("person-info-list"));
+  assert(html.includes("final-action-row"));
+  assert(css.includes("grid-template-columns: minmax(290px, 360px) minmax(0, 1fr)"));
+  assert(css.includes("employee-picker-layout"));
 });
 
 test("another employee requires a selected employee", () => {
@@ -51,11 +70,28 @@ test("backup contact is required", () => {
   assert(!js.includes("You can submit without a backup contact"), "backup is no longer optional");
 });
 
+test("submit people pickers are reactive and have no search buttons", () => {
+  const html = read("request.html");
+  const js = read("js/pages/request.page.js");
+  assert(!html.includes("oboLookup"));
+  assert(!html.includes("backupLookup"));
+  assert(!html.includes("approverLookup"));
+  assert(!/>\s*(Search|Lookup approver)\s*<\/button>/.test(html));
+  assert((js.match(/PTOUI\.peoplePicker/g) || []).length >= 3);
+  assert(js.includes("input: els.backupSearch"));
+  assert(js.includes("input: els.oboSearch"));
+  assert(js.includes("input: els.approverEmail"));
+  assert(js.includes("selected: els.backupSelected"));
+  assert(js.includes("selected: els.oboSelected"));
+});
+
 test("approver can be changed and invalid self-approval is blocked", () => {
   const js = read("js/pages/request.page.js");
   assert(js.includes("selectApprover"));
   assert(js.includes("You can't route approval to yourself"));
   assert(js.includes("employee receiving PTO"));
+  assert(js.includes("No default manager found"));
+  assert(js.includes("Select approver"));
 });
 
 test("approver resets when employee/request type changes", () => {
