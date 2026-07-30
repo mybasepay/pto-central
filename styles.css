@@ -2439,7 +2439,7 @@ body.request-page {
   border-top: 1px solid #e2ebf8;
 }
 
-.approval-route-panel:not(.has-selected-approver):not(.needs-approver) .route-summary {
+.approval-route-panel:not(.has-selected-approver):not(.has-default-no-manager):not(.needs-approver) .route-summary {
   display: none;
 }
 
@@ -2551,6 +2551,40 @@ body.request-page {
 .request-page .person-chip .clear svg {
   width: 11px;
   height: 11px;
+}
+
+.request-page .backup-chip-list {
+  display: none;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.request-page .backup-chip-list.show {
+  display: flex;
+}
+
+.request-page .backup-chip-list > .txt {
+  display: none;
+}
+
+.request-page .backup-chip {
+  margin-top: 0;
+}
+
+.request-page .backup-clear-all {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.request-page .compact-confirm {
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+
+.request-page .muted-inline {
+  color: #5d6f8a;
+  font-weight: 500;
 }
 
 .request-page .selected-employee-card .person-chip {

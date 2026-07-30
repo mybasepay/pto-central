@@ -234,7 +234,7 @@
       .filters .wide { grid-column: auto; }
     }
   </style>
-  <link rel="stylesheet" href="styles.css?v=corporate-light" />
+  <link rel="stylesheet" href="styles.css?v=phase12-demo" />
 </head>
 <body class="app-page hr-page">
   <main class="wrap">
@@ -298,6 +298,7 @@
             <option value="Pending">Pending</option>
             <option value="Approved">Approved</option>
             <option value="Auto-Approved">Auto-Approved</option>
+            <option value="Cancellation Requested">Cancellation Requested</option>
             <option value="Rejected">Rejected</option>
             <option value="Cancelled">Cancelled</option>
           </select>
@@ -447,6 +448,12 @@
       Approval page
     </a>
     <div class="row-menu-sep" data-act="cancel-sep"></div>
+    <button type="button" class="row-menu-item" data-act="complete-cancellation" role="menuitem">
+      Complete cancellation
+    </button>
+    <button type="button" class="row-menu-item" data-act="decline-cancellation" role="menuitem">
+      Decline cancellation
+    </button>
     <button type="button" class="row-menu-item danger" data-act="cancel" role="menuitem">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
@@ -483,17 +490,17 @@
     deliberate file replacement, unlike the app's own modules.
   -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js?v=hrc7"></script>
-  <script src="js/auth.js?v=hrc7"></script>
-  <script src="js/graph.js?v=hrc7"></script>
-  <script src="js/directory.js?v=hrc7"></script>
-  <script src="js/rules.js?v=hrc7"></script>
-  <script src="js/requests.js?v=hrc7"></script>
-  <script src="js/authz.js?v=hrc7"></script>
-  <script src="js/links.js?v=hrc7"></script>
-  <script src="js/ui.js?v=hrc7"></script>
-  <script src="js/demo-fixtures.js?v=demo1"></script>
-  <script src="js/demo-mode.js?v=demo1"></script>
-  <script src="js/pages/hr.page.js?v=hrc7"></script>
+  <script src="js/config.js?v=phase12"></script>
+  <script src="js/auth.js?v=phase12"></script>
+  <script src="js/graph.js?v=phase12"></script>
+  <script src="js/directory.js?v=phase12"></script>
+  <script src="js/rules.js?v=phase12"></script>
+  <script src="js/requests.js?v=phase12"></script>
+  <script src="js/authz.js?v=phase12"></script>
+  <script src="js/links.js?v=phase12"></script>
+  <script src="js/ui.js?v=phase12"></script>
+  <script src="js/demo-fixtures.js?v=phase12"></script>
+  <script src="js/demo-mode.js?v=phase12"></script>
+  <script src="js/pages/hr.page.js?v=phase12"></script>
 </body>
 </html>

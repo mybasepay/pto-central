@@ -51,6 +51,7 @@
     all: [],            // normalized requests (PTORequests.listAllRequests)
     detailDialog: null,
     cancelTarget: null, // normalized request pending cancellation confirm
+    cancelMode: "cancel",
     cancelling: false,
     // view-only pagination
     page: 1,
@@ -199,6 +200,15 @@
     return days + " day" + (days === 1 ? "" : "s");
   }
 
+  function backupSummary(fields) {
+    var contacts = PTORules.parseBackupContacts(fields || {});
+    if (!contacts.length) return "—";
+    var notified = truthy(fields.BackupNotified) ? "notified" : "not notified";
+    return contacts.map(function (c) {
+      return c.name + (c.email ? " <" + c.email + ">" : "") + " — " + notified;
+    }).join("\n");
+  }
+
   function renderDetailModal(r) {
     var f = r.fields || {};
     var meta = metaOf(r);
@@ -238,7 +248,7 @@
 
     var details = section("Request details");
     addInfo(details, "Reason", f.Reason);
-    addInfo(details, "Backup", ((f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "")).trim());
+    addInfo(details, "Backup contacts", backupSummary(f));
     addInfo(details, "Partial day", f.IsPartialDay ? "Yes" + (f.Hours ? " (" + f.Hours + " hrs)" : "") : "No");
     addInfo(details, "Notice", r.noticeDays === undefined || r.noticeDays === null ? "" : r.noticeDays + " day(s)");
     addInfo(details, "Short notice", truthy(r.isShortNotice) ? "Yes" : "No");
@@ -415,7 +425,7 @@
     var meta = metaOf(r);
     var am = approverOf(r);
     var mode = meta.RequestMode || (truthy(meta.OnBehalf) ? "On behalf of" : "Self");
-    var backup = ((f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "")).trim();
+    var backup = backupSummary(f);
 
     return [
       r.requesterName || "",
@@ -526,12 +536,19 @@
     // (existing rule, unchanged). When status still allows cancellation but the
     // PTO start date has passed, keep it VISIBLE but disabled/grayed — the row
     // is never hidden and historical requests are never silently modified.
-    var canCancel = cancellable(r);
+    var isCancellationRequested = r.status === "Cancellation Requested";
+    var canCancel = cancellable(r) && !isCancellationRequested;
     var cancelEl = menuItem("cancel");
     var cancelSepEl = menuItem("cancel-sep");
+    var completeEl = menuItem("complete-cancellation");
+    var declineEl = menuItem("decline-cancellation");
     cancelEl.style.display = canCancel ? "" : "none";
-    cancelSepEl.style.display = canCancel ? "" : "none";
+    completeEl.style.display = isCancellationRequested ? "" : "none";
+    declineEl.style.display = isCancellationRequested ? "" : "none";
+    cancelSepEl.style.display = (canCancel || isCancellationRequested) ? "" : "none";
     if (canCancel) setMenuItemDisabled(cancelEl, past);
+    setMenuItemDisabled(completeEl, false);
+    setMenuItemDisabled(declineEl, false);
 
     // Reveal, measure, position (fixed = viewport coords from the anchor rect).
     els.rowMenu.hidden = false;
@@ -594,7 +611,17 @@
     if (this.disabled || this.getAttribute("aria-disabled") === "true") return;
     var r = state.menuRequest;
     closeRowMenu();
-    if (r) openCancelPanel(r);
+    if (r) openCancelPanel(r, "cancel");
+  });
+  menuItem("complete-cancellation").addEventListener("click", function () {
+    var r = state.menuRequest;
+    closeRowMenu();
+    if (r) openCancelPanel(r, "complete");
+  });
+  menuItem("decline-cancellation").addEventListener("click", function () {
+    var r = state.menuRequest;
+    closeRowMenu();
+    if (r) openCancelPanel(r, "decline");
   });
 
   // Global dismissers.
@@ -626,13 +653,30 @@
       (r.ptoType || "PTO") + " - " + PTOUI.formatRange(r.startDate, r.endDate);
   }
 
-  function openCancelPanel(r) {
+  function openCancelPanel(r, mode) {
     state.cancelTarget = r;
+    state.cancelMode = mode || "cancel";
+    var title = $("cancel-title");
+    if (title) {
+      title.textContent = state.cancelMode === "complete"
+        ? "Complete this cancellation?"
+        : state.cancelMode === "decline"
+          ? "Decline this cancellation request?"
+          : "Cancel this PTO request?";
+    }
     els.cancelMeta.textContent =
       (r.requesterName || r.requesterEmail || "unknown requester") + " - " +
       (r.ptoType || "?") + " - " + PTOUI.formatRange(r.startDate, r.endDate) +
       " · current status: " + (r.status || "?");
     els.cancelReason.value = "";
+    els.cancelReason.placeholder = state.cancelMode === "decline"
+      ? "Optional HR note explaining why the cancellation request was declined"
+      : "e.g. Employee withdrew the request / dates changed";
+    els.cancelConfirm.textContent = state.cancelMode === "complete"
+      ? "Complete cancellation"
+      : state.cancelMode === "decline"
+        ? "Decline cancellation"
+        : "Confirm cancellation";
     els.cancelStatus.textContent = "";
     els.cancelPanel.style.display = "block";
     els.cancelPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -641,6 +685,7 @@
 
   function closeCancelPanel() {
     state.cancelTarget = null;
+    state.cancelMode = "cancel";
     els.cancelPanel.style.display = "none";
     els.cancelStatus.textContent = "";
   }
@@ -650,6 +695,13 @@
     if (!r || state.cancelling) return;
 
     clearError(); showOk("");
+    if (state.cancelMode === "complete" || state.cancelMode === "decline") {
+      if (r.status !== "Cancellation Requested") {
+        showError("This request is not awaiting cancellation review.");
+        closeCancelPanel();
+        return;
+      }
+    } else {
     // Duplicate guard — re-check the loaded status before writing.
     if (!cancellable(r)) {
       showError("This request can no longer be cancelled (status: " + r.status + ").");
@@ -667,28 +719,36 @@
       closeCancelPanel();
       return;
     }
+    }
 
     state.cancelling = true;
     els.cancelConfirm.disabled = true;
     els.cancelAbort.disabled = true;
     els.cancelStatus.textContent = "Cancelling…";
     try {
-      var result = await PTORequests.cancelRequest(r.id, {
-        actor: state.me,
-        reason: els.cancelReason.value,
-        currentStatus: r.status,
-        existingAuditLog: (r.fields && r.fields.AuditLog) || "",
-      });
+      var result;
+      var completedMode = state.cancelMode;
+      if (state.cancelMode === "complete") {
+        result = await PTORequests.completeCancellationRequest(r.id, { actor: state.me, note: els.cancelReason.value });
+      } else if (state.cancelMode === "decline") {
+        result = await PTORequests.declineCancellationRequest(r.id, { actor: state.me, note: els.cancelReason.value });
+      } else {
+        result = await PTORequests.cancelRequest(r.id, {
+          actor: state.me,
+          reason: els.cancelReason.value,
+          currentStatus: r.status,
+          existingAuditLog: (r.fields && r.fields.AuditLog) || "",
+        });
+      }
 
       // Reflect locally — no full reload needed.
-      r.status = "Cancelled";
+      r.status = result.fields.Status;
       r.fields = Object.assign({}, r.fields, result.fields);
       closeCancelPanel();
       renderTable();
-      showOk(
-        "✓ " + requestLabel(r) + " cancelled." +
-        " If it was approved, the calendar events will be removed automatically by the cancellation flow."
-      );
+      showOk(completedMode === "decline"
+        ? "✓ Cancellation request declined and status restored."
+        : "✓ " + requestLabel(r) + " cancelled.");
     } catch (e) {
       els.cancelStatus.textContent = "";
       showError("Could not cancel " + requestLabel(r) + ": " + friendly(e));

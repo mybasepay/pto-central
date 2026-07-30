@@ -6,6 +6,21 @@ const vm = require("vm");
 const root = path.resolve(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
+function domainContext() {
+  const context = {
+    window: {},
+    console,
+    PTOGraph: {},
+  };
+  context.window.console = console;
+  vm.createContext(context);
+  vm.runInContext(read("js/rules.js"), context);
+  context.PTORules = context.window.PTORules;
+  vm.runInContext(read("js/requests.js"), context);
+  context.PTORequests = context.window.PTORequests;
+  return context;
+}
+
 function test(name, fn) {
   try {
     fn();
@@ -65,7 +80,9 @@ test("another employee requires a selected employee", () => {
 
 test("backup contact is required", () => {
   const js = read("js/pages/request.page.js");
-  assert(js.includes("Select a backup contact before submitting"));
+  const html = read("request.html");
+  assert(js.includes("Select at least one backup contact before submitting"));
+  assert(html.includes("I have notified all backup contacts"));
   assert(!js.includes("name only"), "backup lookup should not keep the old free-text fallback");
   assert(!js.includes("You can submit without a backup contact"), "backup is no longer optional");
 });
@@ -153,6 +170,113 @@ test("demo fixtures include required statuses and reminder examples", () => {
     !r.fields.ManagerEmail &&
     r.fields.ApproverOverride === true
   ), "needs no-manager employee with alternate approver route");
+});
+
+test("date range validation allows equal/later and rejects earlier", () => {
+  const { PTORules } = domainContext();
+  assert.strictEqual(JSON.stringify(PTORules.validateDateRange("2026-08-01", "2026-08-01")), JSON.stringify({ startDate: "2026-08-01", endDate: "2026-08-01" }));
+  assert.strictEqual(JSON.stringify(PTORules.validateDateRange("2026-08-01", "2026-08-02")), JSON.stringify({ startDate: "2026-08-01", endDate: "2026-08-02" }));
+  assert.throws(() => PTORules.validateDateRange("2026-08-02", "2026-08-01"), /End date must be on or after/);
+});
+
+test("approver safety rejects requester and acting submitter", () => {
+  const { PTORules } = domainContext();
+  const approver = { displayName: "A", mail: "approver@mybasepay.com", accountEnabled: true, userType: "Member" };
+  assert.strictEqual(PTORules.assertApproverIsSafe(approver, { requester: { mail: "requester@mybasepay.com" }, submitter: { mail: "submitter@mybasepay.com" } }), approver);
+  assert.throws(() => PTORules.assertApproverIsSafe(approver, { requester: { mail: "approver@mybasepay.com" } }), /employee receiving PTO/);
+  assert.throws(() => PTORules.assertApproverIsSafe(approver, { submitter: { mail: "APPROVER@mybasepay.com" } }), /acting submitter/);
+});
+
+test("Maggie fallback writes the approved no-manager override shape", () => {
+  const { PTORequests } = domainContext();
+  const fields = PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [{ name: "Backup", email: "backup@mybasepay.com" }],
+    BackupNotified: true,
+  }, {
+    requester: { id: "r", displayName: "Requester", mail: "requester@mybasepay.com" },
+    submitter: { id: "s", displayName: "Submitter", mail: "submitter@mybasepay.com" },
+    manager: null,
+    defaultApproverNoManager: { approver: { displayName: "Maggie Mondragon", mail: "maggie@mybasepay.com", accountEnabled: true, userType: "Member" } },
+  });
+  assert.strictEqual(fields.ApproverEmail, "maggie@mybasepay.com");
+  assert.strictEqual(fields.ApproverName, "Maggie Mondragon");
+  assert.strictEqual(fields.ApproverOverride, true);
+  assert.strictEqual(fields.ApproverOverrideReason, "No manager on file — routed to default approver.");
+});
+
+test("Maggie fallback fails closed for Maggie self-submission", () => {
+  const { PTORequests } = domainContext();
+  const maggie = { id: "m", displayName: "Maggie Mondragon", mail: "maggie@mybasepay.com", accountEnabled: true, userType: "Member" };
+  assert.throws(() => PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [{ name: "Backup", email: "backup@mybasepay.com" }],
+  }, {
+    requester: maggie,
+    submitter: maggie,
+    manager: null,
+    defaultApproverNoManager: { approver: maggie },
+  }), /employee receiving PTO|acting submitter/);
+});
+
+test("backup contacts flatten one two three with no gaps", () => {
+  const { PTORules } = domainContext();
+  const fields = PTORules.flattenBackupContacts([
+    { name: "One", email: "one@mybasepay.com" },
+    null,
+    { name: "Two", email: "two@mybasepay.com" },
+    { name: "Three", email: "three@mybasepay.com" },
+  ]);
+  assert.strictEqual(fields.BackupContactName, "One");
+  assert.strictEqual(fields.BackupContact2Name, "Two");
+  assert.strictEqual(fields.BackupContact3Name, "Three");
+  assert.strictEqual(fields.BackupContactCount, 3);
+});
+
+test("backup parsing preserves existing single-backup records", () => {
+  const { PTORules } = domainContext();
+  assert.strictEqual(JSON.stringify(PTORules.parseBackupContacts({ BackupContactName: "Legacy", BackupContactEmail: "legacy@mybasepay.com" })), JSON.stringify([
+    { name: "Legacy", email: "legacy@mybasepay.com" },
+  ]));
+});
+
+test("backup validation rejects duplicates and more than three", () => {
+  const { PTORules } = domainContext();
+  assert.throws(() => PTORules.flattenBackupContacts([
+    { name: "One", email: "dup@mybasepay.com" },
+    { name: "Two", email: "DUP@mybasepay.com" },
+  ]), /unique/);
+  assert.throws(() => PTORules.flattenBackupContacts([
+    { name: "One", email: "one@mybasepay.com" },
+    { name: "Two", email: "two@mybasepay.com" },
+    { name: "Three", email: "three@mybasepay.com" },
+    { name: "Four", email: "four@mybasepay.com" },
+  ]), /no more than 3/);
+});
+
+test("employee cancellation eligibility is status-only", () => {
+  const { PTORules } = domainContext();
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Approved"), true);
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Auto-Approved"), true);
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Pending"), false);
+  assert(read("js/pages/my-requests.page.js").includes("PTORules.isEmployeeCancellationEligible(r.status)"));
+});
+
+test("HR decline restores StatusBeforeCancellationRequest", () => {
+  const demo = read("js/demo-mode.js");
+  assert(demo.includes('item.fields.Status = item.fields.StatusBeforeCancellationRequest || "Approved"'));
+  assert(demo.includes('HrActionType = "Declined Cancellation Request"'));
+});
+
+test("centralized status-label behavior covers cancellation statuses", () => {
+  const { PTORules } = domainContext();
+  assert.strictEqual(PTORules.displayStatus("Cancellation Requested"), "Cancellation Requested");
+  assert.strictEqual(PTORules.STATUS_VALUES.CANCELLED, "Cancelled");
+  assert(read("js/ui.js").includes("PTORules.displayStatus"));
 });
 
 test("production configuration remains untouched by demo tests", () => {

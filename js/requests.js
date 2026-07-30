@@ -33,7 +33,7 @@ window.PTORequests = (function () {
    * Build the SharePoint `fields` object for a NEW request.
    *
    * @param {object} input - request details from the form:
-   *   { ptoType, startDate, endDate, reason, backupContactName, backupContactEmail,
+   *   { ptoType, startDate, endDate, reason, BackupContacts,
    *     isPartialDay, hours, isUrgent?, requestKey?, onBehalfReason? }
    * @param {object} context - resolved identities + options:
    *   { requester, submitter, manager, managersManager, onBehalf, submittedAt?,
@@ -76,9 +76,20 @@ window.PTORequests = (function () {
     var onBehalf = !!context.onBehalf;
 
     var override = context.approverOverride || null;
+    var defaultNoManager = context.defaultApproverNoManager || null;
     var overrideApprover = (override && override.approver) || null;
     var overrideReason = override ? String(override.reason || "").trim() : "";
     var hasOverride = !!(overrideApprover && pickEmail(overrideApprover));
+    var usesDefaultNoManager = false;
+    if (!hasOverride && !manager && defaultNoManager && defaultNoManager.approver) {
+      overrideApprover = defaultNoManager.approver;
+      overrideReason = "No manager on file — routed to default approver.";
+      hasOverride = !!(overrideApprover && pickEmail(overrideApprover));
+      usesDefaultNoManager = hasOverride;
+    }
+    if (hasOverride) {
+      PTORules.assertApproverIsSafe(overrideApprover, { requester: requester, submitter: submitter });
+    }
     if (overrideApprover && !overrideReason) {
       throw new Error("buildCreateRequestFields: an alternate-approver override requires a reason.");
     }
@@ -87,8 +98,10 @@ window.PTORequests = (function () {
       ? new Date(context.submittedAt).toISOString()
       : new Date().toISOString();
 
-    var startDate = PTORules.formatDateOnly(input.startDate);
-    var endDate = PTORules.formatDateOnly(input.endDate || input.startDate);
+    var dateRange = PTORules.validateDateRange(input.startDate, input.endDate || input.startDate);
+    var startDate = dateRange.startDate;
+    var endDate = dateRange.endDate;
+    var backupFields = PTORules.flattenBackupContacts(input);
 
     var noticeDays = PTORules.calculateNoticeDays(startDate, submittedAtIso);
     var isShort = PTORules.isShortNotice(noticeDays);
@@ -115,7 +128,7 @@ window.PTORequests = (function () {
         "; approval routed to " + (overrideApprover.displayName || pickEmail(overrideApprover)) +
         " <" + pickEmail(overrideApprover) + "> instead of manager " +
         (managerName || "(none)") + (managerEmail ? " <" + managerEmail + ">" : "") +
-        " — override reason: " + overrideReason;
+        " — " + (usesDefaultNoManager ? "default no-manager route" : "override reason: " + overrideReason);
     }
     var auditLine = PTORules.buildAuditLine("Created", actorName, auditDetails);
 
@@ -143,8 +156,17 @@ window.PTORequests = (function () {
       EndDate: endDate,
       IsPartialDay: !!input.isPartialDay,
       Reason: input.reason || "",
-      BackupContactName: input.backupContactName || "",
-      BackupContactEmail: input.backupContactEmail || "",
+      BackupContactName: backupFields.BackupContactName,
+      BackupContactEmail: backupFields.BackupContactEmail,
+      BackupContact2Name: backupFields.BackupContact2Name,
+      BackupContact2Email: backupFields.BackupContact2Email,
+      BackupContact3Name: backupFields.BackupContact3Name,
+      BackupContact3Email: backupFields.BackupContact3Email,
+      BackupContactCount: backupFields.BackupContactCount,
+      BackupNotified: input.BackupNotified === true || input.backupNotified === true,
+      BackupNotifiedAppliesToAll: input.BackupNotifiedAppliesToAll === true || input.backupNotifiedAppliesToAll === true,
+      BackupNotifiedByEmail: input.BackupNotifiedByEmail || input.backupNotifiedByEmail || pickEmail(submitter),
+      CopySubmitterOnConfirmation: input.CopySubmitterOnConfirmation === true || input.copySubmitterOnConfirmation === true,
 
       // Approval / manager chain snapshot
       Status: status,
@@ -703,6 +725,18 @@ window.PTORequests = (function () {
     return { fields: fields, response: response };
   }
 
+  async function requestCancellation(itemId, opts) {
+    throw new Error("Employee cancellation requests are enabled in demo mode only in this mission.");
+  }
+
+  async function completeCancellationRequest(itemId, opts) {
+    throw new Error("HR cancellation-request completion is enabled in demo mode only in this mission.");
+  }
+
+  async function declineCancellationRequest(itemId, opts) {
+    throw new Error("HR cancellation-request decline is enabled in demo mode only in this mission.");
+  }
+
   // --- Later phases (kept as labeled stubs) --------------------------------
 
   /** Patch fields (approve/reject/escalate/HR edit) (Phase 2D+). */
@@ -729,6 +763,9 @@ window.PTORequests = (function () {
     // HR Center (hr.html — HR/Admin-gated by PTOAuthz before use)
     listAllRequests: listAllRequests,
     cancelRequest: cancelRequest,
+    requestCancellation: requestCancellation,
+    completeCancellationRequest: completeCancellationRequest,
+    declineCancellationRequest: declineCancellationRequest,
     CANCELLABLE_STATUSES: CANCELLABLE_STATUSES,
     getRequest: getRequest,
     getRequestById: getRequestById,

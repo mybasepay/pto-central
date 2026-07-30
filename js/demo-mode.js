@@ -281,6 +281,55 @@
         saveRequests(items);
         return { fields: clone(item.fields), response: clone(item) };
       },
+      requestCancellation: async function (itemId, opts) {
+        var items = loadRequests();
+        var item = items.filter(function (r) { return String(r.id) === String(itemId); })[0];
+        if (!item) throw new Error("Demo request not found: " + itemId);
+        var status = item.fields.Status;
+        if (!PTORules.isEmployeeCancellationEligible(status)) {
+          throw new Error("This request is not eligible for employee cancellation.");
+        }
+        item.fields.StatusBeforeCancellationRequest = status;
+        item.fields.Status = "Cancellation Requested";
+        item.fields.CancellationRequestedAt = new Date().toISOString();
+        item.fields.CancellationRequestReason = (opts && opts.reason) || "";
+        item.fields.AuditLog = (item.fields.AuditLog || "") + "\n[" + new Date().toISOString() +
+          "] Cancellation Requested by " + (currentUser().displayName || emailOf(currentUser())) +
+          " — demo employee cancellation request";
+        saveRequests(items);
+        return { fields: clone(item.fields), response: clone(item) };
+      },
+      completeCancellationRequest: async function (itemId, opts) {
+        var items = loadRequests();
+        var item = items.filter(function (r) { return String(r.id) === String(itemId); })[0];
+        if (!item) throw new Error("Demo request not found: " + itemId);
+        if (item.fields.Status !== "Cancellation Requested") throw new Error("This request is not awaiting cancellation review.");
+        var actor = (opts && opts.actor) || currentUser();
+        item.fields.Status = "Cancelled";
+        item.fields.HrActionType = "Completed Cancellation";
+        item.fields.CancelledAt = new Date().toISOString();
+        item.fields.CancelledByEmail = emailOf(actor);
+        item.fields.CancelledByName = actor.displayName || emailOf(actor);
+        item.fields.AuditLog = (item.fields.AuditLog || "") + "\n[" + new Date().toISOString() +
+          "] Completed Cancellation by " + (actor.displayName || emailOf(actor)) + " — demo HR action";
+        saveRequests(items);
+        return { fields: clone(item.fields), response: clone(item) };
+      },
+      declineCancellationRequest: async function (itemId, opts) {
+        var items = loadRequests();
+        var item = items.filter(function (r) { return String(r.id) === String(itemId); })[0];
+        if (!item) throw new Error("Demo request not found: " + itemId);
+        if (item.fields.Status !== "Cancellation Requested") throw new Error("This request is not awaiting cancellation review.");
+        var actor = (opts && opts.actor) || currentUser();
+        item.fields.Status = item.fields.StatusBeforeCancellationRequest || "Approved";
+        item.fields.HrActionType = "Declined Cancellation Request";
+        item.fields.HrCancellationNote = (opts && opts.note) || "";
+        item.fields.AuditLog = (item.fields.AuditLog || "") + "\n[" + new Date().toISOString() +
+          "] Declined Cancellation Request by " + (actor.displayName || emailOf(actor)) +
+          (item.fields.HrCancellationNote ? " — " + item.fields.HrCancellationNote : " — demo HR action");
+        saveRequests(items);
+        return { fields: clone(item.fields), response: clone(item) };
+      },
       CANCELLABLE_STATUSES: ["Pending", "Approved", "Auto-Approved", "Auto-Approved (Escalation)"],
     };
   }

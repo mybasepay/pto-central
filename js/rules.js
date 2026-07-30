@@ -30,6 +30,29 @@ window.PTORules = (function () {
     window.PTOConfig && typeof PTOConfig.minNoticeDays === "number" ? PTOConfig.minNoticeDays : 7;
 
   var MS_PER_DAY = 24 * 60 * 60 * 1000;
+  var MAX_BACKUP_CONTACTS = 3;
+  var DEFAULT_APPROVER_NO_MANAGER = {
+    email: "maggie@mybasepay.com",
+    displayName: "Maggie Mondragon",
+  };
+  var STATUS_VALUES = {
+    PENDING: "Pending",
+    APPROVED: "Approved",
+    AUTO_APPROVED: "Auto-Approved",
+    AUTO_APPROVED_ESCALATION: "Auto-Approved (Escalation)",
+    REJECTED: "Rejected",
+    CANCELLED: "Cancelled",
+    CANCELLATION_REQUESTED: "Cancellation Requested",
+  };
+  var STATUS_LABELS = {
+    "Pending": "Pending",
+    "Approved": "Approved",
+    "Auto-Approved": "Auto-Approved",
+    "Auto-Approved (Escalation)": "Auto-Approved",
+    "Rejected": "Rejected",
+    "Cancelled": "Cancelled",
+    "Cancellation Requested": "Cancellation Requested",
+  };
 
   function pad2(n) { return String(n).padStart(2, "0"); }
 
@@ -103,7 +126,7 @@ window.PTORules = (function () {
    *   everything else      => "Pending"
    */
   function getInitialStatus(ptoType) {
-    return String(ptoType || "").toLowerCase() === "sick" ? "Auto-Approved" : "Pending";
+    return String(ptoType || "").toLowerCase() === "sick" ? STATUS_VALUES.AUTO_APPROVED : STATUS_VALUES.PENDING;
   }
 
   /**
@@ -118,6 +141,84 @@ window.PTORules = (function () {
   }
 
   function normEmail(s) { return String(s || "").trim().toLowerCase(); }
+  function emailOf(user) { return (user && (user.mail || user.userPrincipalName || user.email)) || ""; }
+
+  function displayStatus(status) {
+    return STATUS_LABELS[String(status || "").trim()] || String(status || "Unknown");
+  }
+
+  function validateDateRange(startDate, endDate) {
+    if (!startDate) throw new Error("Choose a start date.");
+    if (!endDate) throw new Error("Choose an end date.");
+    var start = formatDateOnly(startDate);
+    var end = formatDateOnly(endDate);
+    if (end < start) throw new Error("End date must be on or after the start date.");
+    return { startDate: start, endDate: end };
+  }
+
+  function backupFromPerson(person) {
+    if (!person) return null;
+    var email = emailOf(person);
+    var name = person.name || person.displayName || email;
+    if (!name && !email) return null;
+    return { name: name || email, email: email };
+  }
+
+  function normalizeBackupContacts(input) {
+    var list = [];
+    if (Array.isArray(input && input.BackupContacts)) list = input.BackupContacts;
+    else if (Array.isArray(input && input.backupContacts)) list = input.backupContacts;
+    else if (Array.isArray(input)) list = input;
+    else if (input && (input.BackupContactName || input.BackupContactEmail || input.backupContactName || input.backupContactEmail)) {
+      list = [{
+        name: input.BackupContactName || input.backupContactName || "",
+        email: input.BackupContactEmail || input.backupContactEmail || "",
+      }];
+    }
+    var seen = {};
+    var out = [];
+    list.forEach(function (raw) {
+      var c = backupFromPerson(raw);
+      if (!c) return;
+      var email = normEmail(c.email);
+      if (!email) throw new Error("Each backup contact must have an email address.");
+      if (seen[email]) throw new Error("Backup contacts must be unique.");
+      seen[email] = true;
+      out.push({ name: c.name || c.email, email: c.email });
+    });
+    if (out.length > MAX_BACKUP_CONTACTS) {
+      throw new Error("Select no more than " + MAX_BACKUP_CONTACTS + " backup contacts.");
+    }
+    return out;
+  }
+
+  function flattenBackupContacts(input) {
+    var contacts = normalizeBackupContacts(input);
+    var fields = {
+      BackupContactName: "",
+      BackupContactEmail: "",
+      BackupContact2Name: "",
+      BackupContact2Email: "",
+      BackupContact3Name: "",
+      BackupContact3Email: "",
+      BackupContactCount: contacts.length,
+    };
+    contacts.forEach(function (c, idx) {
+      var suffix = idx === 0 ? "" : String(idx + 1);
+      fields["BackupContact" + suffix + "Name"] = c.name || "";
+      fields["BackupContact" + suffix + "Email"] = c.email || "";
+    });
+    return fields;
+  }
+
+  function parseBackupContacts(fields) {
+    fields = fields || {};
+    return normalizeBackupContacts([
+      { name: fields.BackupContactName, email: fields.BackupContactEmail },
+      { name: fields.BackupContact2Name, email: fields.BackupContact2Email },
+      { name: fields.BackupContact3Name, email: fields.BackupContact3Email },
+    ]);
+  }
 
   /**
    * Validate a Graph user object as a selectable PTO participant (on-behalf
@@ -152,10 +253,43 @@ window.PTORules = (function () {
     if (normEmail(user.userType) === "guest") {
       return "Guest accounts can't be selected.";
     }
-    if (email.split("@").pop() !== allowedDomain) {
+    var domain = email.split("@").pop();
+    if (domain !== allowedDomain && !(window.PTODemo && window.PTODemo.active && domain === "example.test")) {
       return "Only " + allowedDomain + " employees can be selected.";
     }
     return null; // selectable
+  }
+
+  function assertApproverIsSafe(approver, context) {
+    context = context || {};
+    var problem = userSelectionProblem(approver);
+    if (problem) throw new Error(problem);
+    var approverEmail = normEmail(emailOf(approver));
+    var requesterEmail = normEmail(emailOf(context.requester));
+    var submitterEmail = normEmail(emailOf(context.submitter));
+    if (requesterEmail && approverEmail === requesterEmail) {
+      throw new Error("The approver must be different from the employee receiving PTO.");
+    }
+    if (submitterEmail && approverEmail === submitterEmail) {
+      throw new Error("The approver must be different from the acting submitter.");
+    }
+    return approver;
+  }
+
+  async function resolveApproverForNoManager(context) {
+    context = context || {};
+    if (!window.PTODirectory || !PTODirectory.getUserByEmail) {
+      throw new Error("Default approver lookup is unavailable.");
+    }
+    var approver = await PTODirectory.getUserByEmail(DEFAULT_APPROVER_NO_MANAGER.email);
+    if (!approver) throw new Error("Default approver could not be resolved.");
+    return assertApproverIsSafe(approver, context);
+  }
+
+  function isEmployeeCancellationEligible(status) {
+    status = String(status || "").trim();
+    return status === STATUS_VALUES.APPROVED || status === STATUS_VALUES.AUTO_APPROVED ||
+      status === STATUS_VALUES.AUTO_APPROVED_ESCALATION;
   }
 
   /**
@@ -201,7 +335,18 @@ window.PTORules = (function () {
     buildAuditLine: buildAuditLine,
     canDecide: canDecide,
     userSelectionProblem: userSelectionProblem,
+    resolveApproverForNoManager: resolveApproverForNoManager,
+    assertApproverIsSafe: assertApproverIsSafe,
+    validateDateRange: validateDateRange,
+    flattenBackupContacts: flattenBackupContacts,
+    parseBackupContacts: parseBackupContacts,
+    displayStatus: displayStatus,
+    isEmployeeCancellationEligible: isEmployeeCancellationEligible,
     // exposed for reference/testing
     MIN_NOTICE_DAYS: MIN_NOTICE_DAYS,
+    MAX_BACKUP_CONTACTS: MAX_BACKUP_CONTACTS,
+    DEFAULT_APPROVER_NO_MANAGER: DEFAULT_APPROVER_NO_MANAGER,
+    STATUS_VALUES: STATUS_VALUES,
+    STATUS_LABELS: STATUS_LABELS,
   };
 })();

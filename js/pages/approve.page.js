@@ -162,7 +162,9 @@
     PTOUI.setText("d-start", PTOUI.formatDateOnly(f.StartDate));
     PTOUI.setText("d-end", PTOUI.formatDateOnly(f.EndDate));
     PTOUI.setText("d-reason", f.Reason);
-    var backup = (f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "");
+    var backup = PTORules.parseBackupContacts(f).map(function (c) {
+      return c.name + (c.email ? " <" + c.email + ">" : "");
+    }).join("\n");
     PTOUI.setText("d-backup", backup.trim() || "—");
 
     var statusDd = $("d-status");

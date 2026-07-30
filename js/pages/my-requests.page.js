@@ -26,9 +26,12 @@
     table: $("reqs-table"), body: $("reqs-body"),
     statTotal: $("stat-total"), statPending: $("stat-pending"), statApproved: $("stat-approved"),
     pageSize: $("page-size"), pagePrev: $("page-prev"), pageNext: $("page-next"),
+    cancelModal: $("cancel-request-modal"), cancelMeta: $("cancel-request-meta"),
+    cancelReason: $("cancel-request-reason"), cancelSubmit: $("cancel-request-submit"),
+    cancelAbort: $("cancel-request-abort"), cancelStatus: $("cancel-request-status"),
   };
 
-  var state = { email: null, all: [], page: 1, pageSize: 10 };
+  var state = { email: null, all: [], page: 1, pageSize: 10, cancelDialog: null, cancelTarget: null };
 
   var yearEl = $("year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
@@ -104,6 +107,11 @@
     return s === "Approved" || s === "Auto-Approved" || s === "Auto-Approved (Escalation)";
   }
 
+  function isPastPto(r) {
+    var end = String(r.endDate || r.startDate || "").slice(0, 10);
+    return !!(end && end < PTORules.todayDateOnly());
+  }
+
   /** Summary cards — always reflect the full loaded set (not the filtered view). */
   function updateSummary() {
     var total = state.all.length;
@@ -126,7 +134,9 @@
   }
 
   function renderTable() {
-    var rows = filteredRows();
+    var rawRows = filteredRows();
+    var rows = rawRows.filter(function (r) { return !isPastPto(r); })
+      .concat(rawRows.filter(isPastPto));
     var total = rows.length;
 
     // Simple client-side pagination (view only).
@@ -139,11 +149,32 @@
     var pageRows = rows.slice(startIdx, endIdx);
 
     els.body.innerHTML = "";
+    var lastGroup = "";
     pageRows.forEach(function (r) {
+      var group = isPastPto(r) ? "Past PTO" : "Active / Upcoming";
+      if (group !== lastGroup) {
+        els.body.appendChild(PTOUI.el("tr", { class: "list-section-row" }, [
+          PTOUI.el("td", { colspan: "4" }, group),
+        ]));
+        lastGroup = group;
+      }
+      var action = PTOUI.el("td", { class: "actions-cell" });
+      if (PTORules.isEmployeeCancellationEligible(r.status)) {
+        action.appendChild(PTOUI.el("button", {
+          class: "btn small",
+          type: "button",
+          onClick: function (e) { openCancelModal(r, e.currentTarget); },
+        }, "Request cancellation"));
+      } else if (r.status === "Cancellation Requested") {
+        action.appendChild(PTOUI.el("span", { class: "status-text" }, "Pending HR review"));
+      } else {
+        action.appendChild(PTOUI.el("span", { class: "status-text" }, "—"));
+      }
       var tr = PTOUI.el("tr", null, [
         PTOUI.el("td", null, r.ptoType || "—"),
         PTOUI.el("td", null, PTOUI.formatRange(r.startDate, r.endDate)),
         PTOUI.el("td", null, PTOUI.statusBadge(r.status)),
+        action,
       ]);
       els.body.appendChild(tr);
     });
@@ -165,6 +196,50 @@
   }
 
   function resetToFirstPage() { state.page = 1; renderTable(); }
+
+  function openCancelModal(r, trigger) {
+    state.cancelTarget = r;
+    if (!state.cancelDialog) state.cancelDialog = PTOUI.modal({ id: "cancel-request-modal" });
+    els.cancelMeta.textContent = (r.ptoType || "PTO") + " · " + PTOUI.formatRange(r.startDate, r.endDate);
+    els.cancelReason.value = "";
+    els.cancelStatus.textContent = "";
+    state.cancelDialog.open(trigger);
+    setTimeout(function () { els.cancelReason.focus(); }, 0);
+  }
+
+  function closeCancelModal() {
+    if (state.cancelDialog) state.cancelDialog.close();
+    state.cancelTarget = null;
+    els.cancelStatus.textContent = "";
+  }
+
+  async function submitCancellationRequest() {
+    var r = state.cancelTarget;
+    if (!r) return;
+    var reason = String(els.cancelReason.value || "").trim();
+    if (!reason) {
+      els.cancelStatus.textContent = "Enter a cancellation reason.";
+      els.cancelReason.focus();
+      return;
+    }
+    els.cancelSubmit.disabled = true;
+    els.cancelAbort.disabled = true;
+    els.cancelStatus.textContent = "Submitting...";
+    try {
+      var result = await PTORequests.requestCancellation(r.id, { reason: reason });
+      r.status = "Cancellation Requested";
+      r.fields = Object.assign({}, r.fields, result.fields);
+      closeCancelModal();
+      renderTable();
+      showWarn(null);
+      els.count.textContent = "Your cancellation request was submitted successfully and is pending HR review.";
+    } catch (e) {
+      els.cancelStatus.textContent = friendly(e);
+    } finally {
+      els.cancelSubmit.disabled = false;
+      els.cancelAbort.disabled = false;
+    }
+  }
 
   async function loadRequests() {
     clearError();
@@ -210,6 +285,8 @@
   }
   if (els.pagePrev) els.pagePrev.addEventListener("click", function () { if (state.page > 1) { state.page--; renderTable(); } });
   if (els.pageNext) els.pageNext.addEventListener("click", function () { state.page++; renderTable(); });
+  if (els.cancelSubmit) els.cancelSubmit.addEventListener("click", submitCancellationRequest);
+  if (els.cancelAbort) els.cancelAbort.addEventListener("click", closeCancelModal);
 
   els.signin.addEventListener("click", async function () {
     clearError();

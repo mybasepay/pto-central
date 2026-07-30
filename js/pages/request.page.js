@@ -41,9 +41,10 @@
     // Alternate approver (HR/Admin only) — routes THIS request's approval to
     // someone other than the target's manager. Independent of on-behalf.
     approverOverride: { active: false, lookupOk: false, approver: null },
-    // Required backup contact, selected from the employee directory.
-    // Shape: { name, email } or null.
-    backup: null,
+    // Required backup contacts, selected from the employee directory.
+    // Shape: [{ name, email }], min 1, max PTORules.MAX_BACKUP_CONTACTS.
+    backups: [],
+    defaultNoManagerApprover: { lookupOk: false, approver: null, error: "" },
     submitted: false,
     authorized: false,
     requestType: null,  // "self" | "other" after the first-step choice
@@ -60,7 +61,8 @@
     backupSearch: $("backupSearch"),
     backupResults: $("backupResults"), backupSelected: $("backupSelected"),
     backupSelectedText: $("backupSelectedText"), backupClear: $("backupClear"),
-    backupError: $("backupError"),
+    backupError: $("backupError"), backupNotified: $("backupNotified"),
+    backupNotifiedBox: $("backupNotifiedBox"),
     submit: $("submit"), submitText: $("submitText"), submitStatus: $("submit-status"), error: $("error"),
     detailsTitle: $("details-title-text"),
     // "Who is this request for?" (all employees) controls.
@@ -86,6 +88,8 @@
     requestTypeError: $("requestTypeError"), requestContext: $("request-context"),
     reviewList: $("review-list"),
     reasonCount: $("reasonCount"), oboReasonCount: $("oboReasonCount"),
+    dateError: $("dateError"), copySubmitter: $("copySubmitter"),
+    copySubmitterBox: $("copySubmitterBox"),
   };
   var backupPicker = null;
   var employeePicker = null;
@@ -98,6 +102,7 @@
   var tomorrow = PTORules.formatDateOnly(PTORules.addDays(new Date(), 1));
   els.startDate.value = tomorrow;
   els.endDate.value = tomorrow;
+  els.endDate.min = tomorrow;
 
   // ---- error / status helpers ----
   function showError(message) {
@@ -151,6 +156,62 @@
     if (!input || !counter) return;
     var max = Number(input.getAttribute("maxlength")) || 250;
     counter.textContent = String(input.value.length) + " / " + max;
+  }
+
+  function setDateError(text) {
+    if (!els.dateError) return;
+    els.dateError.textContent = text || "";
+    els.dateError.style.display = text ? "block" : "none";
+    if (els.endDate) {
+      if (text) els.endDate.setAttribute("aria-invalid", "true");
+      else els.endDate.removeAttribute("aria-invalid");
+    }
+  }
+
+  function repairDateRange() {
+    if (!els.startDate || !els.endDate) return;
+    if (els.startDate.value) els.endDate.min = els.startDate.value;
+    if (els.startDate.value && els.endDate.value && els.endDate.value < els.startDate.value) {
+      els.endDate.value = els.startDate.value;
+    }
+    var bad = els.startDate.value && els.endDate.value && els.endDate.value < els.startDate.value;
+    setDateError(bad ? "End date must be on or after the start date." : "");
+  }
+
+  function resetDefaultNoManagerApprover() {
+    state.defaultNoManagerApprover = { lookupOk: false, approver: null, error: "" };
+  }
+
+  function isDefaultNoManagerRouteReady() {
+    return !!(!state.target.manager && state.defaultNoManagerApprover.lookupOk && state.defaultNoManagerApprover.approver);
+  }
+
+  function defaultApproverFailureMessage() {
+    var err = state.defaultNoManagerApprover.error || "";
+    if (/different from the employee receiving PTO|different from the acting submitter/i.test(err)) {
+      return "You don't have a manager on file, and the default approver can't approve your own request. Please choose an approver above, or contact HR.";
+    }
+    return "We couldn't route this to the default approver right now. Please choose an approver above, or contact HR.";
+  }
+
+  async function resolveDefaultNoManagerApprover() {
+    resetDefaultNoManagerApprover();
+    if (!state.target.requester || state.target.manager) {
+      renderApprovalRoute();
+      return;
+    }
+    try {
+      var approver = await PTORules.resolveApproverForNoManager({
+        requester: state.target.requester,
+        submitter: state.me,
+      });
+      state.defaultNoManagerApprover = { lookupOk: true, approver: approver, error: "" };
+    } catch (e) {
+      state.defaultNoManagerApprover = { lookupOk: false, approver: null, error: friendly(e) };
+    }
+    renderApprovalRoute();
+    refreshSubmitEnabled();
+    renderReview();
   }
 
   async function loadContext() {
@@ -224,6 +285,8 @@
     }
     if (els.requestTypeSelf) els.requestTypeSelf.setAttribute("aria-pressed", state.requestType === "self" ? "true" : "false");
     if (els.requestTypeOther) els.requestTypeOther.setAttribute("aria-pressed", state.requestType === "other" ? "true" : "false");
+    if (els.copySubmitterBox) els.copySubmitterBox.style.display = state.requestType === "other" ? "flex" : "none";
+    if (els.copySubmitter && state.requestType !== "other") els.copySubmitter.checked = false;
   }
 
   function hasMeaningfulEntry() {
@@ -250,6 +313,7 @@
     updateCharCount(els.oboReason, els.oboReasonCount);
     clearOboMessages();
     clearOboResults();
+    resetDefaultNoManagerApprover();
     resetApproverOverride();
     renderTargetDetails();
     renderRequestTypeGate();
@@ -339,7 +403,7 @@
       w.textContent = (state.onBehalf
         ? "This employee has no manager in Entra ID. "
         : "No manager found in Entra ID for your account. ") +
-        "Select an approver before submitting a non-Sick request. Sick leave is auto-approved either way.";
+        "Default approver: " + PTORules.DEFAULT_APPROVER_NO_MANAGER.displayName + ". You may choose another approver above.";
       w.style.display = "block";
     } else {
       w.style.display = "none";
@@ -369,8 +433,10 @@
       manager: state.self.manager,
       managersManager: state.self.managersManager,
     };
+    resetDefaultNoManagerApprover();
     if (els.detailsTitle) els.detailsTitle.textContent = "Your details";
     renderTargetDetails();
+    resolveDefaultNoManagerApprover();
     recomputeRuleUI();
     refreshSubmitEnabled();
     renderReview();
@@ -382,6 +448,7 @@
     state.onBehalf = true;
     state.lookupOk = false;
     state.target = { requester: null, manager: null, managersManager: null };
+    resetDefaultNoManagerApprover();
     if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
     renderTargetDetails();
     refreshSubmitEnabled();
@@ -452,18 +519,21 @@
     if (els.approverSection) {
       var hasSelected = !!(state.approverOverride.active && state.approverOverride.lookupOk);
       var needsRoute = !!(state.target.requester && !state.target.manager && els.ptoType && els.ptoType.value !== "Sick");
+      var hasDefaultNoManager = isDefaultNoManagerRouteReady();
       els.approverSection.classList.toggle("has-selected-approver", hasSelected);
-      els.approverSection.classList.toggle("needs-approver", needsRoute);
+      els.approverSection.classList.toggle("has-default-no-manager", hasDefaultNoManager);
+      els.approverSection.classList.toggle("needs-approver", needsRoute && !hasDefaultNoManager);
       var managerWarn = $("mgr-warn");
       if (managerWarn && needsRoute) {
-        managerWarn.style.display = hasSelected ? "none" : "block";
+        managerWarn.style.display = (hasSelected || hasDefaultNoManager) ? "none" : "block";
       }
     }
     if (els.approverFields) {
       var needsRoute = !!(state.target.requester && !state.target.manager && els.ptoType && els.ptoType.value !== "Sick");
       var editing = state.approverOverride.active && !state.approverOverride.lookupOk;
       var hasSelectedApprover = !!(state.approverOverride.active && state.approverOverride.lookupOk);
-      els.approverFields.style.display = ((needsRoute && !hasSelectedApprover) || editing) ? "block" : "none";
+      var hasDefaultNoManager = isDefaultNoManagerRouteReady();
+      els.approverFields.style.display = ((needsRoute && !hasSelectedApprover && !hasDefaultNoManager) || editing) ? "block" : "none";
     }
     updateApproverBadge();
   }
@@ -547,11 +617,35 @@
     els.backupResults.classList.remove("show");
   }
 
+  function backupLabel(c) {
+    return (c && c.name ? c.name : "") + (c && c.email ? "\n" + c.email : "");
+  }
+
   function renderBackupSelected() {
     if (!els.backupSelected) return;
-    if (state.backup) {
-      els.backupSelectedText.textContent = state.backup.name +
-        (state.backup.email ? " — " + state.backup.email : "");
+    els.backupSelected.innerHTML = "";
+    if (els.backupSelectedText) {
+      els.backupSelectedText.textContent = state.backups.length
+        ? state.backups.length + " selected"
+        : "-";
+    }
+    if (state.backups.length) {
+      state.backups.forEach(function (backup, idx) {
+        var chip = document.createElement("span");
+        chip.className = "person-chip backup-chip show";
+        var text = document.createElement("span");
+        text.className = "txt";
+        text.textContent = backup.name + (backup.email ? " — " + backup.email : "");
+        var btn = document.createElement("button");
+        btn.className = "clear";
+        btn.type = "button";
+        btn.setAttribute("aria-label", "Remove backup contact " + backup.name);
+        btn.textContent = "×";
+        btn.addEventListener("click", function () { removeBackup(idx); });
+        chip.appendChild(text);
+        chip.appendChild(btn);
+        els.backupSelected.appendChild(chip);
+      });
       els.backupSelected.classList.add("show");
     } else {
       els.backupSelected.classList.remove("show");
@@ -560,14 +654,35 @@
   }
 
   function selectBackup(name, email) {
-    state.backup = { name: name || "", email: email || "" };
+    var normalized = String(email || "").trim().toLowerCase();
+    if (!normalized) { showBackupError("Select a backup contact from the suggestions first."); return; }
+    if (state.backups.some(function (b) { return String(b.email || "").trim().toLowerCase() === normalized; })) {
+      showBackupError("That backup contact is already selected.");
+      if (backupPicker) backupPicker.clear(false);
+      return;
+    }
+    if (state.backups.length >= PTORules.MAX_BACKUP_CONTACTS) {
+      showBackupError("Select no more than " + PTORules.MAX_BACKUP_CONTACTS + " backup contacts.");
+      if (backupPicker) backupPicker.clear(false);
+      return;
+    }
+    state.backups.push({ name: name || email || "", email: email || "" });
     clearBackupResults();
+    if (backupPicker) backupPicker.clear(false);
+    if (els.backupSearch) els.backupSearch.value = "";
     showBackupError("");
     renderBackupSelected();
   }
 
+  function removeBackup(index) {
+    state.backups.splice(index, 1);
+    renderBackupSelected();
+    showBackupError("");
+  }
+
   function clearBackup() {
-    state.backup = null;
+    state.backups = [];
+    if (backupPicker) backupPicker.clear(false);
     if (els.backupSearch) els.backupSearch.value = "";
     renderBackupSelected();
     showBackupError("");
@@ -618,9 +733,11 @@
         manager: chain.manager,
         managersManager: chain.managersManager,
       };
-    if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
+      resetDefaultNoManagerApprover();
+      if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
       resetApproverOverride();
       renderTargetDetails();
+      resolveDefaultNoManagerApprover();
       recomputeRuleUI();
       if (els.oboSelectedText) {
         els.oboSelectedText.textContent = (employee.displayName || emailOf(employee)) +
@@ -648,7 +765,7 @@
         clear: els.backupClear,
         status: els.backupError,
         onSelect: function (u) { selectBackup(u.displayName || emailOf(u), emailOf(u)); },
-        onClear: function () { state.backup = null; renderBackupSelected(); },
+        onClear: function () { renderBackupSelected(); },
       });
     }
     if (els.oboSearch && !employeePicker) {
@@ -729,18 +846,21 @@
     if (!type) return "Choose a PTO type.";
     if (!els.startDate.value) return "Choose a start date.";
     if (!els.endDate.value) return "Choose an end date.";
-    if (els.endDate.value < els.startDate.value) return "End date must be on or after the start date.";
-    if (!state.backup || !state.backup.name) return "Select a backup contact before submitting.";
+    try { PTORules.validateDateRange(els.startDate.value, els.endDate.value); }
+    catch (e) { setDateError("End date must be on or after the start date."); return "End date must be on or after the start date."; }
+    if (els.backupSearch && els.backupSearch.value.trim()) {
+      return "Select the backup contact from the suggestions or clear the backup search text.";
+    }
+    if (!state.backups.length) return "Select at least one backup contact before submitting.";
+    if (!els.backupNotified || !els.backupNotified.checked) return 'Please check "I have notified all backup contacts".';
 
     // An approval route is required unless Sick (auto-approved): either the
     // resolved target has a manager in Entra, OR the user enabled "Route
     // approval to someone else" (the override block below enforces that a
     // valid approver is selected + a reason is given). This unblocks
     // requesters with no manager configured (e.g. service-style accounts).
-    if (type !== "Sick" && !state.target.manager && !state.approverOverride.active) {
-      return state.onBehalf
-        ? "This employee has no manager in Entra ID. Select an approver, submit Sick (auto-approved), or contact HR (pto-approvals@mybasepay.com)."
-        : "No manager found in Entra ID for your account. Select an approver or contact HR (pto-approvals@mybasepay.com).";
+    if (type !== "Sick" && !state.target.manager && !state.approverOverride.active && !isDefaultNoManagerRouteReady()) {
+      return defaultApproverFailureMessage();
     }
 
     // Alternate approver (HR/Admin only): a valid approver + reason required
@@ -766,7 +886,13 @@
 
   function defaultApproverLabel() {
     var m = state.target.manager;
-    return m ? ((m.displayName || emailOf(m)) + (emailOf(m) ? "\n" + emailOf(m) : "")) : "No default manager found";
+    if (m) return (m.displayName || emailOf(m)) + (emailOf(m) ? "\n" + emailOf(m) : "");
+    if (state.target.requester && state.defaultNoManagerApprover.lookupOk && state.defaultNoManagerApprover.approver) {
+      var a = state.defaultNoManagerApprover.approver;
+      return (a.displayName || emailOf(a)) + (emailOf(a) ? "\n" + emailOf(a) : "");
+    }
+    if (state.target.requester && state.defaultNoManagerApprover.error) return defaultApproverFailureMessage();
+    return "No default manager found";
   }
 
   function selectedApproverLabel() {
@@ -798,7 +924,9 @@
     if (!els.reviewList) return;
     els.reviewList.innerHTML = "";
     var requester = state.target.requester;
-    var backup = state.backup ? state.backup.name + (state.backup.email ? "\n" + state.backup.email : "") : "Required";
+    var backup = state.backups.length
+      ? state.backups.map(backupLabel).join("\n")
+      : "Required";
     if (state.requestType === "other") {
       addReviewItem("Submitted by", reviewPerson(state.me));
       addReviewItem("Employee receiving PTO", reviewPerson(requester, "Select an employee"));
@@ -825,10 +953,11 @@
       startDate: els.startDate.value,
       endDate: els.endDate.value,
       reason: els.reason.value,
-      // Backup contact comes from the employee lookup (state.backup); the
-      // SharePoint fields BackupContactName/BackupContactEmail are unchanged.
-      backupContactName: state.backup ? state.backup.name : "",
-      backupContactEmail: state.backup ? state.backup.email : "",
+      BackupContacts: state.backups.slice(),
+      BackupNotified: !!(els.backupNotified && els.backupNotified.checked),
+      BackupNotifiedAppliesToAll: true,
+      BackupNotifiedByEmail: emailOf(state.me),
+      CopySubmitterOnConfirmation: !!(state.onBehalf && els.copySubmitter && els.copySubmitter.checked),
       // Partial day was removed from the UI (2026-07-03). Safe defaults keep
       // buildCreateRequestFields' contract intact: IsPartialDay = false is
       // still written; Hours is omitted (only written for partial days).
@@ -885,6 +1014,9 @@
         approverOverride: state.approverOverride.active
           ? { approver: state.approverOverride.approver, reason: els.approverReason.value }
           : null,
+        defaultApproverNoManager: isDefaultNoManagerRouteReady()
+          ? { approver: state.defaultNoManagerApprover.approver }
+          : null,
       };
       var fields = PTORequests.buildCreateRequestFields(input, context);
       await PTORequests.createRequest(fields);
@@ -897,6 +1029,9 @@
       if (context.approverOverride) {
         statusMsg += " Approval routed to " +
           (context.approverOverride.approver.displayName || emailOf(context.approverOverride.approver)) + ".";
+      } else if (context.defaultApproverNoManager) {
+        statusMsg += " Approval routed to default approver " +
+          (context.defaultApproverNoManager.approver.displayName || emailOf(context.defaultApproverNoManager.approver)) + ".";
       }
       setSubmitStatus(statusMsg + " Submit is disabled to avoid duplicates.");
       els.submit.textContent = "Submitted";
@@ -936,8 +1071,8 @@
 
   // ---- wiring ----
   els.ptoType.addEventListener("change", function () { recomputeRuleUI(); renderReview(); });
-  els.startDate.addEventListener("change", function () { recomputeRuleUI(); renderReview(); });
-  els.endDate.addEventListener("change", function () { recomputeRuleUI(); renderReview(); });
+  els.startDate.addEventListener("change", function () { repairDateRange(); recomputeRuleUI(); renderReview(); });
+  els.endDate.addEventListener("change", function () { repairDateRange(); recomputeRuleUI(); renderReview(); });
   els.reason.addEventListener("input", function () {
     updateCharCount(els.reason, els.reasonCount);
     renderReview();
@@ -949,6 +1084,8 @@
     });
   }
   els.confirm.addEventListener("change", refreshSubmitEnabled);
+  if (els.backupNotified) els.backupNotified.addEventListener("change", refreshSubmitEnabled);
+  if (els.copySubmitter) els.copySubmitter.addEventListener("change", renderReview);
   if (els.requestTypeSelf) els.requestTypeSelf.addEventListener("click", function () { chooseRequestType("self"); });
   if (els.requestTypeOther) els.requestTypeOther.addEventListener("click", function () { chooseRequestType("other"); });
   if (els.requestTypeChange) els.requestTypeChange.addEventListener("click", changeRequestType);
@@ -1005,6 +1142,7 @@
   if (els.approverReason) els.approverReason.addEventListener("input", renderReview);
   updateCharCount(els.reason, els.reasonCount);
   updateCharCount(els.oboReason, els.oboReasonCount);
+  repairDateRange();
 
   els.signin.addEventListener("click", async function () {
     clearError();

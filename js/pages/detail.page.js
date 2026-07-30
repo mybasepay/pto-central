@@ -70,7 +70,9 @@
     setText("d-submitted", f.SubmittedAt ? new Date(f.SubmittedAt).toLocaleString() : "—");
     setText("d-manager", ((f.ManagerName || "") + (f.ManagerEmail ? " <" + f.ManagerEmail + ">" : "")).trim());
     setText("d-approver", ((f.ApproverName || "") + (f.ApproverEmail ? " <" + f.ApproverEmail + ">" : "")).trim());
-    setText("d-backup", ((f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "")).trim());
+    setText("d-backup", PTORules.parseBackupContacts(f).map(function (c) {
+      return c.name + (c.email ? " <" + c.email + ">" : "");
+    }).join("\n"));
     setText("d-notice", (f.IsShortNotice ? "Short notice · " : "") + ((f.NoticeDays === undefined || f.NoticeDays === null) ? "—" : f.NoticeDays + " day(s)"));
     setText("d-reason", f.Reason);
   }

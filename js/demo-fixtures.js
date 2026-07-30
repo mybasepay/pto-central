@@ -10,8 +10,8 @@ window.PTODemoFixtures = (function () {
     {
       id: "demo-user-rod",
       displayName: "Rod Demo",
-      mail: "rod.demo@mybasepay.com",
-      userPrincipalName: "rod.demo@mybasepay.com",
+      mail: "rod.demo@example.test",
+      userPrincipalName: "rod.demo@example.test",
       jobTitle: "Operations Manager",
       department: "Operations",
       accountEnabled: true,
@@ -21,8 +21,8 @@ window.PTODemoFixtures = (function () {
     {
       id: "demo-user-michelle",
       displayName: "Michelle Approver",
-      mail: "michelle.approver@mybasepay.com",
-      userPrincipalName: "michelle.approver@mybasepay.com",
+      mail: "michelle.approver@example.test",
+      userPrincipalName: "michelle.approver@example.test",
       jobTitle: "Director, People Operations",
       department: "People Operations",
       accountEnabled: true,
@@ -32,8 +32,8 @@ window.PTODemoFixtures = (function () {
     {
       id: "demo-user-elena",
       displayName: "Elena HR",
-      mail: "elena.hr@mybasepay.com",
-      userPrincipalName: "elena.hr@mybasepay.com",
+      mail: "elena.hr@example.test",
+      userPrincipalName: "elena.hr@example.test",
       jobTitle: "VP, HR",
       department: "Human Resources",
       accountEnabled: true,
@@ -43,8 +43,8 @@ window.PTODemoFixtures = (function () {
     {
       id: "demo-user-jamie",
       displayName: "Jamie Backup",
-      mail: "jamie.backup@mybasepay.com",
-      userPrincipalName: "jamie.backup@mybasepay.com",
+      mail: "jamie.backup@example.test",
+      userPrincipalName: "jamie.backup@example.test",
       jobTitle: "Client Success Lead",
       department: "Client Success",
       accountEnabled: true,
@@ -54,8 +54,8 @@ window.PTODemoFixtures = (function () {
     {
       id: "demo-user-ana",
       displayName: "Ana Employee",
-      mail: "ana.employee@mybasepay.com",
-      userPrincipalName: "ana.employee@mybasepay.com",
+      mail: "ana.employee@example.test",
+      userPrincipalName: "ana.employee@example.test",
       jobTitle: "Payroll Specialist",
       department: "Payroll",
       accountEnabled: true,
@@ -65,13 +65,46 @@ window.PTODemoFixtures = (function () {
     {
       id: "demo-user-nomanager",
       displayName: "No Manager Demo",
-      mail: "no.manager.demo@mybasepay.com",
-      userPrincipalName: "no.manager.demo@mybasepay.com",
+      mail: "no.manager.demo@example.test",
+      userPrincipalName: "no.manager.demo@example.test",
       jobTitle: "Implementation Specialist",
       department: "Operations",
       accountEnabled: true,
       userType: "Member",
       managerId: null,
+    },
+    {
+      id: "demo-user-maggie",
+      displayName: "Maggie Mondragon",
+      mail: "maggie@mybasepay.com",
+      userPrincipalName: "maggie@mybasepay.com",
+      jobTitle: "Default PTO Approver",
+      department: "People Operations",
+      accountEnabled: true,
+      userType: "Member",
+      managerId: "demo-user-elena",
+    },
+    {
+      id: "demo-user-sam",
+      displayName: "Sam Backup",
+      mail: "sam.backup@example.test",
+      userPrincipalName: "sam.backup@example.test",
+      jobTitle: "Operations Coordinator",
+      department: "Operations",
+      accountEnabled: true,
+      userType: "Member",
+      managerId: "demo-user-michelle",
+    },
+    {
+      id: "demo-user-taylor",
+      displayName: "Taylor Backup",
+      mail: "taylor.backup@example.test",
+      userPrincipalName: "taylor.backup@example.test",
+      jobTitle: "Client Success Specialist",
+      department: "Client Success",
+      accountEnabled: true,
+      userType: "Member",
+      managerId: "demo-user-michelle",
     },
   ];
 
@@ -88,7 +121,8 @@ window.PTODemoFixtures = (function () {
     var submitter = byId(seed.submitterId || seed.requesterId);
     var manager = byId(requester.managerId);
     var approver = seed.approverId ? byId(seed.approverId) : manager;
-    var backup = byId(seed.backupId || "demo-user-jamie");
+    var backups = (seed.backupIds || [seed.backupId || "demo-user-jamie"]).map(byId).filter(Boolean).slice(0, 3);
+    var backup = backups[0] || {};
     var submittedAt = iso(seed.submittedAt, "14:30:00");
     var audit =
       "[" + submittedAt + "] Created by " + submitter.displayName +
@@ -116,14 +150,23 @@ window.PTODemoFixtures = (function () {
       EndDate: seed.endDate,
       IsPartialDay: false,
       Reason: seed.reason || "",
-      BackupContactName: backup.displayName,
-      BackupContactEmail: backup.mail,
+      BackupContactName: backup.displayName || "",
+      BackupContactEmail: backup.mail || "",
+      BackupContact2Name: backups[1] ? backups[1].displayName : "",
+      BackupContact2Email: backups[1] ? backups[1].mail : "",
+      BackupContact3Name: backups[2] ? backups[2].displayName : "",
+      BackupContact3Email: backups[2] ? backups[2].mail : "",
+      BackupContactCount: backups.length,
+      BackupNotified: seed.backupNotified !== false,
+      BackupNotifiedAppliesToAll: seed.backupNotified !== false,
+      BackupNotifiedByEmail: submitter.mail,
+      CopySubmitterOnConfirmation: seed.copySubmitter === true,
       Status: seed.status,
       ManagerId: manager ? manager.id : "",
       ManagerEmail: manager ? manager.mail : "",
       ManagerName: manager ? manager.displayName : "",
       SkipManagerManagerId: "demo-user-elena",
-      SkipManagerManagerEmail: "elena.hr@mybasepay.com",
+      SkipManagerManagerEmail: "elena.hr@example.test",
       SkipManagerManagerName: "Elena HR",
       ApproverEmail: approver ? approver.mail : "",
       ApproverName: approver ? approver.displayName : "",
@@ -156,6 +199,7 @@ window.PTODemoFixtures = (function () {
         status: "Pending",
         noticeDays: 15,
         reason: "Family trip.",
+        backupIds: ["demo-user-jamie"],
         reminderStage: "Awaiting Reminder 2",
         escalationLevel: 1,
       }),
@@ -169,6 +213,7 @@ window.PTODemoFixtures = (function () {
         submitterId: "demo-user-rod",
         onBehalf: true,
         onBehalfReason: "Employee asked HR to enter the request while traveling.",
+        copySubmitter: true,
         ptoType: "PTO",
         startDate: "2026-08-03",
         endDate: "2026-08-03",
@@ -176,6 +221,7 @@ window.PTODemoFixtures = (function () {
         status: "Pending",
         noticeDays: 5,
         reason: "Short-notice personal appointment.",
+        backupIds: ["demo-user-jamie", "demo-user-sam"],
       }),
     },
     {
@@ -193,6 +239,7 @@ window.PTODemoFixtures = (function () {
         decisionAt: "2026-07-19",
         noticeDays: 30,
         reason: "Summer vacation.",
+        backupIds: ["demo-user-jamie", "demo-user-sam", "demo-user-taylor"],
       }),
     },
     {
@@ -251,8 +298,8 @@ window.PTODemoFixtures = (function () {
         submitterId: "demo-user-rod",
         onBehalf: true,
         onBehalfReason: "Demo case for an employee without a manager in Entra.",
-        approverId: "demo-user-michelle",
-        approverReason: "No default manager is configured for this employee.",
+        approverId: "demo-user-maggie",
+        approverReason: "No manager on file — routed to default approver.",
         ptoType: "PTO",
         startDate: "2026-08-24",
         endDate: "2026-08-25",
@@ -273,6 +320,8 @@ window.PTODemoFixtures = (function () {
         endDate: "2026-08-28",
         submittedAt: "2026-07-27",
         status: "Cancellation Requested",
+        backupIds: ["demo-user-jamie", "demo-user-sam"],
+        statusBeforeCancellationRequest: "Approved",
         decisionById: "demo-user-michelle",
         decisionAt: "2026-07-27",
         noticeDays: 32,
@@ -297,6 +346,98 @@ window.PTODemoFixtures = (function () {
       }),
     },
   ];
+
+  requests.forEach(function (r) {
+    var f = r.fields || {};
+    if (f.Status === "Cancellation Requested" && !f.StatusBeforeCancellationRequest) {
+      f.StatusBeforeCancellationRequest = "Approved";
+    }
+  });
+
+  requests.push({
+    id: "9010",
+    webUrl: "demo://pto/9010",
+    fields: fields({
+      key: "DEMO-PTO-9010",
+      requesterId: "demo-user-rod",
+      ptoType: "Sick",
+      startDate: "2026-07-20",
+      endDate: "2026-07-20",
+      submittedAt: "2026-07-01",
+      status: "Auto-Approved",
+      noticeDays: 19,
+      reason: "Already-started auto-approved cancellation eligibility demo.",
+      backupIds: ["demo-user-jamie"],
+    }),
+  });
+
+  requests.push({
+    id: "9011",
+    webUrl: "demo://pto/9011",
+    fields: Object.assign(fields({
+      key: "DEMO-PTO-9011",
+      requesterId: "demo-user-ana",
+      ptoType: "PTO",
+      startDate: "2026-08-14",
+      endDate: "2026-08-14",
+      submittedAt: "2026-07-22",
+      status: "Cancelled",
+      noticeDays: 23,
+      reason: "Cancellation completed demo.",
+      backupIds: ["demo-user-jamie"],
+    }), {
+      HrActionType: "Completed Cancellation",
+      StatusBeforeCancellationRequest: "Approved",
+      CancellationRequestedAt: iso("2026-07-24", "10:00:00"),
+      CancellationRequestReason: "Plans changed.",
+    }),
+  });
+
+  requests.push({
+    id: "9012",
+    webUrl: "demo://pto/9012",
+    fields: Object.assign(fields({
+      key: "DEMO-PTO-9012",
+      requesterId: "demo-user-jamie",
+      ptoType: "PTO",
+      startDate: "2026-08-19",
+      endDate: "2026-08-19",
+      submittedAt: "2026-07-23",
+      status: "Approved",
+      noticeDays: 27,
+      reason: "Cancellation declined/restored demo.",
+      backupIds: ["demo-user-sam"],
+    }), {
+      HrActionType: "Declined Cancellation Request",
+      StatusBeforeCancellationRequest: "Approved",
+      CancellationRequestReason: "Coverage was restored.",
+    }),
+  });
+
+  requests.push({
+    id: "9013",
+    webUrl: "demo://pto/9013",
+    fields: (function () {
+      var f = fields({
+        key: "DEMO-PTO-9013",
+        requesterId: "demo-user-rod",
+        ptoType: "PTO",
+        startDate: "2026-09-02",
+        endDate: "2026-09-02",
+        submittedAt: "2026-07-25",
+        status: "Pending",
+        noticeDays: 34,
+        reason: "Legacy single-backup compatibility demo.",
+        backupIds: ["demo-user-jamie"],
+      });
+      delete f.BackupContact2Name;
+      delete f.BackupContact2Email;
+      delete f.BackupContact3Name;
+      delete f.BackupContact3Email;
+      delete f.BackupContactCount;
+      return f;
+    })(),
+  });
 
   return {
     people: people,

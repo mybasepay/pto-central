@@ -75,10 +75,11 @@ window.PTOUI = (function () {
   /** A neutral status label element. */
   function statusBadge(status) {
     var key = String(status || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    var label = window.PTORules && PTORules.displayStatus ? PTORules.displayStatus(status) : (status || "—");
     return el("span", {
       class: "pto-status pto-status-" + key,
       "data-status": status || "Unknown",
-      text: status || "—",
+      text: label,
     });
   }
 

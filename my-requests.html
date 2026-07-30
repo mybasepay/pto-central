@@ -178,7 +178,7 @@
       background: #05090f; border: 1px solid var(--mr-line-soft); font-size: 12px; max-height: 320px;
       color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   </style>
-  <link rel="stylesheet" href="styles.css?v=corporate-light" />
+  <link rel="stylesheet" href="styles.css?v=phase12-demo" />
 </head>
 <body class="app-page my-requests-page">
   <main class="wrap">
@@ -265,6 +265,7 @@
           <option value="Pending">Pending</option>
           <option value="Approved">Approved</option>
           <option value="Auto-Approved">Auto-Approved</option>
+          <option value="Cancellation Requested">Cancellation Requested</option>
           <option value="Rejected">Rejected</option>
           <option value="Cancelled">Cancelled</option>
         </select>
@@ -287,6 +288,7 @@
               <th>PTO Type</th>
               <th>Dates</th>
               <th>Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="reqs-body"></tbody>
@@ -318,6 +320,28 @@
     </footer>
   </main>
 
+  <div class="modal-backdrop" id="cancel-request-backdrop" hidden>
+    <section class="modal-panel cancel-request-modal" id="cancel-request-modal" role="dialog" aria-modal="true" aria-labelledby="cancel-request-title" tabindex="-1">
+      <header class="modal-head">
+        <div>
+          <h2 class="modal-title" id="cancel-request-title">Request cancellation</h2>
+          <p class="modal-subtitle" id="cancel-request-subtitle">HR must review and complete cancellation requests.</p>
+        </div>
+        <button class="btn small" type="button" data-modal-close>Close</button>
+      </header>
+      <div class="modal-body">
+        <p id="cancel-request-meta" class="status-text">-</p>
+        <label class="fld" for="cancel-request-reason">Cancellation reason <span class="req">*</span></label>
+        <textarea id="cancel-request-reason" placeholder="Briefly explain why this PTO should be cancelled."></textarea>
+        <div class="modal-actions">
+          <button id="cancel-request-submit" class="btn primary" type="button">Submit cancellation request</button>
+          <button id="cancel-request-abort" class="btn" type="button">Keep PTO</button>
+          <span id="cancel-request-status" class="status-text" aria-live="polite"></span>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <!--
     Library + modules. Order matters; page last.
     Cache-busting (?v=): same convention as the other pages — bump on any change
@@ -325,16 +349,16 @@
     intentionally NOT versioned (pinned v3.28.1).
   -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js?v=mr3"></script>
-  <script src="js/auth.js?v=mr3"></script>
-  <script src="js/graph.js?v=mr3"></script>
-  <script src="js/directory.js?v=mr3"></script>
-  <script src="js/rules.js?v=mr3"></script>
-  <script src="js/requests.js?v=mr3"></script>
-  <script src="js/authz.js?v=mr3"></script>
-  <script src="js/ui.js?v=mr3"></script>
-  <script src="js/demo-fixtures.js?v=demo1"></script>
-  <script src="js/demo-mode.js?v=demo1"></script>
-  <script src="js/pages/my-requests.page.js?v=mr3"></script>
+  <script src="js/config.js?v=phase12"></script>
+  <script src="js/auth.js?v=phase12"></script>
+  <script src="js/graph.js?v=phase12"></script>
+  <script src="js/directory.js?v=phase12"></script>
+  <script src="js/rules.js?v=phase12"></script>
+  <script src="js/requests.js?v=phase12"></script>
+  <script src="js/authz.js?v=phase12"></script>
+  <script src="js/ui.js?v=phase12"></script>
+  <script src="js/demo-fixtures.js?v=phase12"></script>
+  <script src="js/demo-mode.js?v=phase12"></script>
+  <script src="js/pages/my-requests.page.js?v=phase12"></script>
 </body>
 </html>
