@@ -538,14 +538,22 @@
     // is never hidden and historical requests are never silently modified.
     var isCancellationRequested = r.status === "Cancellation Requested";
     var canCancel = cancellable(r) && !isCancellationRequested;
+    // Complete/Decline are the NEW employee-cancellation-request actions —
+    // gated on the production feature flag (js/config.js), same as the
+    // employee-facing entry points in cancel.page.js/my-requests.page.js.
+    // HR's pre-existing direct "Cancel" action (canCancel above) is
+    // deliberately UNAFFECTED by this flag — it must keep working exactly
+    // as it always has.
+    var cancellationFeatureOn = PTORules.isEmployeeCancellationEnabled();
+    var showComplete = isCancellationRequested && cancellationFeatureOn;
     var cancelEl = menuItem("cancel");
     var cancelSepEl = menuItem("cancel-sep");
     var completeEl = menuItem("complete-cancellation");
     var declineEl = menuItem("decline-cancellation");
     cancelEl.style.display = canCancel ? "" : "none";
-    completeEl.style.display = isCancellationRequested ? "" : "none";
-    declineEl.style.display = isCancellationRequested ? "" : "none";
-    cancelSepEl.style.display = (canCancel || isCancellationRequested) ? "" : "none";
+    completeEl.style.display = showComplete ? "" : "none";
+    declineEl.style.display = showComplete ? "" : "none";
+    cancelSepEl.style.display = (canCancel || showComplete) ? "" : "none";
     if (canCancel) setMenuItemDisabled(cancelEl, past);
     setMenuItemDisabled(completeEl, false);
     setMenuItemDisabled(declineEl, false);

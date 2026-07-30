@@ -78,6 +78,14 @@
     if (isCancellationRequested(r.status)) {
       return { eligible: false, label: "Cancellation Requested", reason: "Cancellation Requested" };
     }
+    if (!PTORules.isEmployeeCancellationEnabled()) {
+      // Production feature flag off (js/config.js) — hide the action
+      // entirely rather than show it disabled/erroring, since the real
+      // backend itself also refuses in this state (defense in depth, not
+      // just a UI hide). Demo mode is unaffected — isEmployeeCancellationEnabled()
+      // always returns true there.
+      return { eligible: false, label: "-", reason: "-" };
+    }
     if (!PTORules.isEmployeeCancellationEligible(r.status)) {
       return { eligible: false, label: "-", reason: "-" };
     }

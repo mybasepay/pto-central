@@ -44,6 +44,23 @@ window.PTOConfig = {
     appFolderPath: "/Shared Documents/General/PTO Central",
   },
 
+  // Feature flags — plain constants, no remote/config dependency (none exists
+  // in this repo yet). Flip a value and redeploy; that's the whole mechanism.
+  features: {
+    // Employee-initiated cancellation requests (request / HR complete / HR
+    // decline — js/requests.js). DEFAULT OFF: the real backend is
+    // implemented and ETag-protected, but must stay inactive in production
+    // until the SharePoint columns it needs (StatusBeforeCancellationRequest,
+    // CancellationRequestedAt/ById/Email/Name, CancellationRequestReason,
+    // the "Cancellation Requested" Status choice value, and the
+    // "Completed Cancellation"/"Declined Cancellation Request" HrActionType
+    // choice values) are provisioned on the live list and live-validated.
+    // Demo mode (?demo=1) is unaffected either way — see
+    // PTORules.isEmployeeCancellationEnabled(). HR's pre-existing direct
+    // cancelRequest() action does not read this flag; it is unchanged.
+    employeeCancellationRequests: false,
+  },
+
   scopes: {
     login: ["User.Read"],
     graphMe: ["User.Read"],

@@ -9,8 +9,13 @@
  *     filter, a Refresh button, and a clean 4-column table with status badges.
  *   - Empty state and error panel.
  *
- * READ-ONLY: no cancel/edit. Data source, user-filtering, and status values
- * are unchanged. Pages call domain modules, never Graph directly (§7).
+ *   - "Request cancellation" on any Approved/Auto-Approved/Pending row
+ *     (PTORules.isEmployeeCancellationEligible), gated on
+ *     PTORules.isEmployeeCancellationEnabled() — hidden while the production
+ *     feature flag is off (js/config.js), always available in demo mode.
+ *
+ * Data source, user-filtering, and status values are unchanged. Pages call
+ * domain modules, never Graph directly (§7).
  */
 
 (function () {
@@ -31,7 +36,7 @@
     cancelAbort: $("cancel-request-abort"), cancelStatus: $("cancel-request-status"),
   };
 
-  var state = { email: null, all: [], page: 1, pageSize: 10, cancelDialog: null, cancelTarget: null };
+  var state = { me: null, email: null, all: [], page: 1, pageSize: 10, cancelDialog: null, cancelTarget: null };
 
   var yearEl = $("year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
@@ -159,7 +164,7 @@
         lastGroup = group;
       }
       var action = PTOUI.el("td", { class: "actions-cell" });
-      if (PTORules.isEmployeeCancellationEligible(r.status)) {
+      if (PTORules.isEmployeeCancellationEnabled() && PTORules.isEmployeeCancellationEligible(r.status)) {
         action.appendChild(PTOUI.el("button", {
           class: "btn small",
           type: "button",
@@ -226,7 +231,7 @@
     els.cancelAbort.disabled = true;
     els.cancelStatus.textContent = "Submitting...";
     try {
-      var result = await PTORequests.requestCancellation(r.id, { reason: reason });
+      var result = await PTORequests.requestCancellation(r.id, { actor: state.me, reason: reason });
       r.status = "Cancellation Requested";
       r.fields = Object.assign({}, r.fields, result.fields);
       closeCancelModal();
@@ -248,6 +253,7 @@
     els.count.textContent = "Loading…";
     try {
       var me = await PTODirectory.getMe();
+      state.me = me;
       state.email = me.mail || me.userPrincipalName;
       if (!state.email) throw new Error("Could not determine your email from your profile.");
 

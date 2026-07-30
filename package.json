@@ -4,6 +4,6 @@
   "private": true,
   "scripts": {
     "demo": "node scripts/demo-server.cjs",
-    "test": "node tests/demo-contract.test.cjs"
+    "test": "node tests/demo-contract.test.cjs && node tests/cancellation-backend.test.cjs"
   }
 }

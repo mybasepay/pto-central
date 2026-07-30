@@ -128,14 +128,18 @@ window.PTOGraph = (function () {
   }
 
   /**
-   * PATCH a Graph resource with a JSON body. (Low-risk; not used by the Phase 1D
-   * page, which only creates + reads back, but available for later phases.)
+   * PATCH a Graph resource with a JSON body.
    * @param {string} url
    * @param {any} body
    * @param {string[]} [scopes]
+   * @param {string} [etag] - when provided, sent as the `If-Match` header so
+   *   Graph rejects the write with HTTP 409/412 if the resource changed since
+   *   it was read (optimistic concurrency). Omit for an unconditional PATCH
+   *   (existing callers are unaffected — this parameter is additive).
    */
-  async function patch(url, body, scopes) {
-    return request("PATCH", url, { body: body, scopes: scopes });
+  async function patch(url, body, scopes, etag) {
+    var headers = etag ? { "If-Match": etag } : undefined;
+    return request("PATCH", url, { body: body, scopes: scopes, headers: headers });
   }
 
   /** Convenience: GET the signed-in user's basic profile. */
@@ -300,18 +304,31 @@ window.PTOGraph = (function () {
    *   on the /fields endpoint). Only the supplied fields are changed.
    * @param {string|number} itemId
    * @param {object} fields - field internal-name → value map
+   * @param {object} [options] - { etag?: string } — when `etag` is supplied it
+   *   is sent as `If-Match`, so Graph responds 409/412 (thrown with `.status`
+   *   set — see request()) if the item changed since it was read, instead of
+   *   silently overwriting a concurrent write. Omitted entirely, this call
+   *   behaves exactly as it always has (unconditional PATCH).
    * @returns {Promise<object>} the updated fieldValueSet
    */
-  async function updateListItem(itemId, fields) {
+  async function updateListItem(itemId, fields, options) {
     if (itemId === undefined || itemId === null || itemId === "") {
       throw new Error("updateListItem requires an itemId.");
     }
+    options = options || {};
     var ctx = await resolveContext();
     var path = "/sites/" + ctx.siteId + "/lists/" + ctx.listId + "/items/" + itemId + "/fields";
-    console.log("[PTOGraph] updateListItem → PATCH", buildUrl(path), fields);
-    var res = await patch(path, fields, PTOConfig.scopes.siteWrite);
+    console.log("[PTOGraph] updateListItem → PATCH", buildUrl(path), fields, options.etag ? "(If-Match set)" : "");
+    var res = await patch(path, fields, PTOConfig.scopes.siteWrite, options.etag);
     console.log("[PTOGraph] updateListItem ← ok");
     return res;
+  }
+
+  /** Extract the item-level ETag from a getListItem()/createListItem() response
+   *  (Graph returns it as `@odata.etag`; `.eTag` is a defensive fallback for any
+   *  non-standard response shape). Returns null if absent. */
+  function etagOf(item) {
+    return (item && (item["@odata.etag"] || item.eTag)) || null;
   }
 
   return {
@@ -331,5 +348,6 @@ window.PTOGraph = (function () {
     createListItem: createListItem,
     getListItem: getListItem,
     updateListItem: updateListItem,
+    etagOf: etagOf,
   };
 })();

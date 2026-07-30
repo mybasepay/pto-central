@@ -422,20 +422,30 @@ test("backup validation rejects duplicates and more than three", () => {
   ]), /no more than 3/);
 });
 
-test("employee cancellation eligibility is status-only", () => {
+test("employee cancellation eligibility is status-only, including the Escalation variant", () => {
   const { PTORules } = domainContext();
   assert.strictEqual(PTORules.isEmployeeCancellationEligible("Pending"), true);
   assert.strictEqual(PTORules.isEmployeeCancellationEligible("Approved"), true);
   assert.strictEqual(PTORules.isEmployeeCancellationEligible("Auto-Approved"), true);
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Auto-Approved (Escalation)"), true);
   assert.strictEqual(PTORules.isEmployeeCancellationEligible("Cancelled"), false);
   assert.strictEqual(PTORules.isEmployeeCancellationEligible("Cancellation Requested"), false);
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Rejected"), false);
   assert(read("js/pages/my-requests.page.js").includes("PTORules.isEmployeeCancellationEligible(r.status)"));
 });
 
-test("HR decline restores StatusBeforeCancellationRequest", () => {
-  const demo = read("js/demo-mode.js");
-  assert(demo.includes('item.fields.Status = item.fields.StatusBeforeCancellationRequest || "Approved"'));
-  assert(demo.includes('HrActionType = "Declined Cancellation Request"'));
+test("HR decline restores the exact StatusBeforeCancellationRequest and writes HrNotes only", async () => {
+  const { PTORequests } = demoContext();
+  // Item 9008: Cancellation Requested, StatusBeforeCancellationRequest "Approved".
+  const declined = await PTORequests.declineCancellationRequest("9008", { note: "Still needed after all." });
+  assert.strictEqual(declined.fields.Status, "Approved");
+  assert.strictEqual(declined.fields.HrActionType, "Declined Cancellation Request");
+  assert.strictEqual(declined.fields.HrNotes, "Still needed after all.");
+  assert.strictEqual(declined.fields.HrCancellationNote, undefined);
+  assert.strictEqual(declined.fields.ModifiedByHr, true);
+  // Checks the field is never WRITTEN (not merely absent from every comment —
+  // a comment documenting the removal is fine and expected).
+  assert(!read("js/demo-mode.js").includes(".HrCancellationNote ="));
 });
 
 test("pending future and already-started PTO can request cancellation in demo", async () => {

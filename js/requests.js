@@ -29,6 +29,11 @@ window.PTORequests = (function () {
     return (user && (user.mail || user.userPrincipalName)) || "";
   }
 
+  /** Case-insensitive email compare helper (trims, lowercases). */
+  function normEmail(s) {
+    return String(s || "").trim().toLowerCase();
+  }
+
   /**
    * Build the SharePoint `fields` object for a NEW request.
    *
@@ -101,7 +106,7 @@ window.PTORequests = (function () {
     var dateRange = PTORules.validateDateRange(input.startDate, input.endDate || input.startDate);
     var startDate = dateRange.startDate;
     var endDate = dateRange.endDate;
-    var backupFields = PTORules.flattenBackupContacts(input);
+    var backupFields = PTORules.flattenBackupContacts(input, pickEmail(requester));
 
     var noticeDays = PTORules.calculateNoticeDays(startDate, submittedAtIso);
     var isShort = PTORules.isShortNotice(noticeDays);
@@ -748,16 +753,231 @@ window.PTORequests = (function () {
     return { fields: fields, response: response };
   }
 
+  /** Thrown by all three functions below while
+   *  PTORules.isEmployeeCancellationEnabled() is false (production default —
+   *  see js/config.js's `features.employeeCancellationRequests`). This is a
+   *  backend safety net, not just a UI hide: the production feature flag
+   *  must flip on before any of these three ever perform a real write,
+   *  independent of whatever a page does or doesn't render. */
+  var FEATURE_DISABLED_MESSAGE =
+    "Employee cancellation requests are not yet available in production.";
+
+  function assertCancellationFeatureEnabled() {
+    if (!PTORules.isEmployeeCancellationEnabled()) {
+      throw new Error(FEATURE_DISABLED_MESSAGE);
+    }
+  }
+
+  /** Shared conflict-safe PATCH: throws the approved user-facing message on a
+   *  409/412 (ETag mismatch — someone else already wrote this item since it
+   *  was re-read), and never retries automatically. Any other error rethrows
+   *  as-is. */
+  async function patchWithConflictGuard(itemId, fields, etag) {
+    try {
+      return await PTOGraph.updateListItem(itemId, fields, { etag: etag });
+    } catch (e) {
+      if (e && (e.status === 409 || e.status === 412)) {
+        throw new Error("Someone already acted on this request. Refresh and try again.");
+      }
+      throw e;
+    }
+  }
+
+  function actorFieldsOf(actor) {
+    actor = actor || {};
+    var email = pickEmail(actor);
+    return { id: actor.id || "", email: email, name: actor.displayName || email || "Unknown" };
+  }
+
+  /**
+   * Employee-initiated cancellation request (real backend — Phase: production
+   * cancellation, gated OFF by default, see assertCancellationFeatureEnabled).
+   *
+   * Authorization: ONLY the employee the request belongs to may request its
+   * cancellation — the signed-in user's email is compared, case-insensitively,
+   * against the RE-READ item's RequesterEmail. Being the original on-behalf
+   * SubmittedByEmail is never sufficient on its own. HR's existing direct
+   * cancelRequest() above is a completely separate action/path, unaffected.
+   *
+   * Eligible current statuses (PTORules.isEmployeeCancellationEligible, the
+   * single shared source of truth): Pending, Approved, Auto-Approved,
+   * Auto-Approved (Escalation). StartDate is never checked.
+   *
+   * Sequence: re-read (fresh ETag) → authorize + validate status from THAT
+   * read (never the caller's possibly-stale view) → require a non-empty
+   * reason → PATCH with If-Match. A 409/412 aborts safely, unretried — see
+   * patchWithConflictGuard.
+   *
+   * @param {string|number} itemId
+   * @param {object} opts { actor: {id, displayName, mail|userPrincipalName}, reason: string }
+   * @returns {Promise<{fields: object, response: any}>}
+   */
   async function requestCancellation(itemId, opts) {
-    throw new Error("Employee cancellation requests are enabled in demo mode only in this mission.");
+    assertCancellationFeatureEnabled();
+    if (!itemId) throw new Error("requestCancellation requires an itemId.");
+    opts = opts || {};
+
+    var reason = String(opts.reason || "").trim();
+    if (!reason) throw new Error("Enter a cancellation reason before submitting.");
+
+    var actor = actorFieldsOf(opts.actor);
+
+    var current = await PTOGraph.getListItem(itemId);
+    var etag = PTOGraph.etagOf(current);
+    var currentFields = (current && current.fields) || {};
+
+    var requesterEmail = normEmail(currentFields.RequesterEmail);
+    if (!requesterEmail || normEmail(actor.email) !== requesterEmail) {
+      throw new Error("Only the employee this request belongs to can request its cancellation.");
+    }
+
+    var currentStatus = String(currentFields.Status || "").trim();
+    if (!PTORules.isEmployeeCancellationEligible(currentStatus)) {
+      throw new Error("This request is not eligible for employee cancellation.");
+    }
+
+    var nowIso = new Date().toISOString();
+    var auditLine = PTORules.buildAuditLine(
+      "Cancellation Requested", actor.name, "employee cancellation request — reason: " + reason
+    );
+    var existing = currentFields.AuditLog;
+    var auditLog = (existing && String(existing).trim()) ? existing + "\n" + auditLine : auditLine;
+
+    var fields = {
+      Status: "Cancellation Requested",
+      StatusBeforeCancellationRequest: currentStatus,
+      CancellationRequestedAt: nowIso,
+      CancellationRequestedById: actor.id,
+      CancellationRequestedByEmail: actor.email,
+      CancellationRequestedByName: actor.name,
+      CancellationRequestReason: reason,
+      AuditLog: auditLog,
+    };
+
+    var response = await patchWithConflictGuard(itemId, fields, etag);
+    return { fields: fields, response: response };
   }
 
+  /**
+   * HR/Admin completes a pending cancellation request (real backend).
+   * Authorization: HR/Admin only — enforced the SAME way every other HR
+   * Center action is (PTOAuthz.enforce()/hasRole() on hr.html, BEFORE this is
+   * ever called; this module does not re-check roles — same convention as
+   * listAllRequests()/cancelRequest() above).
+   *
+   * Precondition (checked from a fresh re-read, not the caller's view):
+   * current Status must be exactly "Cancellation Requested".
+   *
+   * @param {string|number} itemId
+   * @param {object} opts { actor: {...}, note?: string }
+   * @returns {Promise<{fields: object, response: any}>}
+   */
   async function completeCancellationRequest(itemId, opts) {
-    throw new Error("HR cancellation-request completion is enabled in demo mode only in this mission.");
+    assertCancellationFeatureEnabled();
+    if (!itemId) throw new Error("completeCancellationRequest requires an itemId.");
+    opts = opts || {};
+    var actor = actorFieldsOf(opts.actor);
+
+    var current = await PTOGraph.getListItem(itemId);
+    var etag = PTOGraph.etagOf(current);
+    var currentFields = (current && current.fields) || {};
+
+    if (String(currentFields.Status || "").trim() !== "Cancellation Requested") {
+      throw new Error("This request is not awaiting cancellation review.");
+    }
+
+    var nowIso = new Date().toISOString();
+    var auditLine = PTORules.buildAuditLine("Completed Cancellation", actor.name, "HR Center — cancellation request completed");
+    var existing = currentFields.AuditLog;
+    var auditLog = (existing && String(existing).trim()) ? existing + "\n" + auditLine : auditLine;
+
+    // StatusBeforeCancellationRequest is intentionally never included here —
+    // omitting a key from a partial PATCH preserves it untouched, exactly as
+    // required (kept for notification/audit purposes). Calendar-id fields
+    // (EmployeeEventId/CorpEventId) are likewise never touched — event
+    // deletion is PTO Calendar Cancellation MVP Clean's job, triggered by
+    // Status == "Cancelled" alone.
+    var fields = {
+      Status: "Cancelled",
+      CancelledById: actor.id,
+      CancelledByEmail: actor.email,
+      CancelledByName: actor.name,
+      CancelledAt: nowIso,
+      ModifiedByHr: true,
+      HrActionType: "Completed Cancellation",
+      HrActionById: actor.id,
+      HrActionByEmail: actor.email,
+      HrActionByName: actor.name,
+      HrActionAt: nowIso,
+      AuditLog: auditLog,
+    };
+    if (opts.note) fields.HrNotes = String(opts.note).trim();
+
+    var response = await patchWithConflictGuard(itemId, fields, etag);
+    return { fields: fields, response: response };
   }
 
+  /**
+   * HR/Admin declines a pending cancellation request, restoring the exact
+   * prior status (real backend). Authorization: HR/Admin only, same
+   * convention as completeCancellationRequest above.
+   *
+   * Precondition: current Status must be exactly "Cancellation Requested".
+   * Fails CLOSED (throws, zero writes) unless StatusBeforeCancellationRequest
+   * is one of the four employee-cancellation-eligible values — reuses
+   * PTORules.isEmployeeCancellationEligible() rather than a second hardcoded
+   * list, since that is exactly the set of prior statuses this flow can ever
+   * have legitimately captured.
+   *
+   * Writes HrNotes — and ONLY HrNotes; HrCancellationNote is never written
+   * anywhere in this codebase.
+   *
+   * @param {string|number} itemId
+   * @param {object} opts { actor: {...}, note?: string }
+   * @returns {Promise<{fields: object, response: any}>}
+   */
   async function declineCancellationRequest(itemId, opts) {
-    throw new Error("HR cancellation-request decline is enabled in demo mode only in this mission.");
+    assertCancellationFeatureEnabled();
+    if (!itemId) throw new Error("declineCancellationRequest requires an itemId.");
+    opts = opts || {};
+    var actor = actorFieldsOf(opts.actor);
+
+    var current = await PTOGraph.getListItem(itemId);
+    var etag = PTOGraph.etagOf(current);
+    var currentFields = (current && current.fields) || {};
+
+    if (String(currentFields.Status || "").trim() !== "Cancellation Requested") {
+      throw new Error("This request is not awaiting cancellation review.");
+    }
+
+    var priorStatus = String(currentFields.StatusBeforeCancellationRequest || "").trim();
+    if (!priorStatus || !PTORules.isEmployeeCancellationEligible(priorStatus)) {
+      throw new Error(
+        "Cannot decline: the prior status on this request is missing or invalid. No changes were made."
+      );
+    }
+
+    var nowIso = new Date().toISOString();
+    var auditLine = PTORules.buildAuditLine(
+      "Declined Cancellation Request", actor.name, "HR Center — restored to " + priorStatus
+    );
+    var existing = currentFields.AuditLog;
+    var auditLog = (existing && String(existing).trim()) ? existing + "\n" + auditLine : auditLine;
+
+    var fields = {
+      Status: priorStatus,
+      ModifiedByHr: true,
+      HrActionType: "Declined Cancellation Request",
+      HrActionById: actor.id,
+      HrActionByEmail: actor.email,
+      HrActionByName: actor.name,
+      HrActionAt: nowIso,
+      HrNotes: String((opts && opts.note) || "").trim(),
+      AuditLog: auditLog,
+    };
+
+    var response = await patchWithConflictGuard(itemId, fields, etag);
+    return { fields: fields, response: response };
   }
 
   // --- Later phases (kept as labeled stubs) --------------------------------

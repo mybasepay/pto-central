@@ -164,7 +164,19 @@ window.PTORules = (function () {
     return { name: name || email, email: email };
   }
 
-  function normalizeBackupContacts(input) {
+  var SELF_AS_BACKUP_MESSAGE = "The employee taking PTO cannot be listed as their own backup contact.";
+
+  /**
+   * @param {object|Array} input - form/fields data (see caller)
+   * @param {string} [requesterEmail] - the employee the PTO is FOR. When
+   *   provided, any backup contact whose email matches (case-insensitive) is
+   *   rejected — applies identically to self and on-behalf submissions, since
+   *   `requesterEmail` is always the PTO recipient's email, never the acting
+   *   submitter's. Omitted entirely (the read-direction callers, e.g.
+   *   `parseBackupContacts`), this check is skipped — existing records are
+   *   never retroactively invalidated by reading them back.
+   */
+  function normalizeBackupContacts(input, requesterEmail) {
     var list = [];
     if (Array.isArray(input && input.BackupContacts)) list = input.BackupContacts;
     else if (Array.isArray(input && input.backupContacts)) list = input.backupContacts;
@@ -175,6 +187,7 @@ window.PTORules = (function () {
         email: input.BackupContactEmail || input.backupContactEmail || "",
       }];
     }
+    var requesterNorm = normEmail(requesterEmail);
     var seen = {};
     var out = [];
     list.forEach(function (raw) {
@@ -182,6 +195,7 @@ window.PTORules = (function () {
       if (!c) return;
       var email = normEmail(c.email);
       if (!email) throw new Error("Each backup contact must have an email address.");
+      if (requesterNorm && email === requesterNorm) throw new Error(SELF_AS_BACKUP_MESSAGE);
       if (seen[email]) throw new Error("Backup contacts must be unique.");
       seen[email] = true;
       out.push({ name: c.name || c.email, email: c.email });
@@ -192,8 +206,8 @@ window.PTORules = (function () {
     return out;
   }
 
-  function flattenBackupContacts(input) {
-    var contacts = normalizeBackupContacts(input);
+  function flattenBackupContacts(input, requesterEmail) {
+    var contacts = normalizeBackupContacts(input, requesterEmail);
     var fields = {
       BackupContactName: "",
       BackupContactEmail: "",
@@ -293,6 +307,28 @@ window.PTORules = (function () {
   }
 
   /**
+   * Feature flag: is the employee-cancellation-request capability (request /
+   * complete / decline) active? Default OFF in production
+   * (`PTOConfig.features.employeeCancellationRequests`, js/config.js) until
+   * SharePoint schema provisioning and live validation are complete — see
+   * the operational preflight report. Demo mode (`?demo=1`) is ALWAYS
+   * enabled regardless of the flag, so the feature stays fully testable
+   * while inactive in production; demo mode never reaches the real backend
+   * functions this flag also gates (js/demo-mode.js replaces
+   * window.PTORequests wholesale), so the two checks never conflict.
+   * @returns {boolean}
+   */
+  function isEmployeeCancellationEnabled() {
+    // Fully window-qualified throughout (never a bare PTODemo/PTOConfig
+    // reference) — this file's `vm`-sandboxed test harness gives `window` a
+    // plain object, not the sandbox's actual global object, so a bare
+    // reference after a truthy `window.X` guard would throw ReferenceError
+    // there even though it works in a real browser (where window IS global).
+    if (window.PTODemo && window.PTODemo.active === true) return true;
+    return !!(window.PTOConfig && window.PTOConfig.features && window.PTOConfig.features.employeeCancellationRequests === true);
+  }
+
+  /**
    * Approval authorization predicate (Alternate Approver aware — see
    * docs/ALTERNATE_APPROVER_DESIGN.md). Pure function, no I/O, so the exact
    * priority order is independently testable from approve.page.js.
@@ -342,11 +378,13 @@ window.PTORules = (function () {
     parseBackupContacts: parseBackupContacts,
     displayStatus: displayStatus,
     isEmployeeCancellationEligible: isEmployeeCancellationEligible,
+    isEmployeeCancellationEnabled: isEmployeeCancellationEnabled,
     // exposed for reference/testing
     MIN_NOTICE_DAYS: MIN_NOTICE_DAYS,
     MAX_BACKUP_CONTACTS: MAX_BACKUP_CONTACTS,
     DEFAULT_APPROVER_NO_MANAGER: DEFAULT_APPROVER_NO_MANAGER,
     STATUS_VALUES: STATUS_VALUES,
     STATUS_LABELS: STATUS_LABELS,
+    SELF_AS_BACKUP_MESSAGE: SELF_AS_BACKUP_MESSAGE,
   };
 })();

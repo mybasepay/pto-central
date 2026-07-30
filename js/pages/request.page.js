@@ -660,7 +660,7 @@
     if (!normalized) { showBackupError("Select a backup contact from the suggestions first."); return; }
     var requesterEmail = String(emailOf(state.target.requester || "")).trim().toLowerCase();
     if (requesterEmail && normalized === requesterEmail) {
-      showBackupError("The employee taking PTO can't be selected as their own backup contact.");
+      showBackupError(PTORules.SELF_AS_BACKUP_MESSAGE);
       if (backupPicker) backupPicker.clear(false);
       return;
     }

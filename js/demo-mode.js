@@ -282,10 +282,25 @@
         saveRequests(items);
         return { fields: clone(item.fields), response: clone(item) };
       },
+      // Mirrors js/requests.js's real requestCancellation() field-for-field
+      // and message-for-message (same authorization rule, same eligibility
+      // check, same written fields) — the only difference is sessionStorage
+      // instead of Graph/ETag, since there is no real concurrency to protect
+      // against here.
       requestCancellation: async function (itemId, opts) {
         var items = loadRequests();
         var item = items.filter(function (r) { return String(r.id) === String(itemId); })[0];
         if (!item) throw new Error("Demo request not found: " + itemId);
+
+        var reason = String((opts && opts.reason) || "").trim();
+        if (!reason) throw new Error("Enter a cancellation reason before submitting.");
+
+        var actor = (opts && opts.actor) || currentUser();
+        var requesterEmail = norm(item.fields.RequesterEmail);
+        if (!requesterEmail || norm(emailOf(actor)) !== requesterEmail) {
+          throw new Error("Only the employee this request belongs to can request its cancellation.");
+        }
+
         var status = item.fields.Status;
         if (!PTORules.isEmployeeCancellationEligible(status)) {
           throw new Error("This request is not eligible for employee cancellation.");
@@ -293,41 +308,69 @@
         item.fields.StatusBeforeCancellationRequest = status;
         item.fields.Status = "Cancellation Requested";
         item.fields.CancellationRequestedAt = new Date().toISOString();
-        item.fields.CancellationRequestReason = (opts && opts.reason) || "";
+        item.fields.CancellationRequestedById = actor.id || "";
+        item.fields.CancellationRequestedByEmail = emailOf(actor);
+        item.fields.CancellationRequestedByName = actor.displayName || emailOf(actor);
+        item.fields.CancellationRequestReason = reason;
         item.fields.AuditLog = (item.fields.AuditLog || "") + "\n[" + new Date().toISOString() +
-          "] Cancellation Requested by " + (currentUser().displayName || emailOf(currentUser())) +
-          " — demo employee cancellation request";
+          "] Cancellation Requested by " + (actor.displayName || emailOf(actor)) +
+          " — employee cancellation request — reason: " + reason;
         saveRequests(items);
         return { fields: clone(item.fields), response: clone(item) };
       },
+      // Mirrors js/requests.js's real completeCancellationRequest() exactly —
+      // same fields, including the HR audit fields (ModifiedByHr, HrActionType,
+      // HrActionById/Email/Name/At) the earlier demo version omitted.
       completeCancellationRequest: async function (itemId, opts) {
         var items = loadRequests();
         var item = items.filter(function (r) { return String(r.id) === String(itemId); })[0];
         if (!item) throw new Error("Demo request not found: " + itemId);
         if (item.fields.Status !== "Cancellation Requested") throw new Error("This request is not awaiting cancellation review.");
         var actor = (opts && opts.actor) || currentUser();
+        var nowIso = new Date().toISOString();
         item.fields.Status = "Cancelled";
-        item.fields.HrActionType = "Completed Cancellation";
-        item.fields.CancelledAt = new Date().toISOString();
+        item.fields.CancelledById = actor.id || "";
         item.fields.CancelledByEmail = emailOf(actor);
         item.fields.CancelledByName = actor.displayName || emailOf(actor);
-        item.fields.AuditLog = (item.fields.AuditLog || "") + "\n[" + new Date().toISOString() +
+        item.fields.CancelledAt = nowIso;
+        item.fields.ModifiedByHr = true;
+        item.fields.HrActionType = "Completed Cancellation";
+        item.fields.HrActionById = actor.id || "";
+        item.fields.HrActionByEmail = emailOf(actor);
+        item.fields.HrActionByName = actor.displayName || emailOf(actor);
+        item.fields.HrActionAt = nowIso;
+        if (opts && opts.note) item.fields.HrNotes = String(opts.note).trim();
+        item.fields.AuditLog = (item.fields.AuditLog || "") + "\n[" + nowIso +
           "] Completed Cancellation by " + (actor.displayName || emailOf(actor)) + " — demo HR action";
         saveRequests(items);
         return { fields: clone(item.fields), response: clone(item) };
       },
+      // Mirrors js/requests.js's real declineCancellationRequest() — restores
+      // StatusBeforeCancellationRequest exactly, fails closed (throws, zero
+      // writes) if it is missing/invalid, and writes ONLY HrNotes — never
+      // HrCancellationNote (removed; see the field-name correction).
       declineCancellationRequest: async function (itemId, opts) {
         var items = loadRequests();
         var item = items.filter(function (r) { return String(r.id) === String(itemId); })[0];
         if (!item) throw new Error("Demo request not found: " + itemId);
         if (item.fields.Status !== "Cancellation Requested") throw new Error("This request is not awaiting cancellation review.");
+        var priorStatus = String(item.fields.StatusBeforeCancellationRequest || "").trim();
+        if (!priorStatus || !PTORules.isEmployeeCancellationEligible(priorStatus)) {
+          throw new Error("Cannot decline: the prior status on this request is missing or invalid. No changes were made.");
+        }
         var actor = (opts && opts.actor) || currentUser();
-        item.fields.Status = item.fields.StatusBeforeCancellationRequest || "Approved";
+        var nowIso = new Date().toISOString();
+        item.fields.Status = priorStatus;
+        item.fields.ModifiedByHr = true;
         item.fields.HrActionType = "Declined Cancellation Request";
-        item.fields.HrCancellationNote = (opts && opts.note) || "";
-        item.fields.AuditLog = (item.fields.AuditLog || "") + "\n[" + new Date().toISOString() +
+        item.fields.HrActionById = actor.id || "";
+        item.fields.HrActionByEmail = emailOf(actor);
+        item.fields.HrActionByName = actor.displayName || emailOf(actor);
+        item.fields.HrActionAt = nowIso;
+        item.fields.HrNotes = String((opts && opts.note) || "").trim();
+        item.fields.AuditLog = (item.fields.AuditLog || "") + "\n[" + nowIso +
           "] Declined Cancellation Request by " + (actor.displayName || emailOf(actor)) +
-          (item.fields.HrCancellationNote ? " — " + item.fields.HrCancellationNote : " — demo HR action");
+          " — restored to " + priorStatus + (item.fields.HrNotes ? " — " + item.fields.HrNotes : "");
         saveRequests(items);
         return { fields: clone(item.fields), response: clone(item) };
       },
