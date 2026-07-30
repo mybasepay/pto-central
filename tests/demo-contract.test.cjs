@@ -351,8 +351,13 @@ test("approver safety rejects requester and acting submitter", () => {
   assert.throws(() => PTORules.assertApproverIsSafe(approver, { submitter: { mail: "APPROVER@mybasepay.com" } }), /acting submitter/);
 });
 
-test("Maggie fallback writes the approved no-manager override shape", () => {
+test("no-manager submission does not silently assign Maggie or any other automatic approver", () => {
   const { PTORequests } = domainContext();
+  // A no-manager, no-override submission — even with a Maggie-shaped object
+  // sitting on the context under the OLD field name — must NEVER end up
+  // with an assigned approver. There is no automatic-fallback code path
+  // left to pick it up; the field is simply not read by buildCreateRequestFields
+  // at all any more.
   const fields = PTORequests.buildCreateRequestFields({
     ptoType: "PTO",
     startDate: "2026-08-01",
@@ -365,13 +370,36 @@ test("Maggie fallback writes the approved no-manager override shape", () => {
     manager: null,
     defaultApproverNoManager: { approver: { displayName: "Maggie Mondragon", mail: "maggie@mybasepay.com", accountEnabled: true, userType: "Member" } },
   });
+  assert.strictEqual(fields.ApproverEmail, "", "no manager and no manual override — ApproverEmail must stay blank, never auto-assigned");
+  assert.strictEqual(fields.ApproverOverride, false);
+  assert.strictEqual(fields.ApproverOverrideReason, "");
+});
+
+test("Maggie can be manually selected as an alternate approver, using the exact same validation as anyone else", () => {
+  const { PTORequests } = domainContext();
+  const maggie = { id: "m", displayName: "Maggie Mondragon", mail: "maggie@mybasepay.com", accountEnabled: true, userType: "Member" };
+  const fields = PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [{ name: "Backup", email: "backup@mybasepay.com" }],
+    BackupNotified: true,
+  }, {
+    requester: { id: "r", displayName: "Requester", mail: "requester@mybasepay.com" },
+    submitter: { id: "s", displayName: "Submitter", mail: "submitter@mybasepay.com" },
+    manager: null,
+    // A manual selection is expressed EXACTLY the same way any other
+    // manually-chosen approver is — via approverOverride, with a
+    // human-entered reason. No Maggie-specific field or code path exists.
+    approverOverride: { approver: maggie, reason: "No manager on file; selected Maggie per the on-screen guidance." },
+  });
   assert.strictEqual(fields.ApproverEmail, "maggie@mybasepay.com");
   assert.strictEqual(fields.ApproverName, "Maggie Mondragon");
   assert.strictEqual(fields.ApproverOverride, true);
-  assert.strictEqual(fields.ApproverOverrideReason, "No manager on file — routed to default approver.");
+  assert.strictEqual(fields.ApproverOverrideReason, "No manager on file; selected Maggie per the on-screen guidance.");
 });
 
-test("Maggie fallback fails closed for Maggie self-submission", () => {
+test("manually selecting Maggie still fails closed via the normal self-approval check when she is the requester/submitter", () => {
   const { PTORequests } = domainContext();
   const maggie = { id: "m", displayName: "Maggie Mondragon", mail: "maggie@mybasepay.com", accountEnabled: true, userType: "Member" };
   assert.throws(() => PTORequests.buildCreateRequestFields({
@@ -383,8 +411,53 @@ test("Maggie fallback fails closed for Maggie self-submission", () => {
     requester: maggie,
     submitter: maggie,
     manager: null,
-    defaultApproverNoManager: { approver: maggie },
-  }), /employee receiving PTO|acting submitter/);
+    approverOverride: { approver: maggie, reason: "Selected Maggie." },
+  }), /employee receiving PTO|acting submitter/, "no special-cased exception for Maggie — the same PTORules.assertApproverIsSafe() check applies");
+});
+
+test("no Maggie object ID is hardcoded anywhere in the app source", () => {
+  // The demo directory fixture's own synthetic id ("demo-user-maggie" or
+  // similar) is fine — it's a fake local id for the demo person picker, not
+  // a real Entra object ID baked into application logic. What must never
+  // exist is a REAL-shaped GUID hardcoded specifically for Maggie in the
+  // rules/requests/page layer.
+  ["js/rules.js", "js/requests.js", "js/pages/request.page.js"].forEach((file) => {
+    const src = read(file);
+    assert(!/maggie["'\s]*:\s*["'][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}["']/i.test(src), file + " must never hardcode a GUID-shaped Maggie object ID");
+  });
+});
+
+test("no automatic Maggie routing code remains", () => {
+  ["js/rules.js", "js/requests.js", "js/pages/request.page.js"].forEach((file) => {
+    const src = read(file);
+    assert(!src.includes("DEFAULT_APPROVER_NO_MANAGER"), file + " must not reference DEFAULT_APPROVER_NO_MANAGER");
+    assert(!src.includes("resolveApproverForNoManager"), file + " must not reference resolveApproverForNoManager()");
+    assert(!src.includes("defaultApproverNoManager"), file + " must not build/consume a defaultApproverNoManager context field");
+  });
+});
+
+test("the alternate-approver UI guidance message is present, professional, and concise", () => {
+  const html = read("request.html");
+  assert(html.includes("If you do not have a manager, or your manager is unavailable, select Maggie Mondragon as your approver."));
+  const page = read("js/pages/request.page.js");
+  assert(page.includes("NO_MANAGER_GUIDANCE_MESSAGE"));
+});
+
+test("no User.Read.All dependency was added specifically for Maggie", () => {
+  // User.Read.All is legitimately required elsewhere (manager-chain lookups,
+  // the manual alternate-approver directory search) — that pre-existing,
+  // unrelated dependency is untouched. What must never exist is a NEW
+  // comment/requirement tying that permission specifically to Maggie/the
+  // removed auto-fallback.
+  ["js/rules.js", "js/requests.js", "js/pages/request.page.js", "js/directory.js"].forEach((file) => {
+    const src = read(file);
+    const lines = src.split("\n");
+    lines.forEach((line, i) => {
+      if (/maggie/i.test(line)) {
+        assert(!/User\.Read\.All/.test(line), file + ":" + (i + 1) + " must not tie User.Read.All to Maggie");
+      }
+    });
+  });
 });
 
 test("backup contacts flatten one two three with no gaps", () => {

@@ -44,7 +44,6 @@
     // Required backup contacts, selected from the employee directory.
     // Shape: [{ name, email }], min 1, max PTORules.MAX_BACKUP_CONTACTS.
     backups: [],
-    defaultNoManagerApprover: { lookupOk: false, approver: null, error: "" },
     submitted: false,
     authorized: false,
     requestType: null,  // "self" | "other" after the first-step choice
@@ -178,41 +177,17 @@
     setDateError(bad ? "End date must be on or after the start date." : "");
   }
 
-  function resetDefaultNoManagerApprover() {
-    state.defaultNoManagerApprover = { lookupOk: false, approver: null, error: "" };
-  }
-
-  function isDefaultNoManagerRouteReady() {
-    return !!(!state.target.manager && state.defaultNoManagerApprover.lookupOk && state.defaultNoManagerApprover.approver);
-  }
-
-  function defaultApproverFailureMessage() {
-    var err = state.defaultNoManagerApprover.error || "";
-    if (/different from the employee receiving PTO|different from the acting submitter/i.test(err)) {
-      return "You don't have a manager on file, and the default approver can't approve your own request. Please choose an approver above, or contact HR.";
-    }
-    return "We couldn't route this to the default approver right now. Please choose an approver above, or contact HR.";
-  }
-
-  async function resolveDefaultNoManagerApprover() {
-    resetDefaultNoManagerApprover();
-    if (!state.target.requester || state.target.manager) {
-      renderApprovalRoute();
-      return;
-    }
-    try {
-      var approver = await PTORules.resolveApproverForNoManager({
-        requester: state.target.requester,
-        submitter: state.me,
-      });
-      state.defaultNoManagerApprover = { lookupOk: true, approver: approver, error: "" };
-    } catch (e) {
-      state.defaultNoManagerApprover = { lookupOk: false, approver: null, error: friendly(e) };
-    }
-    renderApprovalRoute();
-    refreshSubmitEnabled();
-    renderReview();
-  }
+  // No-manager guidance: this is now purely informational text (see
+  // #approverGuidance in request.html) plus the same manager-missing
+  // warning below — there is NO automatic approver resolution or fallback
+  // of any kind. An employee with no manager must manually select an
+  // alternate approver (which may or may not be Maggie Mondragon) through
+  // the existing "Route approval to someone else" control; that selection
+  // goes through the exact same PTORules.userSelectionProblem() +
+  // assertApproverIsSafe() validation as any other manually chosen
+  // approver — no special-cased exception for any name.
+  var NO_MANAGER_GUIDANCE_MESSAGE =
+    "If you do not have a manager, or your manager is unavailable, select Maggie Mondragon as your approver.";
 
   async function loadContext() {
     state.me = await PTODirectory.getMe();
@@ -312,7 +287,6 @@
     updateCharCount(els.oboReason, els.oboReasonCount);
     clearOboMessages();
     clearOboResults();
-    resetDefaultNoManagerApprover();
     resetApproverOverride();
     renderTargetDetails();
     renderRequestTypeGate();
@@ -396,12 +370,15 @@
     PTOUI.setText("c-mgr", t.manager ? fmtUser(t.manager) : (r.id ? "No default manager found" : "—"));
 
     // Manager-missing warning (same rule for self and on-behalf: required unless Sick).
+    // No automatic approver assignment of any kind — the employee must
+    // manually select an approver via the existing alternate-approver
+    // control (see #approverGuidance in request.html for the persistent hint).
     var w = $("mgr-warn");
     if (r.id && !t.manager) {
       w.textContent = (state.onBehalf
         ? "This employee has no manager in Entra ID. "
         : "No manager found in Entra ID for your account. ") +
-        "Default approver: " + PTORules.DEFAULT_APPROVER_NO_MANAGER.displayName + ". You may choose another approver above.";
+        "Please select an approver above.";
       w.style.display = "block";
     } else {
       w.style.display = "none";
@@ -431,10 +408,8 @@
       manager: state.self.manager,
       managersManager: state.self.managersManager,
     };
-    resetDefaultNoManagerApprover();
     if (els.detailsTitle) els.detailsTitle.textContent = "Your details";
     renderTargetDetails();
-    resolveDefaultNoManagerApprover();
     recomputeRuleUI();
     refreshSubmitEnabled();
     renderReview();
@@ -446,7 +421,6 @@
     state.onBehalf = true;
     state.lookupOk = false;
     state.target = { requester: null, manager: null, managersManager: null };
-    resetDefaultNoManagerApprover();
     if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
     renderTargetDetails();
     refreshSubmitEnabled();
@@ -514,24 +488,25 @@
     if (els.approverEdit) {
       els.approverEdit.textContent = state.target.manager ? "Change approver" : "Select approver";
     }
+    // No automatic-fallback concept anywhere below — "needsRoute" (a
+    // manager-less, non-Sick request) is resolved ONLY by the employee
+    // manually selecting an approver (state.approverOverride), never by any
+    // system-assigned default.
     if (els.approverSection) {
       var hasSelected = !!(state.approverOverride.active && state.approverOverride.lookupOk);
       var needsRoute = !!(state.target.requester && !state.target.manager && els.ptoType && els.ptoType.value !== "Sick");
-      var hasDefaultNoManager = isDefaultNoManagerRouteReady();
       els.approverSection.classList.toggle("has-selected-approver", hasSelected);
-      els.approverSection.classList.toggle("has-default-no-manager", hasDefaultNoManager);
-      els.approverSection.classList.toggle("needs-approver", needsRoute && !hasDefaultNoManager);
+      els.approverSection.classList.toggle("needs-approver", needsRoute && !hasSelected);
       var managerWarn = $("mgr-warn");
       if (managerWarn && needsRoute) {
-        managerWarn.style.display = (hasSelected || hasDefaultNoManager) ? "none" : "block";
+        managerWarn.style.display = hasSelected ? "none" : "block";
       }
     }
     if (els.approverFields) {
       var needsRoute = !!(state.target.requester && !state.target.manager && els.ptoType && els.ptoType.value !== "Sick");
       var editing = state.approverOverride.active && !state.approverOverride.lookupOk;
       var hasSelectedApprover = !!(state.approverOverride.active && state.approverOverride.lookupOk);
-      var hasDefaultNoManager = isDefaultNoManagerRouteReady();
-      els.approverFields.style.display = ((needsRoute && !hasSelectedApprover && !hasDefaultNoManager) || editing) ? "block" : "none";
+      els.approverFields.style.display = ((needsRoute && !hasSelectedApprover) || editing) ? "block" : "none";
     }
     updateApproverBadge();
   }
@@ -744,11 +719,9 @@
         manager: chain.manager,
         managersManager: chain.managersManager,
       };
-      resetDefaultNoManagerApprover();
       if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
       resetApproverOverride();
       renderTargetDetails();
-      resolveDefaultNoManagerApprover();
       recomputeRuleUI();
       if (els.oboSelectedText) {
         els.oboSelectedText.textContent = (employee.displayName || emailOf(employee)) +
@@ -865,12 +838,14 @@
     if (!els.backupNotified || !els.backupNotified.checked) return 'Please check "I have notified all backup contacts".';
 
     // An approval route is required unless Sick (auto-approved): either the
-    // resolved target has a manager in Entra, OR the user enabled "Route
-    // approval to someone else" (the override block below enforces that a
-    // valid approver is selected + a reason is given). This unblocks
-    // requesters with no manager configured (e.g. service-style accounts).
-    if (type !== "Sick" && !state.target.manager && !state.approverOverride.active && !isDefaultNoManagerRouteReady()) {
-      return defaultApproverFailureMessage();
+    // resolved target has a manager in Entra, OR the employee has manually
+    // enabled "Route approval to someone else" and selected a valid
+    // approver (the override block below enforces that a valid approver is
+    // selected + a reason is given). There is no automatic substitute for a
+    // missing manager — see #approverGuidance in request.html for the
+    // guidance shown to the employee in this exact situation.
+    if (type !== "Sick" && !state.target.manager && !state.approverOverride.active) {
+      return "You don't have a manager on file. " + NO_MANAGER_GUIDANCE_MESSAGE;
     }
 
     // Alternate approver (HR/Admin only): a valid approver + reason required
@@ -896,11 +871,7 @@
   function defaultApproverLabel() {
     var m = state.target.manager;
     if (m) return (m.displayName || emailOf(m)) + (emailOf(m) ? "\n" + emailOf(m) : "");
-    if (state.target.requester && state.defaultNoManagerApprover.lookupOk && state.defaultNoManagerApprover.approver) {
-      var a = state.defaultNoManagerApprover.approver;
-      return (a.displayName || emailOf(a)) + (emailOf(a) ? "\n" + emailOf(a) : "");
-    }
-    if (state.target.requester && state.defaultNoManagerApprover.error) return defaultApproverFailureMessage();
+    if (state.target.requester) return "No manager on file — select an approver above.";
     return "No default manager found";
   }
 
@@ -1031,9 +1002,6 @@
         approverOverride: state.approverOverride.active
           ? { approver: state.approverOverride.approver, reason: els.approverReason.value }
           : null,
-        defaultApproverNoManager: isDefaultNoManagerRouteReady()
-          ? { approver: state.defaultNoManagerApprover.approver }
-          : null,
       };
       var fields = PTORequests.buildCreateRequestFields(input, context);
       await PTORequests.createRequest(fields);
@@ -1046,9 +1014,6 @@
       if (context.approverOverride) {
         statusMsg += " Approval routed to " +
           (context.approverOverride.approver.displayName || emailOf(context.approverOverride.approver)) + ".";
-      } else if (context.defaultApproverNoManager) {
-        statusMsg += " Approval routed to default approver " +
-          (context.defaultApproverNoManager.approver.displayName || emailOf(context.defaultApproverNoManager.approver)) + ".";
       }
       setSubmitStatus(statusMsg + " Submit is disabled to avoid duplicates.");
       setSubmitText("Submitted");

@@ -80,18 +80,17 @@ window.PTORequests = (function () {
     var managersManager = context.managersManager || null;
     var onBehalf = !!context.onBehalf;
 
+    // Alternate-approver override — manual selection ONLY. There is no
+    // automatic fallback of any kind here: a no-manager employee who hasn't
+    // manually chosen an override simply has `hasOverride = false` and
+    // `managerEmail = ""` below, exactly like a manager-having employee
+    // would if they somehow had no override either — the UI layer
+    // (request.page.js) is responsible for blocking submission until the
+    // employee manually selects a valid approver, never this data layer.
     var override = context.approverOverride || null;
-    var defaultNoManager = context.defaultApproverNoManager || null;
     var overrideApprover = (override && override.approver) || null;
     var overrideReason = override ? String(override.reason || "").trim() : "";
     var hasOverride = !!(overrideApprover && pickEmail(overrideApprover));
-    var usesDefaultNoManager = false;
-    if (!hasOverride && !manager && defaultNoManager && defaultNoManager.approver) {
-      overrideApprover = defaultNoManager.approver;
-      overrideReason = "No manager on file — routed to default approver.";
-      hasOverride = !!(overrideApprover && pickEmail(overrideApprover));
-      usesDefaultNoManager = hasOverride;
-    }
     if (hasOverride) {
       PTORules.assertApproverIsSafe(overrideApprover, { requester: requester, submitter: submitter });
     }
@@ -133,7 +132,7 @@ window.PTORequests = (function () {
         "; approval routed to " + (overrideApprover.displayName || pickEmail(overrideApprover)) +
         " <" + pickEmail(overrideApprover) + "> instead of manager " +
         (managerName || "(none)") + (managerEmail ? " <" + managerEmail + ">" : "") +
-        " — " + (usesDefaultNoManager ? "default no-manager route" : "override reason: " + overrideReason);
+        " — override reason: " + overrideReason;
     }
     var auditLine = PTORules.buildAuditLine("Created", actorName, auditDetails);
 

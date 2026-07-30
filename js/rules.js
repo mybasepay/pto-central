@@ -31,10 +31,6 @@ window.PTORules = (function () {
 
   var MS_PER_DAY = 24 * 60 * 60 * 1000;
   var MAX_BACKUP_CONTACTS = 3;
-  var DEFAULT_APPROVER_NO_MANAGER = {
-    email: "maggie@mybasepay.com",
-    displayName: "Maggie Mondragon",
-  };
   var STATUS_VALUES = {
     PENDING: "Pending",
     APPROVED: "Approved",
@@ -290,16 +286,6 @@ window.PTORules = (function () {
     return approver;
   }
 
-  async function resolveApproverForNoManager(context) {
-    context = context || {};
-    if (!window.PTODirectory || !PTODirectory.getUserByEmail) {
-      throw new Error("Default approver lookup is unavailable.");
-    }
-    var approver = await PTODirectory.getUserByEmail(DEFAULT_APPROVER_NO_MANAGER.email);
-    if (!approver) throw new Error("Default approver could not be resolved.");
-    return assertApproverIsSafe(approver, context);
-  }
-
   function isEmployeeCancellationEligible(status) {
     status = String(status || "").trim();
     return status === STATUS_VALUES.PENDING || status === STATUS_VALUES.APPROVED ||
@@ -371,7 +357,6 @@ window.PTORules = (function () {
     buildAuditLine: buildAuditLine,
     canDecide: canDecide,
     userSelectionProblem: userSelectionProblem,
-    resolveApproverForNoManager: resolveApproverForNoManager,
     assertApproverIsSafe: assertApproverIsSafe,
     validateDateRange: validateDateRange,
     flattenBackupContacts: flattenBackupContacts,
@@ -382,7 +367,6 @@ window.PTORules = (function () {
     // exposed for reference/testing
     MIN_NOTICE_DAYS: MIN_NOTICE_DAYS,
     MAX_BACKUP_CONTACTS: MAX_BACKUP_CONTACTS,
-    DEFAULT_APPROVER_NO_MANAGER: DEFAULT_APPROVER_NO_MANAGER,
     STATUS_VALUES: STATUS_VALUES,
     STATUS_LABELS: STATUS_LABELS,
     SELF_AS_BACKUP_MESSAGE: SELF_AS_BACKUP_MESSAGE,
