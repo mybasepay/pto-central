@@ -83,6 +83,8 @@ test("backup contact is required", () => {
   const html = read("request.html");
   assert(js.includes("Select at least one backup contact before submitting"));
   assert(html.includes("I have notified all backup contacts"));
+  assert(js.includes("The employee taking PTO can't be selected as their own backup contact."));
+  assert(js.includes("resetBackupNotified"));
   assert(!js.includes("name only"), "backup lookup should not keep the old free-text fallback");
   assert(!js.includes("You can submit without a backup contact"), "backup is no longer optional");
 });
@@ -124,6 +126,20 @@ test("review summary distinguishes self and another employee", () => {
   assert(js.includes("Employee receiving PTO"));
   assert(js.includes("Default manager"));
   assert(js.includes("Selected approver"));
+  assert(js.includes("Backup contacts notified"));
+});
+
+test("final request form removes redundant confirmation and manager manager display", () => {
+  const html = read("request.html");
+  const js = read("js/pages/request.page.js");
+  assert(!html.includes("I confirm this PTO request is accurate"));
+  assert(!html.includes('id="confirm"'));
+  assert(!html.includes('id="c-mm"'));
+  assert(!js.includes("els.confirm"));
+  assert(!js.includes("confirm.checked"));
+  assert(!js.includes('setText("c-mm"'));
+  assert(!js.includes("addReviewItem(\"Manager's manager\""));
+  assert(js.includes("Short notice: This request starts in "));
 });
 
 test("HR Open action renders modal-only detail", () => {
@@ -145,15 +161,34 @@ test("detail page renders selected record", () => {
   assert(js.includes("itemIdFromUrl"));
 });
 
-test("cancel workspace is routed internally and uses existing cancellation API", () => {
+test("cancel workspace is routed internally and submits cancellation requests", () => {
   const home = read("index.html");
   const html = read("cancel.html");
   const js = read("js/pages/cancel.page.js");
   assert(home.includes('href="cancel.html"'));
   assert(html.includes("Active and Upcoming"));
   assert(html.includes("Past and Closed"));
-  assert(js.includes("PTORequests.cancelRequest"));
+  assert(html.includes("request-list"));
+  assert(html.includes("Submit Cancellation Request"));
+  assert(!html.includes("request-grid"));
+  assert(!html.includes("request-card"));
+  assert(js.includes("PTORequests.requestCancellation"));
+  assert(js.includes("PTORules.isEmployeeCancellationEligible(r.status)"));
+  assert(js.includes("Your cancellation request was submitted successfully and is pending HR review."));
+  assert(!js.includes("PTORequests.cancelRequest"));
+  assert(!js.includes("startHasPassed"));
   assert(js.includes("PTORequests.listMyRequests"));
+});
+
+test("approval without itemId shows clean empty state", () => {
+  const html = read("approve.html");
+  const js = read("js/pages/approve.page.js");
+  assert(html.includes("no-request-state"));
+  assert(html.includes("No PTO request selected"));
+  assert(html.includes("Return to PTO Central"));
+  assert(js.includes("showNoRequestState"));
+  assert(js.includes('els.requestPanel.style.display = "none"'));
+  assert(js.includes('els.decisionPanel.style.display = "none"'));
 });
 
 test("demo fixtures include required statuses and reminder examples", () => {

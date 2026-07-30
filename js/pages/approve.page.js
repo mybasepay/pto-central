@@ -28,6 +28,8 @@
     approve: $("approve"), reject: $("reject"), decisionStatus: $("decision-status"),
     blockNote: $("block-note"), statusNote: $("status-note"),
     error: $("error"),
+    noRequestState: $("no-request-state"),
+    requestPanel: $("approval-request-panel"), decisionPanel: $("approval-decision-panel"),
     approverNote: $("approver-note"),
   };
 
@@ -73,11 +75,6 @@
       if (m) id = m[1];
     }
 
-    // 5. sessionStorage fallback.
-    if (!id) {
-      try { id = sessionStorage.getItem(ITEM_ID_KEY); } catch (e) {}
-    }
-
     if (id) {
       try { sessionStorage.setItem(ITEM_ID_KEY, id); } catch (e) {}
     }
@@ -85,7 +82,7 @@
   }
   state.itemId = getItemIdFromUrl();
 
-  var ITEM_ID_HELP = "No itemId in the URL. Open this page as one of:\n"
+  var ITEM_ID_HELP = "No itemId in the URL. Developer examples:\n"
     + "  approve.html?itemId=123\n"
     + "  approve#itemId=123\n"
     + "  approve#?itemId=123";
@@ -98,6 +95,14 @@
   function showNote(el, msg) {
     if (!msg) { el.style.display = "none"; el.textContent = ""; return; }
     el.textContent = msg; el.style.display = "block";
+  }
+  function showNoRequestState() {
+    console.info("[approve.page] " + ITEM_ID_HELP);
+    clearError();
+    if (els.requestPanel) els.requestPanel.style.display = "none";
+    if (els.decisionPanel) els.decisionPanel.style.display = "none";
+    if (els.noRequestState) els.noRequestState.style.display = "block";
+    els.decisionStatus.textContent = "";
   }
 
   /** Two-letter initials for the user chip avatar (e.g. "Rodolfo Chacon" → "RC"). */
@@ -229,9 +234,12 @@
   async function loadRequest() {
     clearError();
     if (!state.itemId) {
-      showError(ITEM_ID_HELP);
+      showNoRequestState();
       return;
     }
+    if (els.requestPanel) els.requestPanel.style.display = "";
+    if (els.decisionPanel) els.decisionPanel.style.display = "";
+    if (els.noRequestState) els.noRequestState.style.display = "none";
     els.decisionStatus.textContent = "Loading…";
     try {
       state.me = await PTODirectory.getMe();
@@ -369,7 +377,7 @@
       if (PTOAuth.getAccount()) {
         // Signed in (cached session or just back from the redirect).
         clearAutoLoginFlag();
-        if (!state.itemId) { showError(ITEM_ID_HELP); return; }
+        if (!state.itemId) { showNoRequestState(); return; }
         await loadRequest();
         return;
       }
@@ -394,7 +402,7 @@
       renderAuth();
       els.account.textContent = "Not signed in — click Sign in to continue.";
       els.account.classList.add("show-text");
-      if (!state.itemId) showError(ITEM_ID_HELP);
+      if (!state.itemId) showNoRequestState();
     } catch (e) {
       showError("Initialization failed: " + friendly(e));
     }

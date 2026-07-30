@@ -511,12 +511,6 @@
             </div>
             <button id="approverEdit" class="link-button inline-approver-action" type="button">Change approver</button>
           </div>
-          <div class="person-info-row">
-            <span class="row-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v5" /><path d="M6 18h12" /><path d="M6 18a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z" /><path d="M18 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /><path d="M12 6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></svg>
-            </span>
-            <div><span class="lbl">Manager's manager</span><span class="val" id="c-mm">-</span></div>
-          </div>
         </div>
         <div id="approver-section" class="approval-route-panel" aria-label="Approval routing" style="display:none;">
           <input type="checkbox" id="approverToggle" hidden />
@@ -639,13 +633,6 @@
 
       <!-- Confirm + submit -->
       <div class="final-action-row">
-        <div class="confirm-box">
-          <input type="checkbox" id="confirm" />
-          <label for="confirm">
-            <span class="t">I confirm this PTO request is accurate</span>
-            <span class="s">By checking this box, you confirm the information provided is correct.</span>
-          </label>
-        </div>
         <div id="copySubmitterBox" class="confirm-box compact-confirm" style="display:none;">
           <input type="checkbox" id="copySubmitter" />
           <label for="copySubmitter">
@@ -712,6 +699,6 @@
   <script src="js/ui.js?v=phase12"></script>
   <script src="js/demo-fixtures.js?v=phase12"></script>
   <script src="js/demo-mode.js?v=phase12"></script>
-  <script src="js/pages/request.page.js?v=phase12"></script>
+  <script src="js/pages/request.page.js?v=finaldemo"></script>
 </body>
 </html>

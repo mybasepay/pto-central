@@ -56,7 +56,7 @@
     signin: $("signin"), signout: $("signout"), account: $("account"),
     userChip: $("user-chip"), userChipName: $("user-chip-name"),
     ptoType: $("ptoType"), startDate: $("startDate"), endDate: $("endDate"),
-    reason: $("reason"), confirm: $("confirm"),
+    reason: $("reason"),
     // Backup contact = employee lookup (fills BackupContactName/Email on submit).
     backupSearch: $("backupSearch"),
     backupResults: $("backupResults"), backupSelected: $("backupSelected"),
@@ -395,7 +395,6 @@
     PTOUI.setText("c-email", emailOf(r));
     PTOUI.setText("c-dept", (r.department || "—") + " / " + (r.jobTitle || "—"));
     PTOUI.setText("c-mgr", t.manager ? fmtUser(t.manager) : (r.id ? "No default manager found" : "—"));
-    PTOUI.setText("c-mm", t.managersManager ? fmtUser(t.managersManager) : (r.id ? "—" : "—"));
 
     // Manager-missing warning (same rule for self and on-behalf: required unless Sick).
     var w = $("mgr-warn");
@@ -653,9 +652,19 @@
     renderReview();
   }
 
+  function resetBackupNotified() {
+    if (els.backupNotified) els.backupNotified.checked = false;
+  }
+
   function selectBackup(name, email) {
     var normalized = String(email || "").trim().toLowerCase();
     if (!normalized) { showBackupError("Select a backup contact from the suggestions first."); return; }
+    var requesterEmail = String(emailOf(state.target.requester || "")).trim().toLowerCase();
+    if (requesterEmail && normalized === requesterEmail) {
+      showBackupError("The employee taking PTO can't be selected as their own backup contact.");
+      if (backupPicker) backupPicker.clear(false);
+      return;
+    }
     if (state.backups.some(function (b) { return String(b.email || "").trim().toLowerCase() === normalized; })) {
       showBackupError("That backup contact is already selected.");
       if (backupPicker) backupPicker.clear(false);
@@ -670,12 +679,14 @@
     clearBackupResults();
     if (backupPicker) backupPicker.clear(false);
     if (els.backupSearch) els.backupSearch.value = "";
+    resetBackupNotified();
     showBackupError("");
     renderBackupSelected();
   }
 
   function removeBackup(index) {
     state.backups.splice(index, 1);
+    resetBackupNotified();
     renderBackupSelected();
     showBackupError("");
   }
@@ -684,6 +695,7 @@
     state.backups = [];
     if (backupPicker) backupPicker.clear(false);
     if (els.backupSearch) els.backupSearch.value = "";
+    resetBackupNotified();
     renderBackupSelected();
     showBackupError("");
   }
@@ -815,16 +827,11 @@
     // Notice days + short-notice warning.
     if (start) {
       var noticeDays = PTORules.calculateNoticeDays(start, new Date());
-      $("notice").textContent = "Notice: " + noticeDays + " day(s) before start date.";
+      $("notice").textContent = PTORules.isShortNotice(noticeDays)
+        ? "Short notice: This request starts in " + noticeDays + " day(s) and will be flagged for HR review."
+        : "Notice: " + noticeDays + " day(s) before start date.";
       PTOUI.show("notice", true);
-
-      if (PTORules.isShortNotice(noticeDays)) {
-        $("shortNotice").textContent =
-          "This request is less than 7 days away and will be flagged for HR review.";
-        PTOUI.show("shortNotice", true);
-      } else {
-        PTOUI.show("shortNotice", false);
-      }
+      PTOUI.show("shortNotice", false);
     } else {
       PTOUI.show("notice", false);
       PTOUI.show("shortNotice", false);
@@ -852,6 +859,10 @@
       return "Select the backup contact from the suggestions or clear the backup search text.";
     }
     if (!state.backups.length) return "Select at least one backup contact before submitting.";
+    var requesterEmail = String(emailOf(state.target.requester || "")).trim().toLowerCase();
+    if (requesterEmail && state.backups.some(function (b) { return String(b.email || "").trim().toLowerCase() === requesterEmail; })) {
+      return "The employee taking PTO can't be selected as their own backup contact.";
+    }
     if (!els.backupNotified || !els.backupNotified.checked) return 'Please check "I have notified all backup contacts".';
 
     // An approval route is required unless Sick (auto-approved): either the
@@ -874,7 +885,6 @@
       }
     }
 
-    if (!els.confirm.checked) return 'Please check "I confirm this PTO request is accurate".';
     return null; // ok
   }
 
@@ -927,6 +937,7 @@
     var backup = state.backups.length
       ? state.backups.map(backupLabel).join("\n")
       : "Required";
+    var reason = els.reason && els.reason.value.trim();
     if (state.requestType === "other") {
       addReviewItem("Submitted by", reviewPerson(state.me));
       addReviewItem("Employee receiving PTO", reviewPerson(requester, "Select an employee"));
@@ -934,15 +945,18 @@
       addReviewItem("Selected approver", selectedApproverLabel());
       addReviewItem("PTO type", els.ptoType ? els.ptoType.value : "");
       addReviewItem("Dates", PTOUI.formatRange(els.startDate.value, els.endDate.value));
-      addReviewItem("Backup contact", backup);
+      addReviewItem("Backup contacts", backup);
+      addReviewItem("Backup contacts notified", els.backupNotified && els.backupNotified.checked ? "Yes" : "No");
+      if (reason) addReviewItem("Reason / Notes", reason);
     } else {
       addReviewItem("Requester", reviewPerson(requester));
       addReviewItem("PTO type", els.ptoType ? els.ptoType.value : "");
       addReviewItem("Start date", PTOUI.formatDateOnly(els.startDate.value));
       addReviewItem("End date", PTOUI.formatDateOnly(els.endDate.value));
       addReviewItem("Manager", defaultApproverLabel());
-      addReviewItem("Manager's manager", state.target.managersManager ? reviewPerson(state.target.managersManager) : "—");
-      addReviewItem("Backup contact", backup);
+      addReviewItem("Backup contacts", backup);
+      addReviewItem("Backup contacts notified", els.backupNotified && els.backupNotified.checked ? "Yes" : "No");
+      if (reason) addReviewItem("Reason / Notes", reason);
     }
   }
 
@@ -1002,6 +1016,8 @@
     if (problem) { showError(problem); return; }
 
     els.submit.disabled = true;
+    var submitLabel = els.submitText ? els.submitText.textContent : "Submit PTO Request";
+    setSubmitText("Submitting...");
     setSubmitStatus("Submitting…");
     try {
       var input = gatherInput();
@@ -1034,7 +1050,7 @@
           (context.defaultApproverNoManager.approver.displayName || emailOf(context.defaultApproverNoManager.approver)) + ".";
       }
       setSubmitStatus(statusMsg + " Submit is disabled to avoid duplicates.");
-      els.submit.textContent = "Submitted";
+      setSubmitText("Submitted");
     } catch (e) {
       setSubmitStatus("");
       // Detailed INTERNAL diagnostics (console only) — endpoint, method, HTTP
@@ -1066,6 +1082,7 @@
         );
       }
       els.submit.disabled = false; // allow retry on failure
+      setSubmitText(submitLabel);
     }
   }
 
@@ -1083,8 +1100,12 @@
       renderReview();
     });
   }
-  els.confirm.addEventListener("change", refreshSubmitEnabled);
-  if (els.backupNotified) els.backupNotified.addEventListener("change", refreshSubmitEnabled);
+  if (els.backupNotified) {
+    els.backupNotified.addEventListener("change", function () {
+      renderReview();
+      refreshSubmitEnabled();
+    });
+  }
   if (els.copySubmitter) els.copySubmitter.addEventListener("change", renderReview);
   if (els.requestTypeSelf) els.requestTypeSelf.addEventListener("click", function () { chooseRequestType("self"); });
   if (els.requestTypeOther) els.requestTypeOther.addEventListener("click", function () { chooseRequestType("other"); });

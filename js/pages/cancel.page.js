@@ -1,9 +1,9 @@
 /*
  * cancel.page.js - Employee cancellation workspace.
  *
- * Loads the signed-in user's PTO records and allows cancellation only through
- * the existing PTORequests.cancelRequest domain API. Demo mode is handled by
- * js/demo-mode.js, which keeps all writes in sessionStorage.
+ * Loads the signed-in user's PTO records and lets eligible employee-side
+ * cancellation requests move to "Cancellation Requested". Demo mode is handled
+ * by js/demo-mode.js, which keeps all writes in sessionStorage.
  */
 
 (function () {
@@ -68,45 +68,41 @@
     els.account.textContent = signedIn ? "" : "Not signed in.";
   }
 
-  function todayKey() {
-    var d = new Date();
-    var pad = function (n) { return String(n).padStart(2, "0"); };
-    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
-  }
   function dateKey(value) {
     return String(value || "").slice(0, 10);
   }
-  function startHasPassed(r) {
-    var start = dateKey(r.startDate);
-    return !!start && start <= todayKey();
-  }
-  function isCancellableStatus(status) {
-    return PTORequests.CANCELLABLE_STATUSES.indexOf(String(status || "").trim()) !== -1;
-  }
   function isCancellationRequested(status) {
-    return String(status || "").trim() === "Cancellation Requested";
+    return String(status || "").trim() === PTORules.STATUS_VALUES.CANCELLATION_REQUESTED;
   }
   function cancellationState(r) {
     if (isCancellationRequested(r.status)) {
-      return { eligible: false, label: "Already Requested", reason: "Cancellation has already been requested." };
+      return { eligible: false, label: "Cancellation Requested", reason: "Cancellation Requested" };
     }
-    if (!isCancellableStatus(r.status)) {
-      return { eligible: false, label: "Not Eligible", reason: "This status is not eligible for cancellation." };
+    if (!PTORules.isEmployeeCancellationEligible(r.status)) {
+      return { eligible: false, label: "-", reason: "-" };
     }
-    if (startHasPassed(r)) {
-      return { eligible: false, label: "Past Date", reason: "The PTO start date has passed." };
-    }
-    return { eligible: true, label: "Cancel Request", reason: "" };
+    return { eligible: true, label: "Request Cancellation", reason: "" };
   }
   function isActiveBucket(r) {
-    var future = !startHasPassed(r);
-    return future && (isCancellableStatus(r.status) || isCancellationRequested(r.status));
+    var end = dateKey(r.endDate || r.startDate);
+    return !end || end >= PTORules.todayDateOnly();
+  }
+  function backupSummary(fields) {
+    var contacts = PTORules.parseBackupContacts(fields || {});
+    if (!contacts.length) return "-";
+    return contacts.map(function (c) { return personLine(c.name, c.email); }).join("; ");
+  }
+  function submittedDate(r) {
+    var f = r.fields || {};
+    return f.SubmittedAt ? PTOUI.formatDateOnly(f.SubmittedAt) : "-";
   }
   function requestHaystack(r) {
+    var f = r.fields || {};
     return [
       r.ptoType, r.startDate, r.endDate, r.status,
-      r.fields && r.fields.Reason,
-      r.fields && r.fields.BackupContactName,
+      f.Reason, f.CancellationRequestReason,
+      f.ApproverName, f.ApproverEmail, f.ManagerName, f.ManagerEmail,
+      backupSummary(f),
     ].join(" ").toLowerCase();
   }
   function matchesSearch(r) {
@@ -135,38 +131,66 @@
   function setCount(el, n) {
     el.textContent = n + " request" + (n === 1 ? "" : "s");
   }
-
-  function cardFor(r) {
-    var stateInfo = cancellationState(r);
-    var f = r.fields || {};
-    var action = stateInfo.eligible
-      ? PTOUI.el("button", { class: "btn danger", type: "button" }, stateInfo.label)
-      : PTOUI.el("span", { class: "ineligible" }, stateInfo.reason);
-    if (stateInfo.eligible) {
-      action.addEventListener("click", function () { openCancelModal(r, action); });
-    }
-
-    return PTOUI.el("article", { class: "request-card" }, [
-      PTOUI.el("div", { class: "request-top" }, [
-        PTOUI.el("div", null, [
-          PTOUI.el("div", { class: "request-type" }, r.ptoType || "-"),
-          PTOUI.el("div", { class: "request-dates" }, PTOUI.formatRange(r.startDate, r.endDate)),
-        ]),
-        PTOUI.statusBadge(r.status),
-      ]),
-      PTOUI.el("div", { class: "request-meta" }, [
-        PTOUI.el("div", null, ["Duration", PTOUI.el("strong", null, requestDuration(r))]),
-        PTOUI.el("div", null, ["Backup", PTOUI.el("strong", null, f.BackupContactName || "-")]),
-        PTOUI.el("div", null, ["Approver", PTOUI.el("strong", null, f.ApproverName || f.ManagerName || "-")]),
-        PTOUI.el("div", null, ["Submitted", PTOUI.el("strong", null, f.SubmittedAt ? new Date(f.SubmittedAt).toLocaleDateString() : "-")]),
-      ]),
-      PTOUI.el("div", { class: "request-actions" }, [action]),
-    ]);
+  function approverSummary(fields) {
+    fields = fields || {};
+    return personLine(fields.ApproverName || fields.ManagerName, fields.ApproverEmail || fields.ManagerEmail);
   }
 
+  function tableCell(text, className) {
+    return PTOUI.el("td", { class: className || null }, text || "-");
+  }
+  function stackedCell(primary, secondary, className) {
+    return PTOUI.el("td", { class: className || null }, [
+      PTOUI.el("div", { class: "primary-cell" }, primary || "-"),
+      secondary ? PTOUI.el("div", { class: "muted-cell" }, secondary) : null,
+    ]);
+  }
+  function rowFor(r) {
+    var stateInfo = cancellationState(r);
+    var f = r.fields || {};
+    var action = PTOUI.el("td", { class: "action-cell" });
+    if (stateInfo.eligible) {
+      var button = PTOUI.el("button", { class: "btn danger", type: "button" }, stateInfo.label);
+      button.addEventListener("click", function () { openCancelModal(r, button); });
+      action.appendChild(button);
+    } else if (isCancellationRequested(r.status)) {
+      action.appendChild(PTOUI.el("span", { class: "ineligible" }, "Cancellation Requested"));
+    } else {
+      action.appendChild(PTOUI.el("span", { class: "ineligible" }, "-"));
+    }
+
+    return PTOUI.el("tr", null, [
+      stackedCell(r.ptoType || "-", f.Reason || ""),
+      tableCell(PTOUI.formatDateOnly(r.startDate)),
+      tableCell(PTOUI.formatDateOnly(r.endDate || r.startDate)),
+      tableCell(requestDuration(r)),
+      PTOUI.el("td", null, PTOUI.statusBadge(r.status)),
+      tableCell(approverSummary(f), "wrap-cell"),
+      tableCell(backupSummary(f), "wrap-cell"),
+      tableCell(submittedDate(r)),
+      action,
+    ]);
+  }
+  function tableFor(rows) {
+    var thead = PTOUI.el("thead", null, PTOUI.el("tr", null, [
+      PTOUI.el("th", null, "PTO Type"),
+      PTOUI.el("th", null, "Start Date"),
+      PTOUI.el("th", null, "End Date"),
+      PTOUI.el("th", null, "Duration"),
+      PTOUI.el("th", null, "Status"),
+      PTOUI.el("th", null, "Approver"),
+      PTOUI.el("th", null, "Backup Contact(s)"),
+      PTOUI.el("th", null, "Submitted"),
+      PTOUI.el("th", null, "Action"),
+    ]));
+    var tbody = PTOUI.el("tbody");
+    rows.forEach(function (r) { tbody.appendChild(rowFor(r)); });
+    return PTOUI.el("table", { class: "request-table" }, [thead, tbody]);
+  }
   function renderBucket(container, emptyEl, countEl, rows) {
     container.innerHTML = "";
-    rows.forEach(function (r) { container.appendChild(cardFor(r)); });
+    if (rows.length) container.appendChild(tableFor(rows));
+    container.style.display = rows.length ? "block" : "none";
     emptyEl.style.display = rows.length ? "none" : "block";
     setCount(countEl, rows.length);
   }
@@ -189,7 +213,8 @@
   function openCancelModal(r, trigger) {
     state.activeItem = r;
     var f = r.fields || {};
-    els.modalSubtitle.textContent = PTOUI.formatRange(r.startDate, r.endDate);
+    els.modalTitle.textContent = "Request Cancellation";
+    els.modalSubtitle.textContent = (r.ptoType || "PTO") + " - " + PTOUI.formatRange(r.startDate, r.endDate);
     els.modalDetail.innerHTML = "";
     var section = PTOUI.el("section", { class: "modal-section" }, [
       PTOUI.el("h3", null, "Request Details"),
@@ -202,7 +227,8 @@
     addInfo(list, "Status", "");
     list.lastChild.querySelector("dd").textContent = "";
     list.lastChild.querySelector("dd").appendChild(PTOUI.statusBadge(r.status));
-    addInfo(list, "Approver", personLine(f.ApproverName || f.ManagerName, f.ApproverEmail || f.ManagerEmail));
+    addInfo(list, "Approver", approverSummary(f));
+    addInfo(list, "Backup contacts", backupSummary(f));
     section.appendChild(list);
     els.modalDetail.appendChild(section);
     els.cancelReason.value = "";
@@ -214,6 +240,12 @@
   async function confirmCancellation() {
     if (!state.activeItem) return;
     var item = state.activeItem;
+    var reason = String(els.cancelReason.value || "").trim();
+    if (!reason) {
+      showError("Enter a cancellation reason before submitting.");
+      els.cancelReason.focus();
+      return;
+    }
     var stateInfo = cancellationState(item);
     if (!stateInfo.eligible) {
       showError("This request is no longer eligible for cancellation.");
@@ -223,20 +255,25 @@
     }
 
     els.confirmCancel.disabled = true;
+    var previousLabel = els.confirmCancel.textContent;
+    els.confirmCancel.textContent = "Submitting...";
     clearError();
     showNotice(null);
     try {
-      await PTORequests.cancelRequest(item.id, {
+      var result = await PTORequests.requestCancellation(item.id, {
         actor: state.me,
-        reason: (els.cancelReason.value || "").trim(),
+        reason: reason,
       });
+      item.status = PTORules.STATUS_VALUES.CANCELLATION_REQUESTED;
+      item.fields = Object.assign({}, item.fields, result.fields);
       if (state.dialog) state.dialog.close();
-      showNotice("Cancellation submitted. The PTO record remains visible with its updated status.");
-      await loadRequests();
+      showNotice("Your cancellation request was submitted successfully and is pending HR review.");
+      render();
     } catch (e) {
-      showError("Could not submit cancellation: " + friendly(e));
+      showError("Could not submit cancellation request: " + friendly(e));
     } finally {
       els.confirmCancel.disabled = false;
+      els.confirmCancel.textContent = previousLabel;
     }
   }
 

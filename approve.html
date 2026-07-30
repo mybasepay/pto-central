@@ -221,6 +221,9 @@
     .note.block { background: rgba(185, 28, 28, 0.1); border: 1px solid rgba(185, 28, 28, 0.5); color: #fecaca; }
     .error { display: none; margin-top: 14px; padding: 12px 15px; border-radius: 12px;
       border-left: 5px solid #dc2626; background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 13.5px; }
+    .empty-state { display: none; margin-top: 16px; text-align: center; }
+    .empty-state h2 { margin: 0; font-size: 22px; color: #071a3f; }
+    .empty-state p { margin: 8px auto 18px; max-width: 520px; color: var(--muted); }
 
     /* ---- Collapsible sections (legacy styling, retained for compatibility) ---- */
     details.collapsible { margin: 0; }
@@ -317,7 +320,7 @@
     </div>
 
     <!-- Request summary -->
-    <section class="panel" aria-label="Request summary">
+    <section id="approval-request-panel" class="panel" aria-label="Request summary">
       <div class="panel-head">
         <span class="panel-ico indigo" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -405,8 +408,14 @@
       <div id="approver-note" class="approver-note" role="status"></div>
     </section>
 
+    <section id="no-request-state" class="panel empty-state" aria-label="No request selected">
+      <h2>No PTO request selected</h2>
+      <p>Open this page from a PTO approval link or return to PTO Central.</p>
+      <a class="btn primary" href="index.html">Return to PTO Central</a>
+    </section>
+
     <!-- Decision -->
-    <section class="panel" aria-label="Decision">
+    <section id="approval-decision-panel" class="panel" aria-label="Decision">
       <div class="panel-head">
         <span class="panel-ico teal" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
