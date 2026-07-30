@@ -4,6 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Submit PTO Request — PTO Central</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"
+  />
   <link rel="stylesheet" href="styles.css" />
   <!--
     Submit PTO Request — production form (visual redesign 2026-07-03).
@@ -329,11 +338,1017 @@
     /* ---- Footer / tip ---- */
     .tip-line { margin-top: 18px; font-size: 12.5px; color: var(--muted); text-align: center; }
     .rq-footer { margin-top: 10px; color: var(--muted); font-size: 12px; text-align: center; }
+
+    /* =====================================================================
+       2026-07-30 request page redesign
+       Aligns request.html with the approved PTO Central homepage baseline
+       without touching the request page controller or SharePoint logic.
+       ================================================================== */
+
+    body.request-page {
+      display: block;
+      padding: 0 clamp(14px, 3vw, 28px) 56px;
+      background:
+        radial-gradient(980px 520px at 5% 8%, rgba(122, 174, 255, 0.14), transparent 60%),
+        radial-gradient(700px 420px at 94% 14%, rgba(36, 184, 170, 0.12), transparent 60%),
+        linear-gradient(180deg, #f8fbff 0%, #eef4fb 46%, #e9f0f8 100%);
+      color: #13254d;
+      overflow-x: hidden;
+    }
+
+    body.request-page .wrap {
+      width: 100%;
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    body.request-page .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin: 0;
+      padding: 18px 2px 16px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+      background: linear-gradient(180deg, rgba(248, 251, 255, 0.9), rgba(248, 251, 255, 0.74));
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    body.request-page .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    body.request-page .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: #24b8aa;
+      background: linear-gradient(160deg, rgba(36, 184, 170, 0.14), rgba(122, 174, 255, 0.06));
+      border: 1px solid rgba(36, 184, 170, 0.2);
+      box-shadow: 0 20px 28px -24px rgba(36, 184, 170, 0.4);
+    }
+
+    body.request-page .brand-logo svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    body.request-page .brand-company,
+    body.request-page .brand-name {
+      white-space: nowrap;
+      color: #102348;
+      letter-spacing: -0.02em;
+    }
+
+    body.request-page .brand-company {
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    body.request-page .brand-name {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    body.request-page .brand-sep {
+      width: 1px;
+      height: 22px;
+      background: rgba(148, 163, 184, 0.28);
+      margin: 0 2px;
+    }
+
+    body.request-page .auth-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    body.request-page .view-as {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 8px 7px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.84);
+      color: #5f738f;
+      box-shadow: 0 16px 22px -24px rgba(42, 78, 134, 0.24);
+    }
+
+    body.request-page .view-as__label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    body.request-page .view-as__seg {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px;
+      border-radius: 999px;
+      background: rgba(236, 242, 251, 0.82);
+    }
+
+    body.request-page .view-as__opt {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #6c7f98;
+      cursor: pointer;
+      transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    body.request-page .view-as__opt.is-active {
+      color: #102348;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 10px 18px -18px rgba(42, 78, 134, 0.22);
+    }
+
+    body.request-page .view-as__opt:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(122, 174, 255, 0.24);
+    }
+
+    body.request-page .user-chip {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.88);
+      color: #102348;
+      box-shadow: 0 16px 22px -24px rgba(42, 78, 134, 0.24);
+    }
+
+    body.request-page .user-chip .avatar {
+      color: #6d82a0;
+      background: rgba(239, 244, 251, 0.95);
+      border-color: rgba(148, 163, 184, 0.16);
+    }
+
+    body.request-page .user-chip .who .lbl,
+    body.request-page #account {
+      color: #71839a;
+    }
+
+    body.request-page .user-chip .who .name {
+      color: #102348;
+    }
+
+    body.request-page .btn {
+      color: #173056;
+      font-weight: 700;
+      padding: 9px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(122, 174, 255, 0.18);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 246, 253, 0.92));
+      box-shadow: 0 16px 24px -24px rgba(42, 78, 134, 0.24);
+    }
+
+    body.request-page .btn:hover {
+      border-color: rgba(122, 174, 255, 0.34);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(236, 244, 255, 0.96));
+    }
+
+    body.request-page .btn.small {
+      padding: 8px 12px;
+    }
+
+    body.request-page .btn.submit-btn {
+      color: #fff;
+      border-color: rgba(118, 88, 230, 0.24);
+      background: linear-gradient(135deg, #7658e6, #8f6ff4);
+      box-shadow: 0 22px 32px -24px rgba(118, 88, 230, 0.48);
+    }
+
+    body.request-page .btn.submit-btn svg {
+      color: #d8fff9;
+    }
+
+    body.request-page .page-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 22px;
+      margin: 28px 0 0;
+    }
+
+    body.request-page .page-badge {
+      width: 66px;
+      height: 66px;
+      border-radius: 18px;
+      color: #24b8aa;
+      background: linear-gradient(160deg, rgba(36, 184, 170, 0.14), rgba(122, 174, 255, 0.06));
+      border: 1px solid rgba(36, 184, 170, 0.18);
+      box-shadow: 0 26px 38px -30px rgba(36, 184, 170, 0.42);
+    }
+
+    body.request-page .page-badge svg {
+      width: 30px;
+      height: 30px;
+    }
+
+    body.request-page .page-head h1 {
+      margin: 0;
+      font-size: clamp(40px, 5vw, 62px);
+      font-weight: 800;
+      line-height: 0.98;
+      letter-spacing: -0.04em;
+      color: #102348;
+      text-wrap: balance;
+    }
+
+    body.request-page .page-head .desc {
+      margin: 14px 0 0;
+      max-width: 34rem;
+      font-size: clamp(17px, 1.7vw, 20px);
+      line-height: 1.6;
+      color: #607392;
+    }
+
+    body.request-page .pilot {
+      margin-top: 20px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      color: #35557d;
+      background: linear-gradient(180deg, rgba(244, 249, 255, 0.96), rgba(239, 246, 255, 0.92));
+      border: 1px solid rgba(122, 174, 255, 0.22);
+      box-shadow: 0 18px 30px -28px rgba(42, 78, 134, 0.2);
+    }
+
+    body.request-page .pilot svg {
+      color: #5d9aff;
+    }
+
+    body.request-page .pilot strong,
+    body.request-page .pilot code {
+      color: #173056;
+    }
+
+    body.request-page .option-grid {
+      grid-template-columns: 1fr;
+      gap: 16px;
+      max-width: 980px;
+      margin: 18px auto 0;
+    }
+
+    body.request-page .option-card,
+    body.request-page .panel {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 251, 255, 0.92));
+      box-shadow: 0 24px 42px -34px rgba(42, 78, 134, 0.22);
+      color: #13254d;
+    }
+
+    body.request-page .option-card::before {
+      display: none;
+    }
+
+    body.request-page #obo-section {
+      padding: 18px 18px 20px;
+      border-radius: 22px;
+    }
+
+    body.request-page #approver-section {
+      padding: 16px 18px 18px;
+      border-radius: 20px;
+    }
+
+    body.request-page .option-head {
+      gap: 12px;
+    }
+
+    body.request-page .option-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(160deg, rgba(36, 184, 170, 0.12), rgba(122, 174, 255, 0.05));
+      border: 1px solid rgba(36, 184, 170, 0.16);
+      color: #24b8aa;
+    }
+
+    body.request-page .approver .option-icon {
+      background: linear-gradient(160deg, rgba(143, 111, 244, 0.12), rgba(143, 111, 244, 0.05));
+      border-color: rgba(143, 111, 244, 0.16);
+      color: #8f6ff4;
+    }
+
+    body.request-page .option-main .t {
+      font-size: 17px;
+      font-weight: 780;
+      color: #102348;
+    }
+
+    body.request-page .option-note {
+      margin: 6px 0 0;
+      color: #607392;
+    }
+
+    body.request-page .forwho-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    body.request-page .forwho-card {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-height: 128px;
+      padding: 20px 20px 18px;
+      border-radius: 18px;
+      border: 1.5px solid rgba(148, 163, 184, 0.2);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 252, 255, 0.92));
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    body.request-page .forwho-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 24px 36px -30px rgba(42, 78, 134, 0.24);
+    }
+
+    body.request-page .forwho-card input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    body.request-page .forwho-card__icon,
+    body.request-page .forwho-card__arrow {
+      position: relative;
+      z-index: 1;
+      flex: 0 0 auto;
+    }
+
+    body.request-page .forwho-card__icon {
+      display: grid;
+      place-items: center;
+      width: 58px;
+      height: 58px;
+      border-radius: 16px;
+      border: 1px solid transparent;
+      box-shadow: 0 18px 28px -24px rgba(42, 78, 134, 0.24);
+    }
+
+    body.request-page .forwho-card__icon i {
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    body.request-page .forwho-card__copy {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    body.request-page .forwho-card__title {
+      font-size: 19px;
+      font-weight: 780;
+      letter-spacing: -0.02em;
+      color: #102348;
+    }
+
+    body.request-page .forwho-card__note {
+      max-width: 19rem;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #607392;
+    }
+
+    body.request-page .forwho-card__arrow {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      color: inherit;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    body.request-page .forwho-card__decor {
+      position: absolute;
+      right: -5%;
+      bottom: -8%;
+      width: 42%;
+      height: 64%;
+      pointer-events: none;
+    }
+
+    body.request-page .forwho-wave {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      border-radius: 48% 0 0 0;
+    }
+
+    body.request-page .forwho-card--self {
+      border-color: rgba(36, 184, 170, 0.26);
+    }
+
+    body.request-page .forwho-card--self .forwho-card__icon {
+      color: #0ea596;
+      background: linear-gradient(160deg, rgba(36, 184, 170, 0.12), rgba(36, 184, 170, 0.05));
+      border-color: rgba(36, 184, 170, 0.16);
+    }
+
+    body.request-page .forwho-card--self .forwho-card__arrow {
+      color: #0ea596;
+    }
+
+    body.request-page .forwho-card--self .forwho-wave--1 {
+      width: 100%;
+      height: 78%;
+      background: rgba(36, 184, 170, 0.08);
+    }
+
+    body.request-page .forwho-card--self .forwho-wave--2 {
+      width: 68%;
+      height: 52%;
+      background: rgba(36, 184, 170, 0.12);
+    }
+
+    body.request-page .forwho-card--other {
+      border-color: rgba(143, 111, 244, 0.24);
+    }
+
+    body.request-page .forwho-card--other .forwho-card__icon {
+      color: #7658e6;
+      background: linear-gradient(160deg, rgba(143, 111, 244, 0.12), rgba(143, 111, 244, 0.05));
+      border-color: rgba(143, 111, 244, 0.16);
+    }
+
+    body.request-page .forwho-card--other .forwho-card__arrow {
+      color: #7658e6;
+    }
+
+    body.request-page .forwho-card--other .forwho-wave--1 {
+      width: 100%;
+      height: 78%;
+      background: rgba(143, 111, 244, 0.08);
+    }
+
+    body.request-page .forwho-card--other .forwho-wave--2 {
+      width: 68%;
+      height: 52%;
+      background: rgba(143, 111, 244, 0.12);
+    }
+
+    body.request-page .forwho-card:has(input:checked) {
+      box-shadow: 0 26px 40px -30px rgba(42, 78, 134, 0.24);
+    }
+
+    body.request-page .forwho-card--self:has(input:checked) {
+      border-color: rgba(36, 184, 170, 0.46);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 255, 252, 0.94));
+    }
+
+    body.request-page .forwho-card--other:has(input:checked) {
+      border-color: rgba(143, 111, 244, 0.44);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 246, 255, 0.94));
+    }
+
+    body.request-page .forwho-card:has(input:focus-visible) {
+      box-shadow: 0 0 0 3px rgba(122, 174, 255, 0.24), 0 26px 40px -30px rgba(42, 78, 134, 0.24);
+    }
+
+    body.request-page .obo-fields {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    body.request-page .lookup-row {
+      gap: 12px;
+    }
+
+    body.request-page label.fld {
+      color: #607392;
+      font-weight: 700;
+    }
+
+    body.request-page input,
+    body.request-page select,
+    body.request-page textarea {
+      background: rgba(255, 255, 255, 0.94);
+      color: #13254d;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    }
+
+    body.request-page input::placeholder,
+    body.request-page textarea::placeholder {
+      color: #8a9ab0;
+    }
+
+    body.request-page input:focus,
+    body.request-page select:focus,
+    body.request-page textarea:focus {
+      border-color: rgba(122, 174, 255, 0.52);
+      box-shadow: 0 0 0 3px rgba(122, 174, 255, 0.2);
+    }
+
+    body.request-page .tile {
+      border-color: rgba(148, 163, 184, 0.16);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(243, 247, 253, 0.92));
+    }
+
+    body.request-page .tile .lbl {
+      color: #71839a;
+      font-weight: 700;
+    }
+
+    body.request-page .tile .val {
+      color: #13254d;
+    }
+
+    body.request-page .panel-title {
+      color: #5d7596;
+    }
+
+    body.request-page .panel-title svg {
+      color: #24b8aa;
+    }
+
+    body.request-page .obo-badge,
+    body.request-page .approver-badge,
+    body.request-page .note.info {
+      color: #1a5f76;
+      border-color: rgba(36, 184, 170, 0.24);
+      background: linear-gradient(180deg, rgba(235, 252, 249, 0.92), rgba(242, 255, 252, 0.92));
+    }
+
+    body.request-page .note.warn {
+      color: #8a681a;
+      border-color: rgba(231, 169, 59, 0.28);
+      background: linear-gradient(180deg, rgba(255, 249, 239, 0.95), rgba(255, 245, 227, 0.92));
+    }
+
+    body.request-page .note.danger,
+    body.request-page .error {
+      color: #9d3644;
+      border-color: rgba(220, 38, 70, 0.22);
+      background: linear-gradient(180deg, rgba(255, 244, 246, 0.96), rgba(255, 238, 241, 0.94));
+    }
+
+    body.request-page .confirm-box {
+      border-color: rgba(148, 163, 184, 0.16);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 248, 253, 0.92));
+    }
+
+    body.request-page .confirm-box .t {
+      color: #13254d;
+    }
+
+    body.request-page .confirm-box .s,
+    body.request-page .status,
+    body.request-page .result-body,
+    body.request-page .backup-hint {
+      color: #607392;
+    }
+
+    body.request-page .backup-results {
+      border-color: rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 24px 34px -28px rgba(42, 78, 134, 0.22);
+    }
+
+    body.request-page .backup-result {
+      color: #13254d;
+      border-bottom-color: rgba(148, 163, 184, 0.12);
+    }
+
+    body.request-page .backup-result:hover,
+    body.request-page .backup-result:focus-visible {
+      background: rgba(242, 247, 255, 0.92);
+    }
+
+    body.request-page .backup-result .sub {
+      color: #71839a;
+    }
+
+    body.request-page .tip-line {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      max-width: 980px;
+      margin: 22px auto 0;
+      padding: 14px 18px;
+      border-radius: 16px;
+      border: 1px solid rgba(122, 174, 255, 0.18);
+      background: linear-gradient(180deg, rgba(244, 249, 255, 0.96), rgba(238, 246, 255, 0.92));
+      box-shadow: 0 18px 28px -28px rgba(42, 78, 134, 0.2);
+      text-align: center;
+      color: #607392;
+    }
+
+    body.request-page .tip-line__icon {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      color: #24b8aa;
+      background: rgba(36, 184, 170, 0.1);
+      border: 1px solid rgba(36, 184, 170, 0.16);
+    }
+
+    body.request-page .tip-line__icon i {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    body.request-page .tip-line__copy strong {
+      color: #173056;
+    }
+
+    body.request-page .rq-footer {
+      margin-top: 20px;
+      color: #8091a6;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    body.request-page [hidden] {
+      display: none !important;
+    }
+
+    body.request-page .request-auth-meta {
+      display: none !important;
+    }
+
+    body.request-page .auth-area {
+      gap: 12px;
+    }
+
+    body.request-page .topbar .btn#signin,
+    body.request-page .topbar .btn#signout {
+      min-width: 108px;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.82);
+      border-color: rgba(148, 163, 184, 0.24);
+      box-shadow: 0 14px 28px -22px rgba(15, 23, 42, 0.28);
+    }
+
+    body.request-page .request-entry-shell {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 22px 0 0;
+    }
+
+    body.request-page .page-head {
+      max-width: 780px;
+      margin: 42px auto 0;
+      justify-content: center;
+      gap: 18px;
+      text-align: center;
+    }
+
+    body.request-page .page-head__copy {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    body.request-page .page-head h1 {
+      font-size: clamp(44px, 6vw, 72px);
+      line-height: 0.98;
+    }
+
+    body.request-page .page-head .desc {
+      margin: 0;
+      font-size: clamp(18px, 2.3vw, 24px);
+      color: #607390;
+      max-width: 560px;
+    }
+
+    body.request-page .request-choice-panel {
+      margin: 36px auto 0;
+      max-width: 1020px;
+    }
+
+    body.request-page .request-choice-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 26px;
+      margin-top: 0;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card {
+      min-height: 228px;
+      padding: 28px 28px 26px;
+      cursor: pointer;
+      border-width: 1px;
+      box-shadow: 0 28px 56px -42px rgba(15, 23, 42, 0.36);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 34px 70px -42px rgba(15, 23, 42, 0.42);
+    }
+
+    body.request-page #entryChoicePanel .forwho-card .forwho-card__icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 22px;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card .forwho-card__icon i {
+      font-size: 28px;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card .forwho-card__copy {
+      gap: 10px;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card .forwho-card__title {
+      font-size: 32px;
+      line-height: 1;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card .forwho-card__note {
+      max-width: 320px;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card .forwho-card__arrow {
+      width: 48px;
+      height: 48px;
+      font-size: 20px;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card .forwho-card__decor {
+      width: 58%;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card:has(input:checked) {
+      border-color: rgba(195, 208, 228, 0.76);
+      box-shadow: 0 28px 56px -42px rgba(15, 23, 42, 0.36);
+      transform: none;
+    }
+
+    body.request-page #entryChoicePanel .forwho-card.is-selected {
+      transform: translateY(-2px);
+    }
+
+    body.request-page #entryChoicePanel .forwho-card--self.is-selected {
+      border-color: rgba(36, 184, 170, 0.5);
+      box-shadow: 0 36px 76px -46px rgba(36, 184, 170, 0.38);
+    }
+
+    body.request-page #entryChoicePanel .forwho-card--other.is-selected {
+      border-color: rgba(139, 92, 246, 0.42);
+      box-shadow: 0 36px 76px -46px rgba(139, 92, 246, 0.34);
+    }
+
+    body.request-page #entryChoicePanel .forwho-card:focus-visible,
+    body.request-page #entryChoicePanel .forwho-card:has(input:focus-visible) {
+      outline: none;
+      box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.24), 0 34px 70px -42px rgba(15, 23, 42, 0.42);
+    }
+
+    body.request-page .request-selection-summary {
+      max-width: 1020px;
+      margin: 28px auto 0;
+    }
+
+    body.request-page .request-selection-summary__card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 18px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.84);
+      border: 1px solid rgba(195, 208, 228, 0.66);
+      box-shadow: 0 24px 50px -40px rgba(15, 23, 42, 0.34);
+    }
+
+    body.request-page .request-selection-summary__icon {
+      width: 50px;
+      height: 50px;
+      flex: 0 0 auto;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(160deg, rgba(226, 232, 240, 0.72), rgba(255, 255, 255, 0.92));
+      border: 1px solid rgba(195, 208, 228, 0.72);
+      color: #24b8aa;
+    }
+
+    body.request-page .request-selection-summary__icon i {
+      font-size: 20px;
+    }
+
+    body.request-page .request-selection-summary__copy {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    body.request-page .request-selection-summary__eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #6f82a0;
+      font-weight: 700;
+    }
+
+    body.request-page .request-selection-summary__title {
+      font-size: 20px;
+      line-height: 1.1;
+      color: #13254d;
+    }
+
+    body.request-page .request-selection-summary__note {
+      font-size: 14px;
+      color: #677b97;
+    }
+
+    body.request-page .request-selection-summary__change {
+      margin-left: auto;
+      white-space: nowrap;
+      min-width: 96px;
+    }
+
+    body.request-page .request-flow {
+      max-width: 1120px;
+      margin: 22px auto 0;
+      animation: requestFlowReveal 0.26s ease;
+    }
+
+    body.request-page .request-flow .pilot {
+      margin-top: 0;
+    }
+
+    body.request-page .employee-selector-panel {
+      max-width: 1020px;
+      margin: 18px auto 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 249, 255, 0.92));
+    }
+
+    body.request-page .employee-selector-panel__eyebrow {
+      display: inline-block;
+      margin-bottom: 8px;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #7f68d8;
+    }
+
+    body.request-page .employee-selector-panel__title {
+      display: block;
+      font-size: 24px;
+      line-height: 1.15;
+      font-weight: 800;
+      color: #13254d;
+    }
+
+    body.request-page .obo-reason-wrap {
+      margin-top: 12px;
+    }
+
+    body.request-page #approver-section,
+    body.request-page #requester-details-panel,
+    body.request-page #request-details-panel,
+    body.request-page #result,
+    body.request-page #tipLine,
+    body.request-page #requestFooter {
+      max-width: 1120px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    @keyframes requestFlowReveal {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 860px) {
+      body.request-page .topbar {
+        position: static;
+      }
+
+      body.request-page .page-head {
+        margin-top: 34px;
+        gap: 18px;
+      }
+
+      body.request-page .request-choice-grid,
+      body.request-page .forwho-row {
+        grid-template-columns: 1fr;
+      }
+
+      body.request-page .request-selection-summary__card {
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      body.request-page .request-selection-summary__change {
+        margin-left: 0;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body.request-page {
+        padding: 0 14px 44px;
+      }
+
+      body.request-page .topbar {
+        padding-top: 16px;
+      }
+
+      body.request-page .auth-area {
+        justify-content: flex-end;
+      }
+
+      body.request-page .page-head {
+        margin-top: 28px;
+        gap: 14px;
+      }
+
+      body.request-page .page-badge {
+        width: 56px;
+        height: 56px;
+      }
+
+      body.request-page .page-badge svg {
+        width: 26px;
+        height: 26px;
+      }
+
+      body.request-page .page-head h1 {
+        font-size: 44px;
+      }
+
+      body.request-page .page-head .desc {
+        font-size: 16px;
+      }
+
+      body.request-page #entryChoicePanel .forwho-card {
+        min-height: 0;
+        padding: 22px 18px;
+      }
+
+      body.request-page #entryChoicePanel .forwho-card .forwho-card__title {
+        font-size: 26px;
+      }
+
+      body.request-page #entryChoicePanel .forwho-card .forwho-card__note {
+        font-size: 15px;
+      }
+
+      body.request-page .forwho-card__decor {
+        width: 56%;
+      }
+
+      body.request-page .request-selection-summary__card {
+        gap: 14px;
+        padding: 14px;
+        border-radius: 20px;
+      }
+
+      body.request-page .tip-line {
+        align-items: flex-start;
+      }
+    }
   </style>
 </head>
-<body>
+<body class="request-page">
   <main class="wrap">
-    <!-- Top bar -->
     <header class="topbar">
       <div class="brand">
         <span class="brand-logo" aria-hidden="true">
@@ -341,23 +1356,32 @@
             <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
           </svg>
         </span>
-        <span class="brand-name">PTO Central</span>
+        <span class="brand-company">myBasePay</span>
         <span class="brand-sep" aria-hidden="true"></span>
-        <span class="brand-page">Request PTO</span>
+        <span class="brand-name">PTO Central</span>
       </div>
       <div class="auth-area">
-        <span id="user-chip" class="user-chip">
-          <span class="avatar" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
-            </svg>
+        <div class="request-auth-meta" hidden aria-hidden="true">
+          <div class="view-as" aria-label="View as selector">
+            <span class="view-as__label">View as</span>
+            <div class="view-as__seg" role="group" aria-label="View as">
+              <label class="view-as__opt" id="viewAsMyself" for="forWhoMyself">Myself</label>
+              <label class="view-as__opt" id="viewAsOther" for="forWhoOther">Another employee</label>
+            </div>
+          </div>
+          <span id="user-chip" class="user-chip">
+            <span class="avatar" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
+              </svg>
+            </span>
+            <span class="who">
+              <span class="lbl">Signed in as</span>
+              <span class="name" id="user-chip-name">—</span>
+            </span>
           </span>
-          <span class="who">
-            <span class="lbl">Signed in as</span>
-            <span class="name" id="user-chip-name">—</span>
-          </span>
-        </span>
-        <span id="account" aria-live="polite">Not signed in.</span>
+          <span id="account" aria-live="polite">Not signed in.</span>
+        </div>
         <button id="signin" class="btn" type="button">Sign in</button>
         <button id="signout" class="btn small" type="button" disabled>
           Sign out
@@ -368,41 +1392,88 @@
       </div>
     </header>
 
-    <!-- Page head -->
-    <div class="page-head">
-      <span class="page-badge" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
-          <path d="M12 12.5v4M10 14.5h4" />
+    <section class="request-entry-shell" aria-labelledby="request-page-title">
+      <div class="page-head">
+        <span class="page-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
+            <path d="M12 12.5v4M10 14.5h4" />
+          </svg>
+        </span>
+        <div class="page-head__copy">
+          <h1 id="request-page-title">Submit PTO Request</h1>
+          <p class="desc">Who is this PTO request for?</p>
+        </div>
+      </div>
+
+      <section id="entryChoicePanel" class="request-choice-panel" aria-label="Select request type">
+        <div class="forwho-row request-choice-grid" role="radiogroup" aria-label="Who is this PTO request for">
+          <label id="choiceMyselfCard" class="forwho-card forwho-card--self" tabindex="0">
+            <input type="radio" name="forWho" id="forWhoMyself" checked />
+            <span class="forwho-card__icon" aria-hidden="true">
+              <i class="bi bi-person"></i>
+            </span>
+            <span class="forwho-card__copy">
+              <span class="forwho-card__title">Myself</span>
+              <span class="forwho-card__note">Create a PTO request for your own time off.</span>
+            </span>
+            <span class="forwho-card__arrow" aria-hidden="true">
+              <i class="bi bi-arrow-right"></i>
+            </span>
+            <span class="forwho-card__decor" aria-hidden="true">
+              <span class="forwho-wave forwho-wave--1"></span>
+              <span class="forwho-wave forwho-wave--2"></span>
+            </span>
+          </label>
+
+          <label id="choiceOtherCard" class="forwho-card forwho-card--other" tabindex="0">
+            <input type="radio" name="forWho" id="forWhoOther" />
+            <span class="forwho-card__icon" aria-hidden="true">
+              <i class="bi bi-person-plus"></i>
+            </span>
+            <span class="forwho-card__copy">
+              <span class="forwho-card__title">Another employee</span>
+              <span class="forwho-card__note">Submit a request on behalf of an eligible employee.</span>
+            </span>
+            <span class="forwho-card__arrow" aria-hidden="true">
+              <i class="bi bi-arrow-right"></i>
+            </span>
+            <span class="forwho-card__decor" aria-hidden="true">
+              <span class="forwho-wave forwho-wave--1"></span>
+              <span class="forwho-wave forwho-wave--2"></span>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section id="requestSelectionSummary" class="request-selection-summary" aria-live="polite" hidden>
+        <div class="request-selection-summary__card">
+          <span id="selectionSummaryIcon" class="request-selection-summary__icon" aria-hidden="true">
+            <i class="bi bi-person"></i>
+          </span>
+          <div class="request-selection-summary__copy">
+            <span id="selectionSummaryLabel" class="request-selection-summary__eyebrow">Request type</span>
+            <strong id="selectionSummaryTitle" class="request-selection-summary__title">Myself</strong>
+            <span id="selectionSummaryNote" class="request-selection-summary__note">Create a PTO request for your own time off.</span>
+          </div>
+          <button id="changeSelection" class="btn small request-selection-summary__change" type="button">Change</button>
+        </div>
+      </section>
+    </section>
+
+    <div id="requestFlow" class="request-flow" hidden>
+      <div id="pilotBanner" class="pilot" role="note" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 7.75h.01" />
         </svg>
-      </span>
-      <div>
-        <h1>Submit PTO Request</h1>
-        <p class="desc">Create a PTO request for yourself or for another employee.</p>
+        <div>
+          <strong>Pilot phase:</strong> requests are written to the live <code>PTO Requests</code> list,
+          and calendar events are created automatically when a request is approved.
+          Manager email/Teams notifications are still in controlled testing.
+        </div>
       </div>
-    </div>
 
-    <!-- Pilot phase banner -->
-    <div class="pilot" role="note">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 7.75h.01" />
-      </svg>
-      <div>
-        <strong>Pilot phase:</strong> requests are written to the live <code>PTO Requests</code> list,
-        and calendar events are created automatically when a request is approved.
-        Manager email/Teams notifications are still in controlled testing.
-      </div>
-    </div>
-
-    <!-- Option cards: "who for" (ALL employees, 2026-07-08) + alternate
-         approver (also ALL employees, 2026-07-08). Both hidden until signed in. -->
-    <div class="option-grid">
-      <!-- Who is this request for? — available to every authenticated employee.
-           The selected employee becomes the PTO EMPLOYEE (Requester*, manager
-           routing, calendar, notifications); the signed-in user is always the
-           SUBMITTER (SubmittedBy*, audit trail), derived from the
-           authenticated session — never from form input. -->
-      <div id="obo-section" class="option-card obo" aria-label="Who is this request for" style="display:none;">
+      <div id="obo-section" class="option-card obo employee-selector-panel" aria-label="Employee selection" hidden>
         <div class="option-head">
           <span class="option-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -411,18 +1482,9 @@
             </svg>
           </span>
           <div class="option-main">
-            <span class="t" style="font-size:14.5px;font-weight:750;letter-spacing:-0.01em;">Who is this request for?</span>
-            <p class="option-note">Submit for yourself, or on behalf of another active employee.</p>
-            <div class="forwho-row" role="radiogroup" aria-label="Who is this request for">
-              <label class="forwho-opt">
-                <input type="radio" name="forWho" id="forWhoMyself" checked />
-                <span>Myself</span>
-              </label>
-              <label class="forwho-opt">
-                <input type="radio" name="forWho" id="forWhoOther" />
-                <span>Another employee</span>
-              </label>
-            </div>
+            <span class="employee-selector-panel__eyebrow">Another employee</span>
+            <span class="employee-selector-panel__title">Select the employee first</span>
+            <p class="option-note">Search by name or email to continue with the request form.</p>
           </div>
         </div>
         <div id="oboFields" class="obo-fields">
@@ -436,7 +1498,7 @@
             </div>
           </div>
           <div id="oboResults" class="backup-results" role="listbox" aria-label="Employee matches"></div>
-          <div style="margin-top:12px;">
+          <div id="oboReasonWrap" class="obo-reason-wrap" hidden>
             <label class="fld" for="oboReason">Reason for submitting on their behalf (optional)</label>
             <textarea id="oboReason" placeholder="e.g. Employee is out and asked me to file this request."></textarea>
           </div>
@@ -445,10 +1507,7 @@
         </div>
       </div>
 
-      <!-- Alternate approver — available to all employees; approver must resolve
-           from the directory and pass validation (active/Member/company domain,
-           not the requester, not the submitter). Reason required. -->
-      <div id="approver-section" class="option-card approver" aria-label="Alternate approver" style="display:none;">
+      <div id="approver-section" class="option-card approver" aria-label="Alternate approver" hidden>
         <div class="option-head">
           <span class="option-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -488,147 +1547,147 @@
           <div id="approverError" class="note danger" role="alert"></div>
         </div>
       </div>
-    </div>
 
-    <!-- Requester details -->
-    <section class="panel" aria-label="Requester details">
-      <h3 class="panel-title" id="details-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
-        </svg>
-        <span id="details-title-text">Your details</span>
-      </h3>
-      <div id="oboBadge" class="obo-badge" role="status" aria-live="polite" style="margin: 0 0 12px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
-        </svg>
-        <span class="who" id="oboBadgeText">Submitting on behalf of …</span>
-      </div>
-      <div class="tile-grid">
-        <div class="tile"><span class="lbl">Requester</span><span class="val" id="c-name">—</span></div>
-        <div class="tile"><span class="lbl">Email</span><span class="val" id="c-email">—</span></div>
-        <div class="tile"><span class="lbl">Department / Title</span><span class="val" id="c-dept">—</span></div>
-        <div class="tile span2"><span class="lbl">Manager</span><span class="val" id="c-mgr">—</span></div>
-        <div class="tile"><span class="lbl">Manager's manager</span><span class="val" id="c-mm">—</span></div>
-      </div>
-      <div id="mgr-warn" class="note warn" role="alert"></div>
-      <div id="mm-warn" class="note warn" role="alert"></div>
-    </section>
-
-    <!-- Request details -->
-    <section class="panel" aria-label="Request details">
-      <h3 class="panel-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
-        </svg>
-        Request details
-      </h3>
-
-      <div class="form-grid">
-        <div>
-          <label class="fld" for="ptoType">PTO Type <span class="req">*</span></label>
-          <select id="ptoType">
-            <option>PTO</option>
-            <option>MHD</option>
-            <option>Sick</option>
-            <option>Bereavement</option>
-            <option>Parental Leave</option>
-            <option>Other Leave</option>
-          </select>
-        </div>
-        <div>
-          <label class="fld" for="startDate">Start Date <span class="req">*</span></label>
-          <input type="date" id="startDate" />
-        </div>
-        <div>
-          <label class="fld" for="endDate">End Date <span class="req">*</span></label>
-          <input type="date" id="endDate" />
-        </div>
-
-        <div class="full">
-          <label class="fld" for="reason">Reason / Notes (optional)</label>
-          <textarea id="reason" placeholder="Optional note for your manager / HR"></textarea>
-        </div>
-
-        <div class="full">
-          <label class="fld" for="backupSearch">Backup contact (optional)</label>
-          <div class="lookup-row">
-            <div class="grow backup-search-wrap">
-              <input type="text" id="backupSearch" placeholder="Search for an employee by name or email…" autocomplete="off" />
-              <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
-              </svg>
-            </div>
-            <div>
-              <button id="backupLookup" class="btn" type="button">Search</button>
-            </div>
-          </div>
-          <div class="backup-hint">When selected, name and email will be filled automatically.</div>
-          <div id="backupResults" class="backup-results" role="listbox" aria-label="Backup contact matches"></div>
-          <span id="backupSelected" class="backup-selected">
-            <span class="txt" id="backupSelectedText">—</span>
-            <button id="backupClear" class="clear" type="button" aria-label="Clear selected backup contact">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
-          </span>
-          <div id="backupError" class="note warn" role="alert"></div>
-        </div>
-      </div>
-
-      <!-- Business-rule notices -->
-      <div class="notice-row">
-        <div id="notice" class="note info" role="status"></div>
-        <div id="shortNotice" class="note warn" role="alert"></div>
-        <div id="sickNote" class="note info" role="status"></div>
-      </div>
-
-      <!-- Confirm + submit -->
-      <div class="confirm-box">
-        <input type="checkbox" id="confirm" />
-        <label for="confirm">
-          <span class="t">I confirm this PTO request is accurate</span>
-          <span class="s">By checking this box, you confirm the information provided is correct.</span>
-        </label>
-      </div>
-
-      <div class="actions">
-        <button id="submit" class="btn submit-btn" type="button" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
+      <section id="requester-details-panel" class="panel" aria-label="Requester details" hidden>
+        <h3 class="panel-title" id="details-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
           </svg>
-          Submit PTO Request
-        </button>
-        <span id="submit-status" class="status" aria-live="polite"></span>
+          <span id="details-title-text">Your details</span>
+        </h3>
+        <div id="oboBadge" class="obo-badge" role="status" aria-live="polite" style="margin: 0 0 12px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
+          </svg>
+          <span class="who" id="oboBadgeText">Submitting on behalf of …</span>
+        </div>
+        <div class="tile-grid">
+          <div class="tile"><span class="lbl">Requester</span><span class="val" id="c-name">—</span></div>
+          <div class="tile"><span class="lbl">Email</span><span class="val" id="c-email">—</span></div>
+          <div class="tile"><span class="lbl">Department / Title</span><span class="val" id="c-dept">—</span></div>
+          <div class="tile span2"><span class="lbl">Manager</span><span class="val" id="c-mgr">—</span></div>
+          <div class="tile"><span class="lbl">Manager's manager</span><span class="val" id="c-mm">—</span></div>
+        </div>
+        <div id="mgr-warn" class="note warn" role="alert"></div>
+        <div id="mm-warn" class="note warn" role="alert"></div>
+      </section>
+
+      <section id="request-details-panel" class="panel" aria-label="Request details" hidden>
+        <h3 class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
+          </svg>
+          Request details
+        </h3>
+
+        <div class="form-grid">
+          <div>
+            <label class="fld" for="ptoType">PTO Type <span class="req">*</span></label>
+            <select id="ptoType">
+              <option>PTO</option>
+              <option>MHD</option>
+              <option>Sick</option>
+              <option>Bereavement</option>
+              <option>Parental Leave</option>
+              <option>Other Leave</option>
+            </select>
+          </div>
+          <div>
+            <label class="fld" for="startDate">Start Date <span class="req">*</span></label>
+            <input type="date" id="startDate" />
+          </div>
+          <div>
+            <label class="fld" for="endDate">End Date <span class="req">*</span></label>
+            <input type="date" id="endDate" />
+          </div>
+
+          <div class="full">
+            <label class="fld" for="reason">Reason / Notes (optional)</label>
+            <textarea id="reason" placeholder="Optional note for your manager / HR"></textarea>
+          </div>
+
+          <div class="full">
+            <label class="fld" for="backupSearch">Backup contact (optional)</label>
+            <div class="lookup-row">
+              <div class="grow backup-search-wrap">
+                <input type="text" id="backupSearch" placeholder="Search for an employee by name or email…" autocomplete="off" />
+                <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+                </svg>
+              </div>
+              <div>
+                <button id="backupLookup" class="btn" type="button">Search</button>
+              </div>
+            </div>
+            <div class="backup-hint">When selected, name and email will be filled automatically.</div>
+            <div id="backupResults" class="backup-results" role="listbox" aria-label="Backup contact matches"></div>
+            <span id="backupSelected" class="backup-selected">
+              <span class="txt" id="backupSelectedText">—</span>
+              <button id="backupClear" class="clear" type="button" aria-label="Clear selected backup contact">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </span>
+            <div id="backupError" class="note warn" role="alert"></div>
+          </div>
+        </div>
+
+        <div class="notice-row">
+          <div id="notice" class="note info" role="status"></div>
+          <div id="shortNotice" class="note warn" role="alert"></div>
+          <div id="sickNote" class="note info" role="status"></div>
+        </div>
+
+        <div class="confirm-box">
+          <input type="checkbox" id="confirm" />
+          <label for="confirm">
+            <span class="t">I confirm this PTO request is accurate</span>
+            <span class="s">By checking this box, you confirm the information provided is correct.</span>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="submit" class="btn submit-btn" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
+            </svg>
+            Submit PTO Request
+          </button>
+          <span id="submit-status" class="status" aria-live="polite"></span>
+        </div>
+
+        <div id="error" class="error" role="alert" aria-live="assertive"></div>
+      </section>
+
+      <section id="result" class="panel" aria-label="Result">
+        <h3 class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+          Your request has been submitted
+        </h3>
+        <p class="result-body">
+          Your PTO request was submitted successfully. You can track the status from
+          <a href="my-requests.html">My Requests</a> or HR Center if you have access.
+        </p>
+        <dl class="kv">
+          <dt>Request key</dt><dd id="r-key">—</dd>
+          <dt>Status</dt><dd id="r-status">—</dd>
+          <dt id="r-short-label">Short notice</dt><dd id="r-short">—</dd>
+        </dl>
+      </section>
+
+      <div id="tipLine" class="tip-line" role="note" hidden>
+        <span class="tip-line__icon" aria-hidden="true">
+          <i class="bi bi-lightbulb"></i>
+        </span>
+        <span class="tip-line__copy"><strong>Tip:</strong> You don’t need to submit PTO for MBP recognized holidays.</span>
       </div>
-
-      <div id="error" class="error" role="alert" aria-live="assertive"></div>
-    </section>
-
-    <!-- Result — production confirmation (no approval link, no dev/test wording) -->
-    <section id="result" class="panel" aria-label="Result">
-      <h3 class="panel-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
-        Your request has been submitted
-      </h3>
-      <p class="result-body">
-        Your PTO request was submitted successfully. You can track the status from
-        <a href="my-requests.html">My Requests</a> or HR Center if you have access.
-      </p>
-      <dl class="kv">
-        <dt>Request key</dt><dd id="r-key">—</dd>
-        <dt>Status</dt><dd id="r-status">—</dd>
-        <dt id="r-short-label">Short notice</dt><dd id="r-short">—</dd>
-      </dl>
-    </section>
-
-    <p class="tip-line"><strong>Tip:</strong> You don’t need to submit PTO for MBP recognized holidays.</p>
-    <footer class="rq-footer">
-      © <span id="year"></span> myBasePay · Tech Support
-    </footer>
+      <footer id="requestFooter" class="rq-footer" hidden>
+        © <span id="year"></span> myBasePay · PTO Central
+      </footer>
+    </div>
   </main>
 
   <!--
@@ -647,6 +1706,6 @@
   <script src="js/requests.js?v=rq5"></script>
   <script src="js/authz.js?v=rq5"></script>
   <script src="js/ui.js?v=rq5"></script>
-  <script src="js/pages/request.page.js?v=rq5"></script>
+  <script src="js/pages/request.page.js?v=rq7"></script>
 </body>
 </html>

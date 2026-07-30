@@ -46,6 +46,7 @@
     backup: null,
     submitted: false,
     authorized: false,
+    selectionCommitted: false,
   };
 
   // ---- DOM ready (script is at end of body, so elements exist) ----
@@ -61,11 +62,27 @@
     backupError: $("backupError"),
     submit: $("submit"), submitStatus: $("submit-status"), error: $("error"),
     detailsTitle: $("details-title-text"),
+    choicePanel: $("entryChoicePanel"),
+    choiceMyselfCard: $("choiceMyselfCard"),
+    choiceOtherCard: $("choiceOtherCard"),
+    selectionSummary: $("requestSelectionSummary"),
+    selectionSummaryIcon: $("selectionSummaryIcon"),
+    selectionSummaryLabel: $("selectionSummaryLabel"),
+    selectionSummaryTitle: $("selectionSummaryTitle"),
+    selectionSummaryNote: $("selectionSummaryNote"),
+    changeSelection: $("changeSelection"),
+    requestFlow: $("requestFlow"),
+    pilotBanner: $("pilotBanner"),
+    requesterDetailsPanel: $("requester-details-panel"),
+    tipLine: $("tipLine"),
+    requestFooter: $("requestFooter"),
     // "Who is this request for?" (all employees) controls.
     oboSection: $("obo-section"), oboFields: $("oboFields"),
     forWhoMyself: $("forWhoMyself"), forWhoOther: $("forWhoOther"),
+    viewAsMyself: $("viewAsMyself"), viewAsOther: $("viewAsOther"),
     oboSearch: $("oboSearch"), oboResults: $("oboResults"),
     oboLookup: $("oboLookup"), oboReason: $("oboReason"),
+    oboReasonWrap: $("oboReasonWrap"),
     oboStatus: $("oboStatus"), oboError: $("oboError"),
     oboBadge: $("oboBadge"), oboBadgeText: $("oboBadgeText"),
     // Alternate approver (HR/Admin) controls.
@@ -148,23 +165,9 @@
       }
     }
 
-    // "Who is this request for?" is available to EVERY authenticated employee
-    // (decision 2026-07-08): any active employee may submit on behalf of
-    // another active employee. The PTO EMPLOYEE (selected) drives Requester*,
-    // manager routing, calendar, and notifications; the signed-in SUBMITTER is
-    // always recorded separately (SubmittedBy*, audit) from the authenticated
-    // session — never from form input.
-    if (els.oboSection) els.oboSection.style.display = "block";
-    // "Route approval to someone else" is ALSO available to every
-    // authenticated employee (2026-07-08 — was HR/Admin-only, which is why
-    // non-HR accounts couldn't see it). The approver must still resolve from
-    // the directory and pass PTORules.userSelectionProblem + context checks;
-    // this also unblocks requesters with NO manager in Entra (they can route
-    // approval to a chosen approver instead of being stuck).
-    if (els.approverSection) els.approverSection.style.display = "block";
-
     // Default to the self target.
     setSelfTarget();
+    updateFlowUI();
   }
 
   // ---- target (who the PTO is FOR) -----------------------------------------
@@ -221,6 +224,7 @@
     renderTargetDetails();
     recomputeRuleUI();
     refreshSubmitEnabled();
+    updateFlowUI();
   }
 
   // Toggle turned ON but no employee resolved yet — clear details and block
@@ -232,6 +236,7 @@
     if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
     renderTargetDetails();
     refreshSubmitEnabled();
+    updateFlowUI();
   }
 
   function updateOboBadge() {
@@ -246,6 +251,97 @@
     } else {
       els.oboBadge.classList.remove("show");
     }
+  }
+
+  function updateViewAsUI() {
+    if (els.viewAsMyself) {
+      els.viewAsMyself.classList.toggle("is-active", !!(els.forWhoMyself && els.forWhoMyself.checked));
+    }
+    if (els.viewAsOther) {
+      els.viewAsOther.classList.toggle("is-active", !!(els.forWhoOther && els.forWhoOther.checked));
+    }
+  }
+
+  function setHidden(el, hidden) {
+    if (!el) return;
+    el.hidden = !!hidden;
+  }
+
+  function currentSelectionMode() {
+    if (!state.selectionCommitted) return "";
+    return els.forWhoOther && els.forWhoOther.checked ? "other" : "self";
+  }
+
+  function updateChoiceCards() {
+    var myselfSelected = !!(state.selectionCommitted && els.forWhoMyself && els.forWhoMyself.checked);
+    var otherSelected = !!(state.selectionCommitted && els.forWhoOther && els.forWhoOther.checked);
+    if (els.choiceMyselfCard) els.choiceMyselfCard.classList.toggle("is-selected", myselfSelected);
+    if (els.choiceOtherCard) els.choiceOtherCard.classList.toggle("is-selected", otherSelected);
+    updateViewAsUI();
+  }
+
+  function updateSelectionSummary() {
+    if (!els.selectionSummaryTitle || !els.selectionSummaryNote || !els.selectionSummaryIcon) return;
+    var other = currentSelectionMode() === "other";
+    var requester = state.target && state.target.requester;
+    if (other) {
+      els.selectionSummaryIcon.innerHTML = '<i class="bi bi-person-plus"></i>';
+      els.selectionSummaryLabel.textContent = "Request type";
+      els.selectionSummaryTitle.textContent = "Another employee";
+      els.selectionSummaryNote.textContent = state.lookupOk && requester
+        ? "Submitting on behalf of " + (requester.displayName || emailOf(requester) || "the selected employee") + "."
+        : "Select the employee first to continue with the PTO request form.";
+      return;
+    }
+    els.selectionSummaryIcon.innerHTML = '<i class="bi bi-person"></i>';
+    els.selectionSummaryLabel.textContent = "Request type";
+    els.selectionSummaryTitle.textContent = "Myself";
+    els.selectionSummaryNote.textContent = "Create a PTO request for your own time off.";
+  }
+
+  function updateFlowUI() {
+    var mode = currentSelectionMode();
+    var showFlow = !!mode;
+    var showEmployeeSelection = mode === "other";
+    var showResolvedFlow = mode === "self" ||
+      (mode === "other" && state.lookupOk && !!(state.target.requester && state.target.requester.id));
+
+    updateChoiceCards();
+    updateSelectionSummary();
+
+    setHidden(els.choicePanel, showFlow);
+    setHidden(els.selectionSummary, !showFlow);
+    setHidden(els.requestFlow, !showFlow);
+    setHidden(els.oboSection, !showEmployeeSelection);
+    setHidden(els.pilotBanner, !showResolvedFlow);
+    setHidden(els.approverSection, !showResolvedFlow);
+    setHidden(els.requesterDetailsPanel, !showResolvedFlow);
+    setHidden($("request-details-panel"), !showResolvedFlow);
+    setHidden(els.tipLine, !showResolvedFlow);
+    setHidden(els.requestFooter, !showResolvedFlow);
+    if (els.oboReasonWrap) setHidden(els.oboReasonWrap, !(showEmployeeSelection && state.lookupOk));
+    if (els.oboFields) els.oboFields.classList.toggle("show", showEmployeeSelection);
+  }
+
+  function commitSelection(mode) {
+    if (!state.me && !isPreviewMode()) {
+      showError("Please sign in to continue.");
+      if (els.signin && !PTOAuth.getAccount()) els.signin.focus();
+      return;
+    }
+    state.selectionCommitted = true;
+    if (mode === "other") {
+      if (els.forWhoOther) els.forWhoOther.checked = true;
+    } else {
+      if (els.forWhoMyself) els.forWhoMyself.checked = true;
+    }
+    onForWhoChange();
+    updateFlowUI();
+  }
+
+  function resetSelection() {
+    state.selectionCommitted = false;
+    updateFlowUI();
   }
 
   // ---- on-behalf messages ----
@@ -538,11 +634,13 @@
       renderTargetDetails();
       recomputeRuleUI();
       setOboStatus("✓ Submitting on behalf of " + (employee.displayName || emailOf(employee)) + ".");
+      updateFlowUI();
     } catch (e) {
       state.lookupOk = false;
       updateOboBadge();
       setOboStatus("");
       showOboError("Could not load the employee's details: " + friendly(e));
+      updateFlowUI();
     } finally {
       refreshSubmitEnabled();
     }
@@ -760,7 +858,7 @@
   // "Who is this request for?" radios — Myself (default) / Another employee.
   function onForWhoChange() {
     var other = !!(els.forWhoOther && els.forWhoOther.checked);
-    if (els.oboFields) els.oboFields.classList.toggle("show", other);
+    updateViewAsUI();
     clearOboMessages();
     clearOboResults();
     if (other) {
@@ -770,9 +868,29 @@
       els.oboReason.value = "";
       setSelfTarget();
     }
+    updateFlowUI();
   }
   if (els.forWhoMyself) els.forWhoMyself.addEventListener("change", onForWhoChange);
   if (els.forWhoOther) els.forWhoOther.addEventListener("change", onForWhoChange);
+  if (els.choiceMyselfCard) {
+    els.choiceMyselfCard.addEventListener("click", function () { commitSelection("self"); });
+    els.choiceMyselfCard.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        commitSelection("self");
+      }
+    });
+  }
+  if (els.choiceOtherCard) {
+    els.choiceOtherCard.addEventListener("click", function () { commitSelection("other"); });
+    els.choiceOtherCard.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+        e.preventDefault();
+        commitSelection("other");
+      }
+    });
+  }
+  if (els.changeSelection) els.changeSelection.addEventListener("click", resetSelection);
   if (els.oboLookup) els.oboLookup.addEventListener("click", onOboSearch);
   if (els.oboSearch) {
     els.oboSearch.addEventListener("keydown", function (e) {
@@ -821,6 +939,9 @@
 
   els.signout.addEventListener("click", async function () {
     clearError();
+    if (isPreviewMode() && !PTOAuth.getAccount()) {
+      return;
+    }
     try { await PTOAuth.signOut(); } catch (e) { showError(friendly(e)); }
     finally { renderAuth(); }
   });
@@ -862,15 +983,74 @@
     try { sessionStorage.removeItem(AUTO_LOGIN_FLAG); } catch (e) {}
   }
 
+  function isPreviewMode() {
+    try {
+      return /(?:^|[?&])preview=1(?:&|$)/.test(window.location.search || "");
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function enterPreviewMode() {
+    state.authorized = true;
+    state.me = {
+      id: "preview-user",
+      displayName: "Jane Doe",
+      mail: "jane.doe@mybasepay.com",
+      userPrincipalName: "jane.doe@mybasepay.com",
+      department: "Human Resources",
+      jobTitle: "HR Manager",
+    };
+    state.self.requester = state.me;
+    state.self.manager = {
+      id: "preview-manager",
+      displayName: "Michael Reed",
+      mail: "michael.reed@mybasepay.com",
+      userPrincipalName: "michael.reed@mybasepay.com",
+      department: "Human Resources",
+      jobTitle: "Director, People Operations",
+    };
+    state.self.managersManager = {
+      id: "preview-escalation",
+      displayName: "Alicia Carter",
+      mail: "alicia.carter@mybasepay.com",
+      userPrincipalName: "alicia.carter@mybasepay.com",
+      department: "Executive",
+      jobTitle: "VP, People",
+    };
+    state.self.managersManagerError = null;
+
+    if (els.userChip) els.userChip.classList.add("show");
+    if (els.userChipName) els.userChipName.textContent = state.me.displayName;
+    if (els.signin) {
+      els.signin.disabled = true;
+      els.signin.style.display = "none";
+    }
+    if (els.signout) els.signout.disabled = false;
+    if (els.account) els.account.classList.remove("show-text");
+
+    setSelfTarget();
+    recomputeRuleUI();
+    refreshSubmitEnabled();
+    updateFlowUI();
+  }
+
   (async function boot() {
     try {
+      updateViewAsUI();
       await PTOAuth.initialize(); // handles a returning redirect internally
       renderAuth();
+      updateFlowUI();
 
       if (PTOAuth.getAccount()) {
         // Signed in (cached session or just back from the redirect).
         clearAutoLoginFlag();
         await loadContext();
+        return;
+      }
+
+      if (isPreviewMode()) {
+        enterPreviewMode();
         return;
       }
 
