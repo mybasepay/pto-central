@@ -121,11 +121,7 @@
       font: inherit; font-size: 13.5px; }
     input::placeholder { color: #5f708a; }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--hr-blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.3); }
-    /* Date inputs: native calendar picker (no free-text reliance). `color-scheme:
-       dark` tells the browser to render its OWN date/time controls — including
-       the calendar-icon glyph and the popup calendar panel — in a dark-mode
-       palette, so the icon isn't invisible (a dark glyph on our dark background). */
-    input[type="date"] { color-scheme: dark; }
+    /* Date inputs: native calendar picker (no free-text reliance). */
     .checks { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
     .checks label { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text); cursor: pointer; }
     .checks input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--hr-blue); }
@@ -241,8 +237,9 @@
       .filters .wide { grid-column: auto; }
     }
   </style>
+  <link rel="stylesheet" href="styles.css?v=corporate-light" />
 </head>
-<body>
+<body class="app-page hr-page">
   <main class="wrap">
     <!-- Header bar -->
     <header class="hr-head">
@@ -427,6 +424,12 @@
   <!-- Shared per-row action menu (one at a time; positioned in JS; kept outside
        .table-wrap so overflow can't clip it). -->
   <div id="row-menu" class="row-menu" role="menu" aria-label="Row actions" hidden>
+    <a class="row-menu-item" data-act="open" role="menuitem" href="#" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+      </svg>
+      Open detail
+    </a>
     <button type="button" class="row-menu-item" data-act="details" role="menuitem">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
@@ -472,6 +475,8 @@
   <script src="js/authz.js?v=hrc7"></script>
   <script src="js/links.js?v=hrc7"></script>
   <script src="js/ui.js?v=hrc7"></script>
+  <script src="js/demo-fixtures.js?v=demo1"></script>
+  <script src="js/demo-mode.js?v=demo1"></script>
   <script src="js/pages/hr.page.js?v=hrc7"></script>
 </body>
 </html>

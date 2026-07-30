@@ -76,11 +76,19 @@
     /* The reminder toast is about submitting requests — suppress during maintenance. */
     .maintenance .home-toast { display: none !important; }
   </style>
+  <link rel="stylesheet" href="styles.css?v=corporate-light" />
 </head>
 <!-- MAINTENANCE MODE (dormant): add class "maintenance" to <body> to re-enable
      the maintenance banner + hide the Submit/Cancel cards. CSS kept in <style>
      above for future reuse. Last used 2026-07-04 (post-migration cleanup). -->
-<body class="home">
+<body class="home app-page">
+  <header class="app-masthead" aria-label="Application header">
+    <a class="app-wordmark" href="index.html" aria-label="myBasePay PTO Central home">
+      <span class="wordmark-primary">myBasePay</span>
+      <span class="wordmark-divider" aria-hidden="true"></span>
+      <span class="wordmark-product">PTO Central</span>
+    </a>
+  </header>
   <!-- Ambient background: subtle gradient blobs + center glow (decorative only) -->
   <div class="home-bg" aria-hidden="true">
     <span class="home-blob home-blob--teal"></span>
@@ -103,7 +111,7 @@
         <div class="home-heading">
           <h1>PTO Central</h1>
           <p class="desc">
-            Submit a new PTO or cancel an existing one from a single place.
+            Submit and manage PTO requests in one place.
           </p>
         </div>
 
@@ -223,7 +231,7 @@
             </svg>
           </span>
           <span class="action-body">
-            <span class="action-title">Cancel a PTO</span>
+            <span class="action-title">Cancel a PTO Request</span>
             <span class="action-note"
               >Request cancellation for pending, already-submitted or approved
               PTO.</span
@@ -312,6 +320,8 @@
     </div>
   </aside>
 
+  <script src="js/demo-fixtures.js?v=demo1"></script>
+  <script src="js/demo-mode.js?v=demo1"></script>
   <script src="script.js"></script>
 </body>
 </html>

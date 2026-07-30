@@ -41,11 +41,13 @@
     // Alternate approver (HR/Admin only) — routes THIS request's approval to
     // someone other than the target's manager. Independent of on-behalf.
     approverOverride: { active: false, lookupOk: false, approver: null },
-    // Optional backup contact, selected via employee lookup (or free-text
-    // name-only fallback). Shape: { name, email } or null.
+    // Required backup contact, selected from the employee directory.
+    // Shape: { name, email } or null.
     backup: null,
     submitted: false,
     authorized: false,
+    requestType: null,  // "self" | "other" after the first-step choice
+    canSubmitForOthers: true,
   };
 
   // ---- DOM ready (script is at end of body, so elements exist) ----
@@ -72,8 +74,13 @@
     approverSection: $("approver-section"), approverToggle: $("approverToggle"),
     approverFields: $("approverFields"), approverEmail: $("approverEmail"),
     approverLookup: $("approverLookup"), approverReason: $("approverReason"),
+    approverResults: $("approverResults"),
     approverStatus: $("approverStatus"), approverError: $("approverError"),
     approverBadge: $("approverBadge"), approverBadgeText: $("approverBadgeText"),
+    requestTypeStep: $("request-type-step"), requestFormShell: $("request-form-shell"),
+    requestTypeSelf: $("requestTypeSelf"), requestTypeOther: $("requestTypeOther"),
+    requestTypeError: $("requestTypeError"), requestContext: $("request-context"),
+    reviewList: $("review-list"),
   };
 
   var yearEl = $("year");
@@ -154,17 +161,89 @@
     // manager routing, calendar, and notifications; the signed-in SUBMITTER is
     // always recorded separately (SubmittedBy*, audit) from the authenticated
     // session — never from form input.
-    if (els.oboSection) els.oboSection.style.display = "block";
+    if (window.PTODemo && window.PTODemo.active && window.PTODemo.persona && window.PTODemo.persona() === "limited") {
+      state.canSubmitForOthers = false;
+    }
+    if (els.oboSection) els.oboSection.style.display = "none";
     // "Route approval to someone else" is ALSO available to every
     // authenticated employee (2026-07-08 — was HR/Admin-only, which is why
     // non-HR accounts couldn't see it). The approver must still resolve from
     // the directory and pass PTORules.userSelectionProblem + context checks;
     // this also unblocks requesters with NO manager in Entra (they can route
     // approval to a chosen approver instead of being stuck).
-    if (els.approverSection) els.approverSection.style.display = "block";
+    if (els.approverSection) els.approverSection.style.display = "none";
 
-    // Default to the self target.
-    setSelfTarget();
+    renderRequestTypeGate();
+  }
+
+  function renderRequestTypeGate() {
+    if (els.requestTypeStep) {
+      els.requestTypeStep.style.display = "block";
+      els.requestTypeStep.classList.toggle("is-chosen", !!state.requestType);
+    }
+    if (els.requestFormShell) els.requestFormShell.hidden = !state.requestType;
+    if (els.requestTypeSelf) els.requestTypeSelf.setAttribute("aria-pressed", state.requestType === "self" ? "true" : "false");
+    if (els.requestTypeOther) els.requestTypeOther.setAttribute("aria-pressed", state.requestType === "other" ? "true" : "false");
+  }
+
+  function setRequestContext(text, onBehalf) {
+    if (!els.requestContext) return;
+    els.requestContext.textContent = text || "";
+    els.requestContext.classList.toggle("on-behalf", !!onBehalf);
+  }
+
+  function resetApproverOverride() {
+    state.approverOverride = { active: false, lookupOk: false, approver: null };
+    if (els.approverToggle) els.approverToggle.checked = false;
+    if (els.approverFields) els.approverFields.classList.remove("show");
+    if (els.approverEmail) els.approverEmail.value = "";
+    if (els.approverReason) els.approverReason.value = "";
+    if (els.approverResults) {
+      els.approverResults.innerHTML = "";
+      els.approverResults.classList.remove("show");
+    }
+    clearApproverMessages();
+    updateApproverBadge();
+  }
+
+  function chooseRequestType(type) {
+    clearError();
+    if (els.requestTypeError) {
+      els.requestTypeError.textContent = "";
+      els.requestTypeError.style.display = "none";
+    }
+    state.requestType = type;
+    resetApproverOverride();
+    if (type === "self") {
+      if (els.forWhoMyself) els.forWhoMyself.checked = true;
+      if (els.forWhoOther) els.forWhoOther.checked = false;
+      if (els.oboSection) els.oboSection.style.display = "none";
+      if (els.oboFields) els.oboFields.classList.remove("show");
+      if (els.approverSection) els.approverSection.style.display = "block";
+      if (els.submit) els.submit.lastChild.nodeValue = " Submit my PTO request";
+      setRequestContext("My PTO request — " + (state.me.displayName || emailOf(state.me)) + " (" + emailOf(state.me) + ")", false);
+      setSelfTarget();
+    } else {
+      if (!state.canSubmitForOthers) {
+        state.requestType = null;
+        if (els.requestTypeError) {
+          els.requestTypeError.textContent = "Your demo persona is not authorized to submit for another employee.";
+          els.requestTypeError.style.display = "block";
+        }
+        renderRequestTypeGate();
+        return;
+      }
+      if (els.forWhoMyself) els.forWhoMyself.checked = false;
+      if (els.forWhoOther) els.forWhoOther.checked = true;
+      if (els.oboSection) els.oboSection.style.display = "block";
+      if (els.oboFields) els.oboFields.classList.add("show");
+      if (els.approverSection) els.approverSection.style.display = "block";
+      if (els.submit) els.submit.lastChild.nodeValue = " Submit PTO request for employee";
+      setRequestContext("On behalf of another employee", true);
+      enterOnBehalfMode();
+    }
+    renderRequestTypeGate();
+    renderReview();
   }
 
   // ---- target (who the PTO is FOR) -----------------------------------------
@@ -221,6 +300,7 @@
     renderTargetDetails();
     recomputeRuleUI();
     refreshSubmitEnabled();
+    renderReview();
   }
 
   // Toggle turned ON but no employee resolved yet — clear details and block
@@ -232,6 +312,7 @@
     if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
     renderTargetDetails();
     refreshSubmitEnabled();
+    renderReview();
   }
 
   function updateOboBadge() {
@@ -290,73 +371,93 @@
     }
   }
 
-  // ---- alternate-approver lookup (HR/Admin) ----
-  async function onApproverLookup() {
-    clearApproverMessages();
-    var email = (els.approverEmail.value || "").trim();
-    if (!email) { showApproverError('Enter the approver’s email, then click "Lookup approver".'); return; }
+  function clearApproverResults() {
+    if (!els.approverResults) return;
+    els.approverResults.innerHTML = "";
+    els.approverResults.classList.remove("show");
+  }
 
-    var targetEmail = emailOf(state.target.requester || {});
-    if (targetEmail && email.toLowerCase() === targetEmail.toLowerCase()) {
-      showApproverError("The alternate approver must be different from the employee taking the PTO.");
+  function approverProblem(approver) {
+    var problem = PTORules.userSelectionProblem(approver);
+    if (!problem && emailOf(approver).toLowerCase() === emailOf(state.me).toLowerCase()) {
+      problem = "You can't route approval to yourself.";
+    }
+    if (!problem) {
+      var reqEmail = emailOf(state.target.requester || {});
+      if (reqEmail && emailOf(approver).toLowerCase() === reqEmail.toLowerCase()) {
+        problem = "The selected approver must be different from the employee receiving PTO.";
+      }
+    }
+    return problem;
+  }
+
+  function selectApprover(approver) {
+    clearApproverMessages();
+    clearApproverResults();
+    var problem = approverProblem(approver);
+    if (problem) {
+      state.approverOverride.lookupOk = false;
+      state.approverOverride.approver = null;
+      updateApproverBadge();
+      renderReview();
+      showApproverError(problem);
       return;
     }
+    state.approverOverride.lookupOk = true;
+    state.approverOverride.approver = approver;
+    if (els.approverEmail) els.approverEmail.value = approver.displayName || emailOf(approver);
+    updateApproverBadge();
+    setApproverStatus("✓ Approval will be routed to " + (approver.displayName || emailOf(approver)) + ".");
+    renderReview();
+  }
+
+  // ---- alternate-approver lookup (searchable directory selector) ----
+  async function onApproverLookup() {
+    clearApproverMessages();
+    clearApproverResults();
+    var query = (els.approverEmail.value || "").trim();
+    if (!query) { showApproverError('Type a name or email, then click "Lookup approver".'); return; }
 
     els.approverLookup.disabled = true;
     state.approverOverride.lookupOk = false;
-    setApproverStatus("Looking up " + email + "…");
+    setApproverStatus("Searching for " + query + "…");
     try {
-      var approver = await PTODirectory.getUserByEmail(email);
-      if (!approver) {
+      var matches = await PTODirectory.searchUsers(query);
+      if (!matches || !matches.length) {
         updateApproverBadge();
         setApproverStatus("");
-        showApproverError('No employee found for "' + email + '". Check the email and try again.');
+        showApproverError('No employee found for "' + query + '". Check the spelling and try again.');
         return;
       }
-      // The approver is a directory-resolved object only (never free text).
-      // Shared pure checks: active / Member / @mybasepay.com / valid email.
-      var problem = PTORules.userSelectionProblem(approver);
-      // Context rules: an approver may not be the PTO employee (self-approval
-      // of the request) nor the signed-in submitter (routing your own filing
-      // to yourself). HR/Admin can always decide via approve.html regardless.
-      if (!problem && emailOf(approver).toLowerCase() === emailOf(state.me).toLowerCase()) {
-        problem = "You can't route approval to yourself.";
-      }
-      if (!problem) {
-        var reqEmail = emailOf(state.target.requester || {});
-        if (reqEmail && emailOf(approver).toLowerCase() === reqEmail.toLowerCase()) {
-          problem = "The alternate approver must be different from the employee taking the PTO.";
-        }
-      }
-      if (problem) {
-        state.approverOverride.lookupOk = false;
-        state.approverOverride.approver = null;
-        updateApproverBadge();
-        setApproverStatus("");
-        showApproverError(problem);
+      if (matches.length === 1) {
+        selectApprover(matches[0]);
         return;
       }
-      state.approverOverride.lookupOk = true;
-      state.approverOverride.approver = approver;
-      updateApproverBadge();
-      setApproverStatus("✓ Approval will be routed to " + (approver.displayName || email) + ".");
+      els.approverResults.innerHTML = "";
+      matches.forEach(function (u) {
+        els.approverResults.appendChild(backupResultRow(
+          u.displayName || emailOf(u),
+          emailOf(u) + (u.department ? " · " + u.department : ""),
+          function () { selectApprover(u); }
+        ));
+      });
+      els.approverResults.classList.add("show");
+      setApproverStatus("Select the approver from the results.");
     } catch (e) {
       state.approverOverride.lookupOk = false;
       updateApproverBadge();
       setApproverStatus("");
-      showApproverError("Lookup failed: " + friendly(e));
+      showApproverError("Search failed: " + friendly(e));
     } finally {
       els.approverLookup.disabled = false;
     }
   }
 
-  // ---- backup contact lookup (optional) --------------------------------------
+  // ---- backup contact lookup (required) --------------------------------------
   // Employee search by name or email (PTODirectory.searchUsers). Selecting a
-  // match fills the SAME SharePoint fields as the old free-text inputs
-  // (BackupContactName/BackupContactEmail via gatherInput). Never blocks a
-  // submit: backup contact stays optional, and a failed lookup only shows a
-  // friendly message. A "name only" fallback keeps non-employee backups
-  // (e.g. an external vendor) possible.
+  // match fills the SAME SharePoint fields as the old backup inputs
+  // (BackupContactName/BackupContactEmail via gatherInput). Free text is not
+  // accepted because approvals and handoffs need a trusted directory contact.
   function showBackupError(text) {
     if (!els.backupError) return;
     els.backupError.textContent = text || "";
@@ -378,6 +479,7 @@
     } else {
       els.backupSelected.classList.remove("show");
     }
+    renderReview();
   }
 
   function selectBackup(name, email) {
@@ -422,25 +524,21 @@
     try {
       var matches = await PTODirectory.searchUsers(q);
       els.backupResults.innerHTML = "";
-      (matches || []).forEach(function (u) {
+      if (!matches || !matches.length) {
+        showBackupError('No employee found for "' + q + '". Check the spelling and try again.');
+        return;
+      }
+      matches.forEach(function (u) {
         var email = emailOf(u);
         els.backupResults.appendChild(backupResultRow(
           u.displayName || email, email,
           function () { selectBackup(u.displayName || email, email); }
         ));
       });
-      // Free-text fallback (name only, no email) — keeps non-employee backup
-      // contacts possible and keeps a failed/empty search from being a dead end.
-      els.backupResults.appendChild(backupResultRow(
-        (matches && matches.length ? "Or use “" : "No employee match — use “") + q + "” as the name only",
-        null,
-        function () { selectBackup(q, ""); }
-      ));
       els.backupResults.classList.add("show");
     } catch (e) {
       showBackupError(
-        "Backup contact search is unavailable right now (" + friendly(e) + "). " +
-        "You can submit without a backup contact, or try again."
+        "Backup contact search is unavailable right now (" + friendly(e) + "). Try again before submitting."
       );
     } finally {
       els.backupLookup.disabled = false;
@@ -534,7 +632,8 @@
         manager: chain.manager,
         managersManager: chain.managersManager,
       };
-      if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
+    if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
+      resetApproverOverride();
       renderTargetDetails();
       recomputeRuleUI();
       setOboStatus("✓ Submitting on behalf of " + (employee.displayName || emailOf(employee)) + ".");
@@ -579,6 +678,7 @@
   // ---- validation (app-enforced; SharePoint columns are optional) ----
   function validate() {
     if (!state.me) return "Please sign in first.";
+    if (!state.requestType) return "Choose whether this PTO request is for yourself or another employee.";
 
     // On-behalf: a valid employee must be resolved before anything else.
     if (state.onBehalf && (!state.lookupOk || !state.target.requester)) {
@@ -590,6 +690,7 @@
     if (!els.startDate.value) return "Choose a start date.";
     if (!els.endDate.value) return "Choose an end date.";
     if (els.endDate.value < els.startDate.value) return "End date must be on or after the start date.";
+    if (!state.backup || !state.backup.name) return "Select a backup contact before submitting.";
 
     // An approval route is required unless Sick (auto-approved): either the
     // resolved target has a manager in Entra, OR the user enabled "Route
@@ -622,7 +723,51 @@
   function refreshSubmitEnabled() {
     // Submit is enabled when signed in and not already submitted; detailed
     // validation runs on click so the user sees a specific reason.
-    els.submit.disabled = state.submitted || !PTOAuth.getAccount();
+    els.submit.disabled = state.submitted || !PTOAuth.getAccount() || !state.requestType;
+  }
+
+  function defaultApproverLabel() {
+    var m = state.target.manager;
+    return m ? ((m.displayName || emailOf(m)) + (emailOf(m) ? " <" + emailOf(m) + ">" : "")) : "No default manager found";
+  }
+
+  function selectedApproverLabel() {
+    if (state.approverOverride.active && state.approverOverride.lookupOk && state.approverOverride.approver) {
+      var a = state.approverOverride.approver;
+      return (a.displayName || emailOf(a)) + (emailOf(a) ? " <" + emailOf(a) + ">" : "");
+    }
+    return defaultApproverLabel();
+  }
+
+  function addReviewItem(label, value) {
+    if (!els.reviewList) return;
+    var wrap = document.createElement("div");
+    var dt = document.createElement("dt");
+    var dd = document.createElement("dd");
+    dt.textContent = label;
+    dd.textContent = value || "—";
+    wrap.appendChild(dt);
+    wrap.appendChild(dd);
+    els.reviewList.appendChild(wrap);
+  }
+
+  function renderReview() {
+    if (!els.reviewList) return;
+    els.reviewList.innerHTML = "";
+    var requester = state.target.requester;
+    var backup = state.backup ? state.backup.name + (state.backup.email ? " <" + state.backup.email + ">" : "") : "Required";
+    if (state.requestType === "other") {
+      addReviewItem("Submitted by", state.me ? state.me.displayName + " <" + emailOf(state.me) + ">" : "—");
+      addReviewItem("Employee receiving PTO", requester ? requester.displayName + " <" + emailOf(requester) + ">" : "Select an employee");
+      addReviewItem("Default manager", defaultApproverLabel());
+      addReviewItem("Selected approver", selectedApproverLabel());
+    } else {
+      addReviewItem("Requester", requester ? requester.displayName + " <" + emailOf(requester) + ">" : "—");
+      addReviewItem("Approver", selectedApproverLabel());
+    }
+    addReviewItem("PTO type", els.ptoType ? els.ptoType.value : "");
+    addReviewItem("Dates", PTOUI.formatRange(els.startDate.value, els.endDate.value));
+    addReviewItem("Backup contact", backup);
   }
 
   // ---- submit ----
@@ -742,10 +887,13 @@
   }
 
   // ---- wiring ----
-  els.ptoType.addEventListener("change", recomputeRuleUI);
-  els.startDate.addEventListener("change", recomputeRuleUI);
-  els.endDate.addEventListener("change", recomputeRuleUI);
+  els.ptoType.addEventListener("change", function () { recomputeRuleUI(); renderReview(); });
+  els.startDate.addEventListener("change", function () { recomputeRuleUI(); renderReview(); });
+  els.endDate.addEventListener("change", function () { recomputeRuleUI(); renderReview(); });
+  els.reason.addEventListener("input", renderReview);
   els.confirm.addEventListener("change", refreshSubmitEnabled);
+  if (els.requestTypeSelf) els.requestTypeSelf.addEventListener("click", function () { chooseRequestType("self"); });
+  if (els.requestTypeOther) els.requestTypeOther.addEventListener("click", function () { chooseRequestType("other"); });
 
   // Backup contact lookup (optional).
   if (els.backupLookup) els.backupLookup.addEventListener("click", onBackupSearch);
@@ -792,8 +940,10 @@
         state.approverOverride.approver = null;
         els.approverEmail.value = "";
         els.approverReason.value = "";
+        clearApproverResults();
       }
       updateApproverBadge();
+      renderReview();
     });
   }
   if (els.approverLookup) els.approverLookup.addEventListener("click", onApproverLookup);
@@ -801,7 +951,15 @@
     els.approverEmail.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { e.preventDefault(); onApproverLookup(); }
     });
+    els.approverEmail.addEventListener("input", function () {
+      state.approverOverride.lookupOk = false;
+      state.approverOverride.approver = null;
+      clearApproverResults();
+      updateApproverBadge();
+      renderReview();
+    });
   }
+  if (els.approverReason) els.approverReason.addEventListener("input", renderReview);
 
   els.signin.addEventListener("click", async function () {
     clearError();

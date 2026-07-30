@@ -269,6 +269,22 @@
     return btn;
   }
 
+  function detailUrlFor(r) {
+    var detailUrl = PTOLinks.relativeDetailUrl(r.id);
+    if (window.PTODemo && window.PTODemo.active) detailUrl += "&demo=1";
+    return detailUrl;
+  }
+
+  function openDetailLink(r) {
+    return PTOUI.el("a", {
+      class: "btn small open-detail-link",
+      href: detailUrlFor(r),
+      target: "_blank",
+      rel: "noopener noreferrer",
+      "aria-label": "Open request detail for " + (r.requestKey || ("#" + r.id)),
+    }, "Open");
+  }
+
   function renderTable() {
     closeRowMenu(); // rows are about to be rebuilt — drop any open menu
 
@@ -289,7 +305,10 @@
       var meta = metaOf(r);
       var onBehalf = truthy(meta.OnBehalf) || meta.RequestMode === "On behalf of";
 
-      var actionsTd = PTOUI.el("td", { class: "col-actions" }, rowKebab(r));
+      var actionsTd = PTOUI.el("td", { class: "col-actions" }, [
+        openDetailLink(r),
+        rowKebab(r),
+      ]);
 
       var tr = PTOUI.el("tr", null, [
         PTOUI.el("td", null, r.requestKey || ("#" + r.id)),
@@ -496,6 +515,8 @@
     // rejecting a request whose dates already began is not a normal action
     // from here. Details stays available regardless (view-only).
     var approvalEl = menuItem("approval");
+    var openEl = menuItem("open");
+    openEl.setAttribute("href", detailUrlFor(r));
     approvalEl.style.display = sickAutoApproved ? "none" : "";
     if (sickAutoApproved) {
       approvalEl.removeAttribute("href");
@@ -563,6 +584,9 @@
     var r = state.menuRequest;
     closeRowMenu();
     if (r) { state.expandedId = state.expandedId === r.id ? null : r.id; renderTable(); }
+  });
+  menuItem("open").addEventListener("click", function () {
+    closeRowMenu();
   });
   menuItem("approval").addEventListener("click", function (e) {
     if (this.getAttribute("aria-disabled") === "true") { e.preventDefault(); return; }

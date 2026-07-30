@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PTO Request Detail — PTO Central</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=corporate-light" />
+</head>
+<body class="app-page detail-page">
+  <main class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" />
+          </svg>
+        </span>
+        <div class="brand-text">
+          <div class="brand-name">PTO Central</div>
+          <div class="brand-page">Request Detail</div>
+        </div>
+      </div>
+      <div class="auth-area">
+        <span id="user-chip" class="user-chip">
+          <span class="avatar" id="user-chip-avatar" aria-hidden="true">··</span>
+          <span class="who"><span class="lbl">Signed in as</span><span class="name" id="user-chip-name">—</span></span>
+        </span>
+        <span id="account" aria-live="polite">Not signed in.</span>
+        <button id="signin" class="btn" type="button">Sign in</button>
+        <button id="signout" class="btn small" type="button" disabled>Sign out</button>
+        <button class="btn small" type="button" onclick="window.print()">Print</button>
+      </div>
+    </header>
+
+    <div class="page-head">
+      <span class="page-badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" />
+        </svg>
+      </span>
+      <div>
+        <h1 id="detail-title">PTO Request</h1>
+        <p class="desc">Read-only request detail for review, sharing, or printing.</p>
+      </div>
+    </div>
+
+    <div id="error" class="error" role="alert" aria-live="assertive"></div>
+
+    <section class="panel detail-summary" aria-label="PTO request summary">
+      <div class="detail-keyline">
+        <div>
+          <span class="detail-label">Request Key</span>
+          <strong id="d-key">—</strong>
+        </div>
+        <div>
+          <span class="detail-label">Status</span>
+          <span id="d-status">—</span>
+        </div>
+      </div>
+      <dl class="detail-grid">
+        <div><dt>Requester</dt><dd id="d-requester">—</dd></div>
+        <div><dt>Requester email</dt><dd id="d-requester-email">—</dd></div>
+        <div><dt>PTO type</dt><dd id="d-type">—</dd></div>
+        <div><dt>Dates</dt><dd id="d-dates">—</dd></div>
+        <div><dt>Duration</dt><dd id="d-duration">—</dd></div>
+        <div><dt>Submitted</dt><dd id="d-submitted">—</dd></div>
+        <div><dt>Manager</dt><dd id="d-manager">—</dd></div>
+        <div><dt>Approver</dt><dd id="d-approver">—</dd></div>
+        <div><dt>Backup contact</dt><dd id="d-backup">—</dd></div>
+        <div><dt>Notice</dt><dd id="d-notice">—</dd></div>
+        <div class="span-all"><dt>Reason / notes</dt><dd id="d-reason">—</dd></div>
+        <div class="span-all"><dt>Audit log</dt><dd><pre class="audit" id="d-audit">—</pre></dd></div>
+      </dl>
+    </section>
+
+    <footer class="ap-footer">© <span id="year"></span> myBasePay · Tech Support</footer>
+  </main>
+
+  <script src="lib/msal-browser.min.js"></script>
+  <script src="js/config.js?v=detail1"></script>
+  <script src="js/auth.js?v=detail1"></script>
+  <script src="js/graph.js?v=detail1"></script>
+  <script src="js/directory.js?v=detail1"></script>
+  <script src="js/rules.js?v=detail1"></script>
+  <script src="js/requests.js?v=detail1"></script>
+  <script src="js/authz.js?v=detail1"></script>
+  <script src="js/links.js?v=detail1"></script>
+  <script src="js/ui.js?v=detail1"></script>
+  <script src="js/demo-fixtures.js?v=demo1"></script>
+  <script src="js/demo-mode.js?v=demo1"></script>
+  <script src="js/pages/detail.page.js?v=detail1"></script>
+</body>
+</html>

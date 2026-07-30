@@ -14,8 +14,8 @@
     All element IDs consumed by js/pages/request.page.js are PRESERVED from the
     previous design (auth, on-behalf, alternate approver, details, form,
     result). Removed from the UI: Partial day + Hours (the page controller now
-    submits safe defaults), the free-text Backup Contact name/email inputs
-    (replaced by an employee lookup that fills the same BackupContactName/
+    submits safe defaults), the Backup Contact name/email inputs
+    (replaced by a required employee lookup that fills the same BackupContactName/
     BackupContactEmail fields), and the Phase-3B internal approval-link test
     panel (production submits show a clean confirmation only; manager
     notification behavior is unchanged and stays in controlled testing).
@@ -223,9 +223,7 @@
     input:focus, select:focus, textarea:focus {
       outline: none; border-color: var(--rq-blue); box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.28);
     }
-    /* Native date pickers, rendered by the browser in a dark palette so the
-       calendar glyph + popup are visible on the dark background. */
-    input[type="date"] { color-scheme: dark; }
+    /* Native date pickers inherit the shared light-first visual system. */
     textarea { min-height: 74px; resize: vertical; }
     input:disabled { opacity: .5; }
 
@@ -330,8 +328,9 @@
     .tip-line { margin-top: 18px; font-size: 12.5px; color: var(--muted); text-align: center; }
     .rq-footer { margin-top: 10px; color: var(--muted); font-size: 12px; text-align: center; }
   </style>
+  <link rel="stylesheet" href="styles.css?v=corporate-light" />
 </head>
-<body>
+<body class="app-page request-page">
   <main class="wrap">
     <!-- Top bar -->
     <header class="topbar">
@@ -394,8 +393,38 @@
       </div>
     </div>
 
-    <!-- Option cards: "who for" (ALL employees, 2026-07-08) + alternate
-         approver (also ALL employees, 2026-07-08). Both hidden until signed in. -->
+    <section id="request-type-step" class="panel request-type-step" aria-labelledby="request-type-title">
+      <h2 class="panel-title" id="request-type-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" /><path d="M8 12h8" /><path d="M12 8v8" />
+        </svg>
+        Who is this PTO request for?
+      </h2>
+      <div class="request-type-grid" role="radiogroup" aria-label="Who is this PTO request for?">
+        <button id="requestTypeSelf" class="request-type-card" type="button" aria-pressed="false">
+          <span class="request-type-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
+            </svg>
+          </span>
+          <span><strong>Myself</strong><small>Create a PTO request for your own time off.</small></span>
+        </button>
+        <button id="requestTypeOther" class="request-type-card" type="button" aria-pressed="false">
+          <span class="request-type-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="8" cy="8" r="3" /><path d="M2.8 20c0-3.2 2.3-5.4 5.2-5.4" /><circle cx="17" cy="9" r="2.6" /><path d="M14 20c.5-2.7 2.4-4.5 5-4.5" />
+            </svg>
+          </span>
+          <span><strong>Another employee</strong><small>Submit on behalf of an eligible employee.</small></span>
+        </button>
+      </div>
+      <div id="requestTypeError" class="note danger" role="alert"></div>
+    </section>
+
+    <div id="request-form-shell" class="request-form-shell" hidden>
+    <div id="request-context" class="request-context" role="status" aria-live="polite"></div>
+
+    <!-- Option cards: selected employee + alternate approver. Both hidden until signed in. -->
     <div class="option-grid">
       <!-- Who is this request for? — available to every authenticated employee.
            The selected employee becomes the PTO EMPLOYEE (Requester*, manager
@@ -411,9 +440,9 @@
             </svg>
           </span>
           <div class="option-main">
-            <span class="t" style="font-size:14.5px;font-weight:750;letter-spacing:-0.01em;">Who is this request for?</span>
-            <p class="option-note">Submit for yourself, or on behalf of another active employee.</p>
-            <div class="forwho-row" role="radiogroup" aria-label="Who is this request for">
+            <span class="t" style="font-size:14.5px;font-weight:750;letter-spacing:-0.01em;">Employee receiving PTO</span>
+            <p class="option-note">Search the employee directory and select the employee whose PTO this is for.</p>
+            <div class="forwho-row sr-only" role="radiogroup" aria-label="Who is this request for">
               <label class="forwho-opt">
                 <input type="radio" name="forWho" id="forWhoMyself" checked />
                 <span>Myself</span>
@@ -428,7 +457,7 @@
         <div id="oboFields" class="obo-fields">
           <div class="lookup-row">
             <div class="grow backup-search-wrap">
-              <label class="fld" for="oboSearch">Find the employee (name or email)</label>
+              <label class="fld" for="oboSearch">Employee receiving PTO <span class="req">*</span></label>
               <input type="text" id="oboSearch" placeholder="Search for an employee by name or email…" autocomplete="off" />
             </div>
             <div>
@@ -474,6 +503,7 @@
               <button id="approverLookup" class="btn" type="button">Lookup approver</button>
             </div>
           </div>
+          <div id="approverResults" class="backup-results" role="listbox" aria-label="Approver matches"></div>
           <div style="margin-top:12px;">
             <label class="fld" for="approverReason">Reason for routing approval to this person <span class="req">*</span></label>
             <textarea id="approverReason" placeholder="e.g. Manager is on leave through July; Michelle is covering approvals."></textarea>
@@ -551,7 +581,7 @@
         </div>
 
         <div class="full">
-          <label class="fld" for="backupSearch">Backup contact (optional)</label>
+          <label class="fld" for="backupSearch">Backup contact *</label>
           <div class="lookup-row">
             <div class="grow backup-search-wrap">
               <input type="text" id="backupSearch" placeholder="Search for an employee by name or email…" autocomplete="off" />
@@ -584,6 +614,16 @@
         <div id="sickNote" class="note info" role="status"></div>
       </div>
 
+      <section id="review" class="review-panel" aria-label="Review summary">
+        <h3 class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 11l2 2 4-4" /><path d="M21 12a9 9 0 1 1-9-9" />
+          </svg>
+          Review before submitting
+        </h3>
+        <dl id="review-list" class="review-list"></dl>
+      </section>
+
       <!-- Confirm + submit -->
       <div class="confirm-box">
         <input type="checkbox" id="confirm" />
@@ -605,6 +645,8 @@
 
       <div id="error" class="error" role="alert" aria-live="assertive"></div>
     </section>
+
+    </div>
 
     <!-- Result — production confirmation (no approval link, no dev/test wording) -->
     <section id="result" class="panel" aria-label="Result">
@@ -647,6 +689,8 @@
   <script src="js/requests.js?v=rq5"></script>
   <script src="js/authz.js?v=rq5"></script>
   <script src="js/ui.js?v=rq5"></script>
+  <script src="js/demo-fixtures.js?v=demo1"></script>
+  <script src="js/demo-mode.js?v=demo1"></script>
   <script src="js/pages/request.page.js?v=rq5"></script>
 </body>
 </html>

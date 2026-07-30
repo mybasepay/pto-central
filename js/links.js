@@ -29,6 +29,7 @@ window.PTOLinks = (function () {
   "use strict";
 
   var APPROVE_PAGE = "approve.html";
+  var DETAIL_PAGE = "pto-detail.html";
 
   /** Coerce + validate an item id; throws on a missing/blank id. */
   function requireItemId(itemId) {
@@ -68,6 +69,22 @@ window.PTOLinks = (function () {
     }
   }
 
+  function relativeDetailUrl(itemId) {
+    var id = requireItemId(itemId);
+    return DETAIL_PAGE + "?itemId=" + encodeURIComponent(id);
+  }
+
+  function absoluteDetailUrl(itemId, baseHref) {
+    var rel = relativeDetailUrl(itemId);
+    var base = baseHref || (typeof window !== "undefined" && window.location && window.location.href) || "";
+    if (!base) return rel;
+    try {
+      return new URL(rel, base).href;
+    } catch (e) {
+      return rel;
+    }
+  }
+
   /**
    * Convenience: both forms in one call.
    * @param {string|number} itemId
@@ -81,5 +98,7 @@ window.PTOLinks = (function () {
     relativeApprovalUrl: relativeApprovalUrl,
     absoluteApprovalUrl: absoluteApprovalUrl,
     approvalUrls: approvalUrls,
+    relativeDetailUrl: relativeDetailUrl,
+    absoluteDetailUrl: absoluteDetailUrl,
   };
 })();
