@@ -481,6 +481,159 @@ test("backup parsing preserves existing single-backup records", () => {
   ]));
 });
 
+// --- pre-Codex-handoff gap coverage: exact 1/2/3-backup submission payloads,
+// and the two backup-confirmation fields, end to end through
+// buildCreateRequestFields (not just the lower-level flattenBackupContacts) ---
+test("one-backup submission payload: BackupContactCount=1, Backup2/3 blank", () => {
+  const { PTORequests } = domainContext();
+  const requester = { id: "e", displayName: "Ana Employee", mail: "ana.employee@example.test" };
+  const fields = PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [{ name: "Backup One", email: "backup1@mybasepay.com" }],
+    BackupNotified: true,
+  }, { requester, submitter: requester });
+  assert.strictEqual(fields.BackupContactName, "Backup One");
+  assert.strictEqual(fields.BackupContactEmail, "backup1@mybasepay.com");
+  assert.strictEqual(fields.BackupContactCount, 1);
+  assert.strictEqual(fields.BackupContact2Name, "");
+  assert.strictEqual(fields.BackupContact2Email, "");
+  assert.strictEqual(fields.BackupContact3Name, "");
+  assert.strictEqual(fields.BackupContact3Email, "");
+});
+
+test("two-backup submission payload: BackupContactCount=2, Backup3 blank", () => {
+  const { PTORequests } = domainContext();
+  const requester = { id: "e", displayName: "Ana Employee", mail: "ana.employee@example.test" };
+  const fields = PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [
+      { name: "Backup One", email: "backup1@mybasepay.com" },
+      { name: "Backup Two", email: "backup2@mybasepay.com" },
+    ],
+    BackupNotified: true,
+  }, { requester, submitter: requester });
+  assert.strictEqual(fields.BackupContactName, "Backup One");
+  assert.strictEqual(fields.BackupContact2Name, "Backup Two");
+  assert.strictEqual(fields.BackupContact2Email, "backup2@mybasepay.com");
+  assert.strictEqual(fields.BackupContactCount, 2);
+  assert.strictEqual(fields.BackupContact3Name, "");
+  assert.strictEqual(fields.BackupContact3Email, "");
+});
+
+test("three-backup submission payload: all three backups present, BackupContactCount=3", () => {
+  const { PTORequests } = domainContext();
+  const requester = { id: "e", displayName: "Ana Employee", mail: "ana.employee@example.test" };
+  const fields = PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [
+      { name: "Backup One", email: "backup1@mybasepay.com" },
+      { name: "Backup Two", email: "backup2@mybasepay.com" },
+      { name: "Backup Three", email: "backup3@mybasepay.com" },
+    ],
+    BackupNotified: true,
+  }, { requester, submitter: requester });
+  assert.strictEqual(fields.BackupContactName, "Backup One");
+  assert.strictEqual(fields.BackupContact2Name, "Backup Two");
+  assert.strictEqual(fields.BackupContact3Name, "Backup Three");
+  assert.strictEqual(fields.BackupContact3Email, "backup3@mybasepay.com");
+  assert.strictEqual(fields.BackupContactCount, 3);
+});
+
+test("a fourth backup contact is rejected end to end through buildCreateRequestFields", () => {
+  const { PTORequests } = domainContext();
+  const requester = { id: "e", displayName: "Ana Employee", mail: "ana.employee@example.test" };
+  assert.throws(() => PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [
+      { name: "One", email: "one@mybasepay.com" },
+      { name: "Two", email: "two@mybasepay.com" },
+      { name: "Three", email: "three@mybasepay.com" },
+      { name: "Four", email: "four@mybasepay.com" },
+    ],
+  }, { requester, submitter: requester }), /no more than 3/);
+});
+
+test("BackupNotifiedAppliesToAll serializes true/false correctly through buildCreateRequestFields", () => {
+  const { PTORequests } = domainContext();
+  const requester = { id: "e", displayName: "Ana Employee", mail: "ana.employee@example.test" };
+  const base = { ptoType: "PTO", startDate: "2026-08-01", endDate: "2026-08-01", BackupContacts: [{ name: "B", email: "b@mybasepay.com" }] };
+  const allTrue = PTORequests.buildCreateRequestFields(Object.assign({}, base, { BackupNotified: true, BackupNotifiedAppliesToAll: true }), { requester, submitter: requester });
+  assert.strictEqual(allTrue.BackupNotifiedAppliesToAll, true);
+  const partial = PTORequests.buildCreateRequestFields(Object.assign({}, base, { BackupNotified: true, BackupNotifiedAppliesToAll: false }), { requester, submitter: requester });
+  assert.strictEqual(partial.BackupNotifiedAppliesToAll, false);
+  const omitted = PTORequests.buildCreateRequestFields(base, { requester, submitter: requester });
+  assert.strictEqual(omitted.BackupNotifiedAppliesToAll, false, "omitted must default to false, never truthy-coerced");
+});
+
+test("BackupNotifiedByEmail serializes the explicit value, falling back to the submitter's email when omitted", () => {
+  const { PTORequests } = domainContext();
+  const requester = { id: "e", displayName: "Ana Employee", mail: "ana.employee@example.test" };
+  const submitter = { id: "s", displayName: "Rod Demo", mail: "rod.demo@example.test" };
+  const base = { ptoType: "PTO", startDate: "2026-08-01", endDate: "2026-08-01", BackupContacts: [{ name: "B", email: "b@mybasepay.com" }], BackupNotified: true };
+  const explicit = PTORequests.buildCreateRequestFields(Object.assign({}, base, { BackupNotifiedByEmail: "someone-else@mybasepay.com" }), { requester, submitter });
+  assert.strictEqual(explicit.BackupNotifiedByEmail, "someone-else@mybasepay.com");
+  const fallback = PTORequests.buildCreateRequestFields(base, { requester, submitter });
+  assert.strictEqual(fallback.BackupNotifiedByEmail, "rod.demo@example.test", "must fall back to the submitter's own email when not explicitly provided");
+});
+
+// --- calendar compatibility: Backup 2/3 must never be reachable from any
+// calendar-related code path — only the original, unsuffixed BackupContactName
+// /BackupContactEmail feed the calendar process (Power Automate reads those
+// two fields only; this app builds no calendar payload of its own at all) ---
+test("no calendar payload exists in this app, and BackupContact2/3 never appear near any calendar-related code", () => {
+  ["js/requests.js", "js/rules.js", "js/pages/request.page.js"].forEach((file) => {
+    const src = read(file);
+    // No function in this app constructs a calendar event/invite payload —
+    // calendar creation is entirely Power Automate's job, reading SharePoint
+    // fields after the fact. Confirm that invariant hasn't quietly changed.
+    assert(!/function\s+\w*[Cc]alendar\w*\s*\(/.test(src), file + " must not define a calendar-payload-building function");
+    // And even if a calendar-flavored code path existed, Backup2/3 must never
+    // be mentioned in the same breath as "calendar" (case-insensitive, same line
+    // or immediate context) — a cheap tripwire against future accidental wiring.
+    src.split("\n").forEach((line, i) => {
+      if (/calendar/i.test(line)) {
+        assert(!/BackupContact2|BackupContact3/.test(line), file + ":" + (i + 1) + " must never mix Backup2/3 with calendar logic");
+      }
+    });
+  });
+});
+
+test("only the original BackupContactName/BackupContactEmail (Backup 1) remain calendar-relevant — flattenBackupContacts always writes index 0 there", () => {
+  const { PTORules } = domainContext();
+  const fields = PTORules.flattenBackupContacts([
+    { name: "First", email: "first@mybasepay.com" },
+    { name: "Second", email: "second@mybasepay.com" },
+    { name: "Third", email: "third@mybasepay.com" },
+  ]);
+  // Backup 1 (the calendar-relevant one) always lands on the ORIGINAL,
+  // unsuffixed field names — never on a "1"-suffixed variant.
+  assert.strictEqual(fields.BackupContactName, "First");
+  assert.strictEqual(fields.BackupContactEmail, "first@mybasepay.com");
+  assert.strictEqual(fields.BackupContact1Name, undefined, "there must be no separate 'BackupContact1Name' field — Backup 1 IS the unsuffixed field");
+});
+
+// --- obsolete-field regression: CancellationRequestConfirmationSentAt was
+// removed from the active schema contract (pto-central-ops closeout) — lock
+// in that this app never reintroduces a dependency on it ---
+test("no dependency on the obsolete CancellationRequestConfirmationSentAt marker anywhere in the app", () => {
+  const files = [
+    "js/requests.js", "js/rules.js", "js/demo-mode.js", "js/demo-fixtures.js",
+    "js/pages/request.page.js", "js/pages/hr.page.js", "js/pages/cancel.page.js", "js/pages/my-requests.page.js",
+  ];
+  files.forEach((f) => {
+    const src = read(f);
+    assert(!src.includes("CancellationRequestConfirmationSentAt"), f + " must never reference the removed CancellationRequestConfirmationSentAt field");
+  });
+});
+
 test("backup validation rejects duplicates and more than three", () => {
   const { PTORules } = domainContext();
   assert.throws(() => PTORules.flattenBackupContacts([
@@ -505,6 +658,30 @@ test("employee cancellation eligibility is status-only, including the Escalation
   assert.strictEqual(PTORules.isEmployeeCancellationEligible("Cancellation Requested"), false);
   assert.strictEqual(PTORules.isEmployeeCancellationEligible("Rejected"), false);
   assert(read("js/pages/my-requests.page.js").includes("PTORules.isEmployeeCancellationEligible(r.status)"));
+});
+
+test("employee cancellation UI is fully hidden in production (flag false, no demo): isEmployeeCancellationEnabled() is false, and the row action is gated on it in addition to eligibility", () => {
+  const { PTORules } = domainContext();
+  // domainContext() sets no window.PTOConfig at all — the real production
+  // shape before config.js's employeeCancellationRequests:false is even
+  // read. isEmployeeCancellationEnabled() must fail safe to false here, not throw.
+  assert.strictEqual(PTORules.isEmployeeCancellationEnabled(), false);
+  // And explicitly with the real production flag value. Per the documented
+  // vm-harness quirk (see cancellation-backend.test.cjs's backendContext()):
+  // rules.js's bare `PTOConfig` reference at module-load time is only ever
+  // mirrored into this sandbox's global scope if window.PTOConfig is set
+  // AFTER rules.js has already run — so load rules.js first, exactly like
+  // every other test in this suite that sets a real PTOConfig.
+  const context = { window: {} };
+  vm.createContext(context);
+  vm.runInContext(read("js/rules.js"), context);
+  context.window.PTOConfig = { features: { employeeCancellationRequests: false } };
+  assert.strictEqual(context.window.PTORules.isEmployeeCancellationEnabled(), false);
+  // The "Request cancellation" row action must be gated on BOTH the flag AND
+  // eligibility — eligibility alone (already tested above) is not enough.
+  const page = read("js/pages/my-requests.page.js");
+  assert(page.includes("PTORules.isEmployeeCancellationEnabled() && PTORules.isEmployeeCancellationEligible(r.status)"),
+    "the row action must check isEmployeeCancellationEnabled() before isEmployeeCancellationEligible() — flag-gated, not eligibility-only");
 });
 
 test("HR decline restores the exact StatusBeforeCancellationRequest and writes HrNotes only", async () => {
