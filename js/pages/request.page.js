@@ -285,8 +285,7 @@
     }
     if (els.requestTypeSelf) els.requestTypeSelf.setAttribute("aria-pressed", state.requestType === "self" ? "true" : "false");
     if (els.requestTypeOther) els.requestTypeOther.setAttribute("aria-pressed", state.requestType === "other" ? "true" : "false");
-    if (els.copySubmitterBox) els.copySubmitterBox.style.display = state.requestType === "other" ? "flex" : "none";
-    if (els.copySubmitter && state.requestType !== "other") els.copySubmitter.checked = false;
+    if (els.copySubmitterBox) els.copySubmitterBox.style.display = state.requestType ? "flex" : "none";
   }
 
   function hasMeaningfulEntry() {
@@ -947,6 +946,7 @@
       addReviewItem("Dates", PTOUI.formatRange(els.startDate.value, els.endDate.value));
       addReviewItem("Backup contacts", backup);
       addReviewItem("Backup contacts notified", els.backupNotified && els.backupNotified.checked ? "Yes" : "No");
+      addReviewItem("Confirmation copy", els.copySubmitter && els.copySubmitter.checked ? "Yes" : "No");
       if (reason) addReviewItem("Reason / Notes", reason);
     } else {
       addReviewItem("Requester", reviewPerson(requester));
@@ -956,6 +956,7 @@
       addReviewItem("Manager", defaultApproverLabel());
       addReviewItem("Backup contacts", backup);
       addReviewItem("Backup contacts notified", els.backupNotified && els.backupNotified.checked ? "Yes" : "No");
+      addReviewItem("Confirmation copy", els.copySubmitter && els.copySubmitter.checked ? "Yes" : "No");
       if (reason) addReviewItem("Reason / Notes", reason);
     }
   }
@@ -971,7 +972,7 @@
       BackupNotified: !!(els.backupNotified && els.backupNotified.checked),
       BackupNotifiedAppliesToAll: true,
       BackupNotifiedByEmail: emailOf(state.me),
-      CopySubmitterOnConfirmation: !!(state.onBehalf && els.copySubmitter && els.copySubmitter.checked),
+      CopySubmitterOnConfirmation: !!(els.copySubmitter && els.copySubmitter.checked),
       // Partial day was removed from the UI (2026-07-03). Safe defaults keep
       // buildCreateRequestFields' contract intact: IsPartialDay = false is
       // still written; Hours is omitted (only written for partial days).

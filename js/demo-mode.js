@@ -205,6 +205,7 @@
           OnBehalf: fields.OnBehalf,
           RequestMode: fields.RequestMode,
           OnBehalfReason: fields.OnBehalfReason,
+          CopySubmitterOnConfirmation: fields.CopySubmitterOnConfirmation,
         };
       },
       readApproverMetadata: function (fields) {

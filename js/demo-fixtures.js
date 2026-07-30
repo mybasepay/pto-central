@@ -426,6 +426,7 @@ window.PTODemoFixtures = (function () {
         endDate: "2026-09-02",
         submittedAt: "2026-07-25",
         status: "Pending",
+        copySubmitter: true,
         noticeDays: 34,
         reason: "Legacy single-backup compatibility demo.",
         backupIds: ["demo-user-jamie"],
@@ -437,6 +438,44 @@ window.PTODemoFixtures = (function () {
       delete f.BackupContactCount;
       return f;
     })(),
+  });
+
+  requests.push({
+    id: "9014",
+    webUrl: "demo://pto/9014",
+    fields: fields({
+      key: "DEMO-PTO-9014",
+      requesterId: "demo-user-rod",
+      ptoType: "PTO",
+      startDate: "2026-07-28",
+      endDate: "2026-07-28",
+      submittedAt: "2026-07-24",
+      status: "Pending",
+      noticeDays: 4,
+      reason: "Already-started pending cancellation eligibility demo.",
+      backupIds: ["demo-user-jamie"],
+    }),
+  });
+
+  requests.push({
+    id: "9015",
+    webUrl: "demo://pto/9015",
+    fields: Object.assign(fields({
+      key: "DEMO-PTO-9015",
+      requesterId: "demo-user-rod",
+      ptoType: "PTO",
+      startDate: "2026-08-06",
+      endDate: "2026-08-06",
+      submittedAt: "2026-07-28",
+      status: "Cancellation Requested",
+      noticeDays: 9,
+      reason: "Pending request cancellation review demo.",
+      backupIds: ["demo-user-jamie"],
+    }), {
+      StatusBeforeCancellationRequest: "Pending",
+      CancellationRequestedAt: iso("2026-07-29", "10:30:00"),
+      CancellationRequestReason: "Submitted by mistake while still pending.",
+    }),
   });
 
   return {

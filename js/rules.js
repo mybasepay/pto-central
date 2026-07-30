@@ -288,8 +288,8 @@ window.PTORules = (function () {
 
   function isEmployeeCancellationEligible(status) {
     status = String(status || "").trim();
-    return status === STATUS_VALUES.APPROVED || status === STATUS_VALUES.AUTO_APPROVED ||
-      status === STATUS_VALUES.AUTO_APPROVED_ESCALATION;
+    return status === STATUS_VALUES.PENDING || status === STATUS_VALUES.APPROVED ||
+      status === STATUS_VALUES.AUTO_APPROVED || status === STATUS_VALUES.AUTO_APPROVED_ESCALATION;
   }
 
   /**

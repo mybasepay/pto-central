@@ -21,16 +21,81 @@ function domainContext() {
   return context;
 }
 
+function demoContext() {
+  const store = {};
+  const context = {
+    window: {
+      location: { search: "?demo=1" },
+    },
+    console,
+    URLSearchParams,
+    sessionStorage: {
+      getItem: (k) => Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null,
+      setItem: (k, v) => { store[k] = String(v); },
+      removeItem: (k) => { delete store[k]; },
+      clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
+    },
+    document: {
+      documentElement: { classList: { add() {} } },
+      addEventListener() {},
+      querySelector() { return null; },
+      querySelectorAll() { return []; },
+      createElement() {
+        return {
+          className: "",
+          textContent: "",
+          setAttribute() {},
+          appendChild() {},
+          addEventListener() {},
+        };
+      },
+      body: { appendChild() {} },
+    },
+  };
+  context.window.console = console;
+  context.window.sessionStorage = context.sessionStorage;
+  context.window.document = context.document;
+  vm.createContext(context);
+  vm.runInContext(read("js/rules.js"), context);
+  context.PTORules = context.window.PTORules;
+  vm.runInContext(read("js/requests.js"), context);
+  context.PTORequests = context.window.PTORequests;
+  vm.runInContext(read("js/demo-fixtures.js"), context);
+  context.PTODemoFixtures = context.window.PTODemoFixtures;
+  vm.runInContext(read("js/demo-mode.js"), context);
+  context.PTORequests = context.window.PTORequests;
+  return context;
+}
+
+const pendingTests = [];
+
+function reportFailure(name, err) {
+  console.error(`not ok - ${name}`);
+  console.error(err.stack || err);
+  process.exitCode = 1;
+}
+
 function test(name, fn) {
   try {
-    fn();
-    console.log(`ok - ${name}`);
+    const result = fn();
+    if (result && typeof result.then === "function") {
+      pendingTests.push(result.then(
+        () => console.log(`ok - ${name}`),
+        (err) => reportFailure(name, err)
+      ));
+    } else {
+      console.log(`ok - ${name}`);
+    }
   } catch (err) {
-    console.error(`not ok - ${name}`);
-    console.error(err.stack || err);
-    process.exitCode = 1;
+    reportFailure(name, err);
   }
 }
+
+process.on("beforeExit", async () => {
+  if (!pendingTests.length) return;
+  const running = pendingTests.splice(0, pendingTests.length);
+  await Promise.all(running);
+});
 
 test("demo mode never references production network/write APIs", () => {
   const demo = read("js/demo-mode.js");
@@ -87,6 +152,70 @@ test("backup contact is required", () => {
   assert(js.includes("resetBackupNotified"));
   assert(!js.includes("name only"), "backup lookup should not keep the old free-text fallback");
   assert(!js.includes("You can submit without a backup contact"), "backup is no longer optional");
+});
+
+test("self request shows confirmation copy and stores unchecked preference", () => {
+  const html = read("request.html");
+  const js = read("js/pages/request.page.js");
+  const { PTORequests } = domainContext();
+  assert(html.includes("Send me a confirmation copy"));
+  assert(js.includes('els.copySubmitterBox.style.display = state.requestType ? "flex" : "none"'));
+  assert(js.includes('addReviewItem("Confirmation copy"'));
+  const rod = { id: "r", displayName: "Rod Demo", mail: "rod.demo@example.test" };
+  const manager = { id: "m", displayName: "Michelle Approver", mail: "michelle.approver@example.test" };
+  const fields = PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [{ name: "Backup", email: "backup@mybasepay.com" }],
+    BackupNotified: true,
+    CopySubmitterOnConfirmation: false,
+  }, { requester: rod, submitter: rod, manager });
+  assert.strictEqual(fields.RequestMode, "Self");
+  assert.strictEqual(fields.CopySubmitterOnConfirmation, false);
+});
+
+test("self request stores checked copy preference without duplicate email recipient", () => {
+  const { PTORequests } = domainContext();
+  const rod = { id: "r", displayName: "Rod Demo", mail: "rod.demo@example.test" };
+  const manager = { id: "m", displayName: "Michelle Approver", mail: "michelle.approver@example.test" };
+  const fields = PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [{ name: "Backup", email: "backup@mybasepay.com" }],
+    BackupNotified: true,
+    CopySubmitterOnConfirmation: true,
+  }, { requester: rod, submitter: rod, manager });
+  assert.strictEqual(fields.CopySubmitterOnConfirmation, true);
+  const contract = PTORequests.confirmationRecipientContract(fields);
+  assert.strictEqual(contract.primaryRecipient.email, "rod.demo@example.test");
+  assert.strictEqual(contract.copyRequested, true);
+  assert.strictEqual(contract.copyRecipients.length, 0);
+  assert.strictEqual(contract.duplicateSubmitterCopySuppressed, true);
+});
+
+test("on-behalf copy behavior remains an additional submitter copy", () => {
+  const { PTORequests } = domainContext();
+  const requester = { id: "e", displayName: "Ana Employee", mail: "ana.employee@example.test" };
+  const submitter = { id: "r", displayName: "Rod Demo", mail: "rod.demo@example.test" };
+  const manager = { id: "m", displayName: "Michelle Approver", mail: "michelle.approver@example.test" };
+  const fields = PTORequests.buildCreateRequestFields({
+    ptoType: "PTO",
+    startDate: "2026-08-01",
+    endDate: "2026-08-01",
+    BackupContacts: [{ name: "Backup", email: "backup@mybasepay.com" }],
+    BackupNotified: true,
+    CopySubmitterOnConfirmation: true,
+  }, { requester, submitter, manager, onBehalf: true });
+  const contract = PTORequests.confirmationRecipientContract(fields);
+  assert.strictEqual(fields.RequestMode, "On behalf of");
+  assert.strictEqual(fields.CopySubmitterOnConfirmation, true);
+  assert.strictEqual(contract.primaryRecipient.email, "ana.employee@example.test");
+  assert.strictEqual(contract.copyRecipients.length, 1);
+  assert.strictEqual(contract.copyRecipients[0].name, "Rod Demo");
+  assert.strictEqual(contract.copyRecipients[0].email, "rod.demo@example.test");
+  assert.strictEqual(contract.duplicateSubmitterCopySuppressed, false);
 });
 
 test("submit people pickers are reactive and have no search buttons", () => {
@@ -295,9 +424,11 @@ test("backup validation rejects duplicates and more than three", () => {
 
 test("employee cancellation eligibility is status-only", () => {
   const { PTORules } = domainContext();
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Pending"), true);
   assert.strictEqual(PTORules.isEmployeeCancellationEligible("Approved"), true);
   assert.strictEqual(PTORules.isEmployeeCancellationEligible("Auto-Approved"), true);
-  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Pending"), false);
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Cancelled"), false);
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Cancellation Requested"), false);
   assert(read("js/pages/my-requests.page.js").includes("PTORules.isEmployeeCancellationEligible(r.status)"));
 });
 
@@ -305,6 +436,52 @@ test("HR decline restores StatusBeforeCancellationRequest", () => {
   const demo = read("js/demo-mode.js");
   assert(demo.includes('item.fields.Status = item.fields.StatusBeforeCancellationRequest || "Approved"'));
   assert(demo.includes('HrActionType = "Declined Cancellation Request"'));
+});
+
+test("pending future and already-started PTO can request cancellation in demo", async () => {
+  const { PTORequests } = demoContext();
+  const future = await PTORequests.requestCancellation("9001", { reason: "Future pending cancellation." });
+  assert.strictEqual(future.fields.Status, "Cancellation Requested");
+  assert.strictEqual(future.fields.StatusBeforeCancellationRequest, "Pending");
+  assert(future.fields.CancellationRequestedAt);
+  assert.strictEqual(future.fields.CancellationRequestReason, "Future pending cancellation.");
+
+  const started = await PTORequests.requestCancellation("9014", { reason: "Already started pending cancellation." });
+  assert.strictEqual(started.fields.Status, "Cancellation Requested");
+  assert.strictEqual(started.fields.StatusBeforeCancellationRequest, "Pending");
+  assert.strictEqual(started.fields.CancellationRequestReason, "Already started pending cancellation.");
+});
+
+test("HR decline restores Pending and HR complete cancels pending cancellation request", async () => {
+  const { PTORequests } = demoContext();
+  const declined = await PTORequests.declineCancellationRequest("9015", { note: "Still needed." });
+  assert.strictEqual(declined.fields.Status, "Pending");
+  assert.strictEqual(declined.fields.StatusBeforeCancellationRequest, "Pending");
+  assert.strictEqual(declined.fields.HrActionType, "Declined Cancellation Request");
+
+  const ctx = demoContext();
+  const completed = await ctx.PTORequests.completeCancellationRequest("9015", { note: "Complete pending cancellation." });
+  assert.strictEqual(completed.fields.Status, "Cancelled");
+  assert.strictEqual(completed.fields.StatusBeforeCancellationRequest, "Pending");
+  assert.strictEqual(completed.fields.HrActionType, "Completed Cancellation");
+});
+
+test("approved and auto-approved cancellation behavior remains unchanged", async () => {
+  const { PTORequests } = demoContext();
+  const approved = await PTORequests.requestCancellation("9009", { reason: "Approved cancellation." });
+  assert.strictEqual(approved.fields.Status, "Cancellation Requested");
+  assert.strictEqual(approved.fields.StatusBeforeCancellationRequest, "Approved");
+
+  const autoApproved = await PTORequests.requestCancellation("9010", { reason: "Auto-approved cancellation." });
+  assert.strictEqual(autoApproved.fields.Status, "Cancellation Requested");
+  assert.strictEqual(autoApproved.fields.StatusBeforeCancellationRequest, "Auto-Approved");
+});
+
+test("non-eligible statuses still do not show request cancellation", () => {
+  const { PTORules } = domainContext();
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Rejected"), false);
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Cancelled"), false);
+  assert.strictEqual(PTORules.isEmployeeCancellationEligible("Cancellation Requested"), false);
 });
 
 test("centralized status-label behavior covers cancellation statuses", () => {

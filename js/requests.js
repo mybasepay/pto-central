@@ -350,6 +350,29 @@ window.PTORequests = (function () {
     return out;
   }
 
+  function confirmationRecipientContract(fields) {
+    fields = fields || {};
+    var requesterEmail = String(fields.RequesterEmail || "").trim();
+    var requesterName = fields.RequesterName || requesterEmail;
+    var submitterEmail = String(fields.SubmittedByEmail || "").trim();
+    var submitterName = fields.SubmittedByName || submitterEmail;
+    var copyRequested = fields.CopySubmitterOnConfirmation === true ||
+      fields.CopySubmitterOnConfirmation === "true" ||
+      fields.CopySubmitterOnConfirmation === "Yes";
+    var samePerson = requesterEmail && submitterEmail &&
+      requesterEmail.toLowerCase() === submitterEmail.toLowerCase();
+    var copyRecipients = [];
+    if (copyRequested && submitterEmail && !samePerson) {
+      copyRecipients.push({ name: submitterName, email: submitterEmail });
+    }
+    return {
+      primaryRecipient: { name: requesterName, email: requesterEmail },
+      copyRequested: copyRequested,
+      copyRecipients: copyRecipients,
+      duplicateSubmitterCopySuppressed: copyRequested && samePerson,
+    };
+  }
+
   /**
    * READ-direction helper for the alternate-approver fields: given a raw
    * `item.fields` object, return {ApproverEmail, ApproverName, ApproverOverride,
@@ -756,6 +779,7 @@ window.PTORequests = (function () {
     // columns (run `await PTORequests.resolveMetadataFieldMap()` in dev tools).
     resolveMetadataFieldMap: resolveMetadataFieldMap,
     readSubmitMetadata: readSubmitMetadata,
+    confirmationRecipientContract: confirmationRecipientContract,
     // Alternate approver (docs/ALTERNATE_APPROVER_DESIGN.md) — same pattern as
     // the submit-metadata resolver above.
     resolveApproverFieldMap: resolveApproverFieldMap,
