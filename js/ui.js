@@ -70,27 +70,89 @@ window.PTOUI = (function () {
     if (n) n.style.display = on ? "block" : "none";
   }
 
-  // Status → colors (mirrors §4 status set). Inline so styles.css is untouched.
+  // Status → badge theme. Keep this centralized so pages can reuse a safe
+  // fallback for any newer production statuses without hardcoding colors in
+  // multiple renderers.
   var STATUS_COLORS = {
-    "Pending": { bg: "#3a2f06", fg: "#fcd34d" },
-    "Approved": { bg: "#06281a", fg: "#86efac" },
-    "Auto-Approved": { bg: "#06281a", fg: "#86efac" },
-    "Auto-Approved (Escalation)": { bg: "#06281a", fg: "#86efac" },
-    "Rejected": { bg: "#3f1d1d", fg: "#fca5a5" },
-    "Cancelled": { bg: "#1f2937", fg: "#9ca3af" },
+    "Pending": {
+      bg: "rgba(255, 244, 214, 0.96)",
+      fg: "#b7791f",
+      bd: "rgba(234, 179, 8, 0.28)",
+      dot: "#f2b940",
+    },
+    "Approved": {
+      bg: "rgba(221, 248, 237, 0.96)",
+      fg: "#15803d",
+      bd: "rgba(34, 197, 94, 0.22)",
+      dot: "#20b46a",
+    },
+    "Auto-Approved": {
+      bg: "rgba(221, 248, 237, 0.96)",
+      fg: "#15803d",
+      bd: "rgba(34, 197, 94, 0.22)",
+      dot: "#20b46a",
+    },
+    "Auto-Approved (Escalation)": {
+      bg: "rgba(221, 248, 237, 0.96)",
+      fg: "#15803d",
+      bd: "rgba(34, 197, 94, 0.22)",
+      dot: "#20b46a",
+    },
+    "Rejected": {
+      bg: "rgba(255, 231, 231, 0.98)",
+      fg: "#dc2626",
+      bd: "rgba(239, 68, 68, 0.2)",
+      dot: "#ef4444",
+    },
+    "Cancellation Requested": {
+      bg: "rgba(240, 233, 255, 0.98)",
+      fg: "#7c3aed",
+      bd: "rgba(167, 139, 250, 0.28)",
+      dot: "#8b5cf6",
+    },
+    "Cancelled": {
+      bg: "rgba(236, 241, 247, 0.98)",
+      fg: "#64748b",
+      bd: "rgba(148, 163, 184, 0.26)",
+      dot: "#94a3b8",
+    },
   };
 
   /** A colored status badge element. */
   function statusBadge(status) {
-    var c = STATUS_COLORS[status] || { bg: "#1f2937", fg: "#cbd5e1" };
+    var c = STATUS_COLORS[status] || {
+      bg: "rgba(237, 242, 248, 0.98)",
+      fg: "#475569",
+      bd: "rgba(148, 163, 184, 0.28)",
+      dot: "#94a3b8",
+    };
+    var dot = el("span", {
+      "aria-hidden": "true",
+      style: {
+        width: "7px",
+        height: "7px",
+        borderRadius: "999px",
+        background: c.dot,
+        boxShadow: "0 0 0 2px rgba(255,255,255,0.82)",
+      },
+    });
     return el("span", {
       class: "pto-badge",
       style: {
-        background: c.bg, color: c.fg, padding: "3px 10px", borderRadius: "999px",
-        fontSize: "12px", fontWeight: "700", letterSpacing: ".02em",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "7px",
+        background: c.bg,
+        color: c.fg,
+        padding: "4px 11px",
+        borderRadius: "999px",
+        border: "1px solid " + c.bd,
+        fontSize: "12px",
+        fontWeight: "700",
+        letterSpacing: ".01em",
+        whiteSpace: "nowrap",
       },
-      text: status || "—",
-    });
+    }, [dot, status || "—"]);
   }
 
   /** "YYYY-MM-DD" (or Date) → e.g. "Jun 12, 2026" (local). */
@@ -114,9 +176,20 @@ window.PTOUI = (function () {
     console.log("[ui:toast]", type || "info", message);
   }
 
+  // Demo/QA "?preview=1" fixture mode is a designed-in bypass of MSAL sign-in
+  // and every Graph write (approve/reject/cancel/submit route into in-memory
+  // state instead). That is safe on a developer's machine, but these pages
+  // are published on public GitHub Pages — a bare query-string check would
+  // let anyone reach an admin-shaped demo UI on the production URL. Gate it
+  // to loopback hosts so it only ever activates during local development.
+  function isLocalDevHost() {
+    var host = (window.location && window.location.hostname) || "";
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "";
+  }
+
   return {
     qs: qs, qsa: qsa, el: el, setText: setText, show: show,
     statusBadge: statusBadge, formatDateOnly: formatDateOnly, formatRange: formatRange,
-    toast: toast,
+    toast: toast, isLocalDevHost: isLocalDevHost,
   };
 })();

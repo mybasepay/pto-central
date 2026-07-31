@@ -5,273 +5,946 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Manager Approval — PTO Central</title>
   <link rel="stylesheet" href="styles.css" />
-  <!--
-    Manager Approval — production page (visual redesign 2026-07-03).
-    Opened as approve.html#itemId=123. Lets the assigned approver (ApproverEmail,
-    else ManagerEmail for legacy requests) or an HR/Admin approve/reject a
-    Pending request. Auto-login on load (same redirect + loop-guard pattern as
-    request.html / hr.html).
-
-    Decision writes ONLY Status + Decision* + an APPENDED AuditLog line
-    (js/requests.js updateRequestDecision). Approving triggers the validated
-    Power Automate calendar-creation flow; manager notifications remain in
-    controlled (Rodolfo-only) testing. No Teams/email/calendar code here.
-
-    All element IDs consumed by js/pages/approve.page.js are PRESERVED
-    (auth + user chip, d-* summary fields, decision-ui/comment/approve/reject,
-    block-note/status-note, approver-note, auditlog, raw, error).
-  -->
   <style>
-    /* ===== Approval page — scoped. Loaded AFTER styles.css; equal-specificity
-       element rules below win, same pattern as hr.html / request.html. Wide,
-       top-down document flow instead of the shared flex-centered card. ===== */
-
     :root {
-      --ap-surface: #0e1626;
-      --ap-surface-2: #0b1220;
-      --ap-tile: #0a101d;
-      --ap-line: rgba(120, 150, 210, 0.16);
-      --ap-line-soft: rgba(255, 255, 255, 0.07);
-      --ap-green: #34d399;
-      --ap-teal: #2dd4bf;
-      --ap-indigo: #818cf8;
-      --ap-violet: #a78bfa;
-      --ap-blue: #60a5fa;
-      --ap-red: #f87171;
+      --ap-page: #eef4fb;
+      --ap-page-2: #f8fbff;
+      --ap-surface: rgba(255, 255, 255, 0.96);
+      --ap-surface-strong: rgba(255, 255, 255, 0.985);
+      --ap-line: rgba(177, 194, 220, 0.44);
+      --ap-line-strong: rgba(155, 176, 207, 0.56);
+      --ap-text: #17305f;
+      --ap-text-strong: #102652;
+      --ap-muted: #6d80a1;
+      --ap-muted-soft: #8b98ad;
+      --ap-blue: #2f7bff;
+      --ap-blue-deep: #1e66ea;
+      --ap-blue-soft: rgba(47, 123, 255, 0.12);
+      --ap-green: #16805a;
+      --ap-green-bg: linear-gradient(180deg, #218e63 0%, #14744d 100%);
+      --ap-red: #b41f34;
+      --ap-red-bg: linear-gradient(180deg, #cf2d42 0%, #b11a30 100%);
+      --ap-focus: 0 0 0 3px rgba(122, 174, 255, 0.26);
+      --ap-shadow-panel: 0 30px 54px -38px rgba(51, 76, 122, 0.22),
+        0 12px 24px -22px rgba(51, 76, 122, 0.16);
+      --ap-shadow-card: 0 26px 46px -34px rgba(51, 76, 122, 0.18);
+      --ap-radius-xl: 24px;
+      --ap-radius-lg: 18px;
+      --ap-radius-md: 14px;
+      --ap-radius-sm: 12px;
+      --ap-topbar-h: 84px;
     }
 
-    html, body { height: auto; min-height: 100%; }
+    html,
     body {
-      display: block;
-      padding: 0 clamp(14px, 3vw, 40px) 56px;
+      min-height: 100%;
+      height: auto;
+    }
+
+    body.approve-page {
+      margin: 0;
+      min-width: 320px;
+      font-family: Aptos, "Segoe UI", system-ui, sans-serif;
+      color: var(--ap-text);
       background:
-        radial-gradient(1000px 600px at 12% -8%, #0d1730, transparent 60%),
-        radial-gradient(1100px 640px at 100% 0%, #0a1424, transparent 55%),
-        linear-gradient(180deg, #0a111e 0%, #070c16 60%, #05080f 100%);
+        radial-gradient(1100px 560px at 0% 4%, rgba(122, 174, 255, 0.14), transparent 60%),
+        radial-gradient(920px 420px at 100% 0%, rgba(34, 197, 164, 0.08), transparent 56%),
+        linear-gradient(180deg, #f9fcff 0%, #eef4fb 46%, #e7eef8 100%);
       overflow-x: hidden;
     }
-    .wrap { width: 100%; max-width: 1180px; margin: 0 auto; }
 
-    /* ---- Top bar ---- */
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
-      flex-wrap: wrap; padding: 16px 2px 14px; margin: 0 0 4px;
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
-    .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
-    .brand-logo {
-      width: 44px; height: 44px; border-radius: 12px; flex: 0 0 auto;
-      display: grid; place-items: center; color: var(--ap-teal);
-      background: linear-gradient(160deg, rgba(45, 212, 191, 0.22), rgba(56, 189, 248, 0.08));
-      border: 1px solid rgba(45, 212, 191, 0.32);
-    }
-    .brand-logo svg { width: 24px; height: 24px; }
-    .brand-text { min-width: 0; line-height: 1.15; }
-    .brand-name { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
-    .brand-page { font-size: 13px; color: var(--muted); margin-top: 1px; }
 
-    .auth-area { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .ap-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      background: rgba(250, 252, 255, 0.88);
+      border-bottom: 1px solid rgba(187, 200, 222, 0.34);
+      box-shadow: 0 12px 26px -28px rgba(51, 76, 122, 0.24);
+    }
+
+    .ap-topbar__inner,
+    .ap-shell {
+      width: 100%;
+      max-width: 1680px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+
+    .ap-topbar__inner {
+      min-height: var(--ap-topbar-h);
+      padding: 14px 26px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .ap-shell {
+      padding: 18px 26px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .ap-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .ap-brand__mark,
+    .hero-badge,
+    .card-icon {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 16px;
+      border: 1px solid rgba(118, 163, 247, 0.28);
+      background: linear-gradient(180deg, rgba(93, 149, 255, 0.14), rgba(255, 255, 255, 0.96));
+      color: var(--ap-blue);
+      box-shadow: 0 18px 32px -30px rgba(47, 123, 255, 0.34);
+    }
+
+    .ap-brand__mark {
+      width: 52px;
+      height: 52px;
+    }
+
+    .ap-brand__mark svg,
+    .hero-badge svg,
+    .card-icon svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    .ap-brand__text h1 {
+      margin: 0;
+      color: var(--ap-text-strong);
+      font-size: clamp(22px, 2vw, 28px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .ap-brand__text p {
+      margin: 2px 0 0;
+      color: var(--ap-muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .ap-auth {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     .user-chip {
-      display: none; align-items: center; gap: 10px; padding: 6px 14px 6px 8px;
-      border-radius: 999px; border: 1px solid var(--ap-line);
-      background: rgba(255, 255, 255, 0.03); max-width: 340px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 14px 9px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(195, 208, 228, 0.72);
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 18px 34px -32px rgba(42, 66, 109, 0.22);
+      max-width: 320px;
     }
-    .user-chip.show { display: inline-flex; }
+
+    .user-chip.show {
+      display: inline-flex;
+    }
+
     .user-chip .avatar {
-      width: 28px; height: 28px; border-radius: 50%; flex: 0 0 auto;
-      display: grid; place-items: center; font-size: 11px; font-weight: 800; letter-spacing: .03em;
-      color: #cbd5e1; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--ap-line-soft);
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      background: linear-gradient(180deg, #284a8c, #17305f);
     }
-    .user-chip .who { min-width: 0; line-height: 1.15; }
-    .user-chip .who .lbl { display: block; font-size: 10.5px; color: var(--muted); }
-    .user-chip .who .name { display: block; font-size: 13px; font-weight: 700; color: #eef2f8;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #account { display: none; }
-    #account.show-text { display: inline; font-size: 12.5px; color: var(--muted); }
 
-    /* ---- Buttons ---- */
+    .user-chip .who {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      gap: 1px;
+    }
+
+    .user-chip .who .lbl {
+      color: var(--ap-muted-soft);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .user-chip .who .name {
+      color: var(--ap-text-strong);
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #account {
+      color: var(--ap-muted);
+      font-size: 12.5px;
+      font-weight: 600;
+      display: none;
+    }
+
+    #account.show-text {
+      display: inline;
+    }
+
     .btn {
-      appearance: none; cursor: pointer; color: var(--text); font: inherit; font-weight: 600;
-      padding: 9px 16px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.14);
-      background: rgba(255, 255, 255, 0.03);
-      transition: border-color .15s ease, background .15s ease, transform .1s ease;
-      display: inline-flex; align-items: center; gap: 8px;
+      appearance: none;
+      border: 1px solid rgba(186, 201, 223, 0.88);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--ap-text-strong);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+      padding: 11px 16px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease,
+        transform 0.15s ease, background 0.15s ease;
+      box-shadow: 0 16px 28px -28px rgba(53, 80, 126, 0.22);
     }
-    .btn svg { width: 15px; height: 15px; }
-    .btn:hover { border-color: rgba(147, 197, 253, 0.5); background: rgba(255, 255, 255, 0.06); }
-    .btn:active { transform: translateY(1px); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; }
-    .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.45); }
-    .btn.small { padding: 6px 12px; font-size: 12.5px; border-radius: 9px; }
 
-    /* ---- Note banner ---- */
-    .note-banner {
-      display: flex; align-items: flex-start; gap: 11px; margin-top: 14px;
-      padding: 12px 16px; border-radius: 12px; font-size: 13px; line-height: 1.5;
-      color: #fde4c4; background: rgba(180, 83, 9, 0.1); border: 1px solid rgba(217, 119, 6, 0.4);
+    .btn.small {
+      padding: 10px 15px;
+      font-size: 13px;
     }
-    .note-banner svg { width: 18px; height: 18px; flex: 0 0 auto; margin-top: 1px; color: #fbbf24; }
-    .note-banner strong { color: #fef0dc; }
 
-    /* ---- Panels ---- */
-    .panel {
+    .btn svg {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+    }
+
+    .btn:hover:not(:disabled) {
+      border-color: rgba(116, 163, 247, 0.74);
+      transform: translateY(-1px);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn:focus-visible,
+    .decision-action:focus-visible,
+    .banner-dismiss:focus-visible {
+      outline: none;
+      box-shadow: var(--ap-focus);
+    }
+
+    .info-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 13px 16px;
+      border-radius: 15px;
+      border: 1px solid rgba(122, 174, 255, 0.3);
+      background: linear-gradient(180deg, rgba(239, 246, 255, 0.97), rgba(232, 243, 255, 0.93));
+      box-shadow: 0 22px 40px -34px rgba(47, 123, 255, 0.28);
+      color: #27518d;
       position: relative;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)), var(--ap-surface);
-      border: 1px solid var(--ap-line); border-radius: 16px;
-      box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.8);
-      padding: clamp(16px, 2vw, 24px);
+      overflow: hidden;
+    }
+
+    .info-banner[hidden] {
+      display: none;
+    }
+
+    .info-banner::after {
+      content: "";
+      position: absolute;
+      right: -34px;
+      top: -34px;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(122, 174, 255, 0.14), transparent 70%);
+      pointer-events: none;
+    }
+
+    .info-banner svg {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      margin-top: 1px;
+      color: var(--ap-blue);
+    }
+
+    .info-banner strong {
+      color: #23467d;
+    }
+
+    .info-banner__body {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 600;
+    }
+
+    .banner-dismiss {
+      margin-left: auto;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: #4f77b1;
+      display: inline-grid;
+      place-items: center;
+      cursor: pointer;
+      position: relative;
+      z-index: 1;
+    }
+
+    .banner-dismiss:hover {
+      background: rgba(255, 255, 255, 0.74);
+    }
+
+    .banner-dismiss svg {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+    }
+
+    .hero {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding-top: 2px;
+    }
+
+    .hero-badge {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+    }
+
+    .hero h2 {
+      margin: 0;
+      color: var(--ap-text-strong);
+      font-size: clamp(24px, 2.6vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.035em;
+    }
+
+    .hero p {
+      margin: 4px 0 0;
+      color: var(--ap-muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 2.1fr) minmax(340px, 0.9fr);
+      gap: clamp(16px, 1.6vw, 24px);
+      align-items: start;
+    }
+
+    .main-col {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: clamp(16px, 1.6vw, 22px);
+    }
+
+    .card {
+      /* padding/backdrop-filter reset: styles.css's shared .card rule sets
+         padding: 28px and backdrop-filter: blur(6px) for the dark home-page
+         theme; .card__inner below owns padding for this page, and no blur is
+         wanted here, so both are explicitly neutralized rather than left to
+         leak through the cascade. */
+      padding: 0;
+      backdrop-filter: none;
+      position: relative;
+      border-radius: var(--ap-radius-xl);
+      border: 1px solid rgba(195, 208, 228, 0.64);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(248, 251, 255, 0.93)),
+        var(--ap-surface);
+      box-shadow: var(--ap-shadow-panel);
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 3px;
+      background: linear-gradient(90deg,
+        rgba(47, 123, 255, 0.9) 0%,
+        rgba(86, 168, 255, 0.8) 48%,
+        rgba(45, 212, 191, 0.66) 100%);
+      opacity: 0.94;
+    }
+
+    .card__inner {
+      padding: clamp(18px, 1.85vw, 24px);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .card-head__main {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .card-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+    }
+
+    .card-icon svg {
+      width: 23px;
+      height: 23px;
+    }
+
+    .card-copy {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .card-copy h3 {
+      margin: 0;
+      color: var(--ap-text-strong);
+      font-size: clamp(18px, 1.8vw, 22px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .card-copy p {
+      margin: 4px 0 0;
+      color: var(--ap-muted);
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 600;
+    }
+
+    .details-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+      flex: 0 0 auto;
+    }
+
+    .request-key-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 6px 13px;
+      border-radius: 999px;
+      border: 1px solid rgba(121, 156, 239, 0.34);
+      background: rgba(241, 246, 255, 0.98);
+      color: #31558c;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0 clamp(18px, 2vw, 30px);
+    }
+
+    .detail-item {
+      display: grid;
+      grid-template-columns: 18px minmax(112px, 138px) minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      min-width: 0;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(226, 234, 245, 0.88);
+    }
+
+    .detail-icon {
+      width: 18px;
+      height: 18px;
+      color: #748cb2;
+      flex: 0 0 auto;
+    }
+
+    .detail-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .detail-label {
+      color: var(--ap-muted);
+      font-size: 13px;
+      font-weight: 700;
+      min-width: 0;
+    }
+
+    .detail-value {
+      color: var(--ap-text-strong);
+      font-size: 14px;
+      font-weight: 700;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      line-height: 1.45;
+    }
+
+    .detail-value.is-subtle {
+      color: var(--ap-muted);
+      font-weight: 600;
+    }
+
+    .detail-value a {
+      color: var(--ap-blue-deep);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 800;
+    }
+
+    .detail-value a:hover {
+      text-decoration: underline;
+    }
+
+    .detail-value a svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .routing-note,
+    .decision-note,
+    .status-note,
+    .block-note,
+    .error-note {
       margin-top: 16px;
-    }
-    .panel-head { display: flex; align-items: flex-start; gap: 14px; }
-    .panel-ico {
-      width: 46px; height: 46px; border-radius: 12px; flex: 0 0 auto;
-      display: grid; place-items: center; border: 1px solid var(--ap-line);
-    }
-    .panel-ico svg { width: 23px; height: 23px; }
-    .panel-ico.indigo { color: var(--ap-indigo);
-      background: linear-gradient(160deg, rgba(129, 140, 248, 0.2), rgba(96, 165, 250, 0.06)); border-color: rgba(129, 140, 248, 0.3); }
-    .panel-ico.teal { color: var(--ap-teal);
-      background: linear-gradient(160deg, rgba(45, 212, 191, 0.2), rgba(56, 189, 248, 0.06)); border-color: rgba(45, 212, 191, 0.3); }
-    .panel-ico.purple { color: var(--ap-violet);
-      background: linear-gradient(160deg, rgba(167, 139, 250, 0.2), rgba(129, 140, 248, 0.06)); border-color: rgba(167, 139, 250, 0.3); }
-    .panel-title { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
-    .panel-sub { margin: 3px 0 0; font-size: 13px; color: var(--muted); }
-    .panel-head-main { min-width: 0; flex: 1; }
-    .head-pill {
-      flex: 0 0 auto; align-self: center; font-size: 12px; font-weight: 700; letter-spacing: .02em;
-      color: #b9c7dc; padding: 6px 13px; border-radius: 999px;
-      background: rgba(255, 255, 255, 0.04); border: 1px solid var(--ap-line);
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.5;
+      font-weight: 700;
+      display: none;
     }
 
-    /* ---- Page head (title block, not a panel) ---- */
-    .page-head { display: flex; align-items: center; gap: 16px; margin: 18px 2px 0; }
-    .page-badge {
-      width: 50px; height: 50px; border-radius: 13px; flex: 0 0 auto;
-      display: grid; place-items: center; color: var(--ap-indigo);
-      background: linear-gradient(160deg, rgba(129, 140, 248, 0.2), rgba(96, 165, 250, 0.07));
-      border: 1px solid rgba(129, 140, 248, 0.3);
-    }
-    .page-badge svg { width: 26px; height: 26px; }
-    .page-head h1 { font-size: clamp(21px, 2.6vw, 26px); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-    .page-head .desc { margin: 4px 0 0; font-size: 13.5px; }
-
-    /* ---- Summary grid ---- */
-    .summary { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }
-    @media (max-width: 780px) { .summary { grid-template-columns: 1fr; gap: 0; } }
-    .sum-row {
-      display: flex; align-items: center; gap: 11px;
-      padding: 12px 2px; border-bottom: 1px solid var(--ap-line-soft); min-width: 0;
-    }
-    .sum-ico { flex: 0 0 auto; width: 18px; height: 18px; color: #7c8db0; }
-    .sum-ico svg { width: 18px; height: 18px; }
-    .sum-label { flex: 0 0 132px; font-size: 13px; color: var(--muted); }
-    .sum-val { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; color: #e8eef7; overflow-wrap: anywhere; }
-    .sum-val a { color: #7dd3fc; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
-    .sum-val a:hover { text-decoration: underline; }
-    .sum-val a svg { width: 13px; height: 13px; }
-
-    /* Routed-approval note under the summary */
-    .approver-note {
-      display: none; margin-top: 14px; padding: 11px 14px; border-radius: 11px; font-size: 13px; line-height: 1.5;
-      color: #c7d2fe; background: linear-gradient(180deg, rgba(129, 140, 248, 0.14), rgba(129, 140, 248, 0.04));
-      border: 1px solid rgba(129, 140, 248, 0.4);
+    .routing-note {
+      color: #285287;
+      border: 1px solid rgba(122, 174, 255, 0.3);
+      background: rgba(238, 246, 255, 0.96);
     }
 
-    /* ---- Decision ---- */
-    .decision-grid { margin-top: 18px; display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
-    @media (max-width: 780px) { .decision-grid { grid-template-columns: 1fr; } }
-    label.fld { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
-    .comment-wrap { position: relative; }
-    textarea#comment {
-      width: 100%; box-sizing: border-box; padding: 11px 12px; border-radius: 11px; min-height: 118px;
-      resize: vertical; background: var(--ap-surface-2); color: var(--text);
-      border: 1px solid rgba(255, 255, 255, 0.12); font: inherit; font-size: 13.5px;
+    /* ---- Audit log + raw JSON debug (collapsed by default) ---- */
+    details.collapsible {
+      margin-top: 18px;
+      border-top: 1px solid var(--ap-line);
+      padding-top: 14px;
     }
-    textarea#comment:focus { outline: none; border-color: var(--ap-blue); box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.28); }
-    .comment-count { position: absolute; right: 12px; bottom: 10px; font-size: 11px; color: #5f708a; pointer-events: none; }
-    .decision-buttons { display: flex; flex-direction: column; gap: 12px; }
-    .decide-btn {
-      appearance: none; cursor: pointer; font: inherit; text-align: left;
-      display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-radius: 13px;
-      color: #fff; transition: filter .15s ease, transform .1s ease, box-shadow .15s ease, border-color .15s ease;
-    }
-    .decide-btn svg { width: 26px; height: 26px; flex: 0 0 auto; }
-    .decide-btn .db-main { display: flex; flex-direction: column; gap: 2px; }
-    .decide-btn .db-t { font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
-    .decide-btn .db-s { font-size: 12px; opacity: .85; font-weight: 500; }
-    .decide-btn:active { transform: translateY(1px); }
-    .decide-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35); }
-    .decide-btn:disabled { opacity: .5; cursor: not-allowed; }
-    .decide-btn.approve {
-      border: 1px solid rgba(16, 185, 129, 0.55);
-      background: linear-gradient(180deg, rgba(16, 185, 129, 0.22), rgba(6, 78, 59, 0.5));
-    }
-    .decide-btn.approve svg { color: #6ee7b7; }
-    .decide-btn.approve:hover:not(:disabled) { filter: brightness(1.12); border-color: var(--ap-green); }
-    .decide-btn.reject {
-      border: 1px solid rgba(220, 38, 38, 0.55);
-      background: linear-gradient(180deg, rgba(220, 38, 38, 0.22), rgba(80, 12, 12, 0.5));
-    }
-    .decide-btn.reject svg { color: #fca5a5; }
-    .decide-btn.reject:hover:not(:disabled) { filter: brightness(1.12); border-color: var(--ap-red); }
-    .decision-status { display: block; margin-top: 14px; font-size: 13px; color: var(--muted); min-height: 1.2em; }
 
-    /* Notes (block / status) inside the decision panel */
-    .note { display: none; margin-top: 14px; padding: 12px 15px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
-    .note.info { background: rgba(52, 211, 153, 0.08); border: 1px solid rgba(52, 211, 153, 0.35); color: #a7f3d0; }
-    .note.block { background: rgba(185, 28, 28, 0.1); border: 1px solid rgba(185, 28, 28, 0.5); color: #fecaca; }
-    .error { display: none; margin-top: 14px; padding: 12px 15px; border-radius: 12px;
-      border-left: 5px solid #dc2626; background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 13.5px; }
-
-    /* ---- Collapsible sections (audit + debug) ---- */
-    details.collapsible { margin: 0; }
     details.collapsible > summary {
-      list-style: none; cursor: pointer; display: flex; align-items: center; gap: 14px;
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ap-text-strong);
+      font-size: 13.5px;
+      font-weight: 800;
     }
-    details.collapsible > summary::-webkit-details-marker { display: none; }
-    .summary-caret { margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 6px;
-      font-size: 12.5px; font-weight: 600; color: var(--muted); }
-    .summary-caret svg { width: 15px; height: 15px; transition: transform .18s ease; }
-    details.collapsible[open] .summary-caret svg { transform: rotate(180deg); }
-    details.collapsible[open] .summary-caret .lbl-open { display: inline; }
-    details.collapsible .summary-caret .lbl-open { display: none; }
-    details.collapsible[open] .summary-caret .lbl-closed { display: none; }
-    pre.mono {
-      margin: 14px 0 0; padding: 13px 15px; overflow: auto; border-radius: 11px;
-      background: #05090f; border: 1px solid var(--ap-line-soft);
-      font-size: 12px; line-height: 1.6; white-space: pre-wrap; max-height: 320px;
-      color: #86efac; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
-    .debug-row { margin-top: 12px; }
-    details.debug > summary {
-      list-style: none; cursor: pointer; color: var(--muted); font-size: 12.5px;
-      display: inline-flex; align-items: center; gap: 7px;
-    }
-    details.debug > summary::-webkit-details-marker { display: none; }
-    details.debug > summary svg { width: 14px; height: 14px; transition: transform .18s ease; }
-    details.debug[open] > summary svg { transform: rotate(90deg); }
-    details.debug pre.mono { color: #cbd5e1; }
 
-    .ap-footer { margin-top: 20px; color: var(--muted); font-size: 12px; text-align: center; }
+    details.collapsible > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.collapsible > summary svg {
+      width: 15px;
+      height: 15px;
+      color: var(--ap-muted);
+      transition: transform .18s ease;
+    }
+
+    details.collapsible[open] > summary svg {
+      transform: rotate(90deg);
+    }
+
+    pre.mono {
+      margin: 12px 0 0;
+      padding: 12px 14px;
+      border-radius: var(--ap-radius-md);
+      border: 1px solid var(--ap-line);
+      background: rgba(244, 248, 253, 0.9);
+      color: var(--ap-text);
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      max-height: 320px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .debug-row {
+      margin-top: 12px;
+    }
+
+    details.debug > summary {
+      list-style: none;
+      cursor: pointer;
+      color: var(--ap-muted);
+      font-size: 12.5px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    details.debug > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.debug > summary svg {
+      width: 14px;
+      height: 14px;
+      transition: transform .18s ease;
+    }
+
+    details.debug[open] > summary svg {
+      transform: rotate(90deg);
+    }
+
+    .decision-card .card-copy h3 {
+      font-size: clamp(18px, 1.7vw, 20px);
+    }
+
+    .decision-card .card-copy p {
+      font-size: 13.5px;
+    }
+
+    @media (min-width: 1100px) and (min-height: 820px) {
+      .decision-card {
+        position: sticky;
+        top: calc(var(--ap-topbar-h) + 22px);
+      }
+    }
+
+    .decision-ui {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .field {
+      display: block;
+    }
+
+    .field-label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ap-text);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .comment-shell {
+      position: relative;
+    }
+
+    textarea#comment {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: clamp(128px, 16vh, 178px);
+      padding: 13px 14px 26px;
+      border-radius: 14px;
+      border: 1px solid rgba(186, 201, 223, 0.92);
+      background: rgba(255, 255, 255, 0.98);
+      color: var(--ap-text-strong);
+      font: inherit;
+      font-size: 14px;
+      line-height: 1.45;
+      resize: vertical;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66);
+    }
+
+    textarea#comment::placeholder {
+      color: var(--ap-muted-soft);
+    }
+
+    textarea#comment:focus {
+      outline: none;
+      border-color: rgba(77, 142, 255, 0.92);
+      box-shadow: var(--ap-focus);
+    }
+
+    .comment-count {
+      position: absolute;
+      right: 12px;
+      bottom: 10px;
+      color: var(--ap-muted-soft);
+      font-size: 11px;
+      font-weight: 700;
+      pointer-events: none;
+    }
+
+    .decision-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .decision-action {
+      width: 100%;
+      border: 1px solid transparent;
+      border-radius: 15px;
+      padding: 15px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: #fff;
+      cursor: pointer;
+      transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+      text-align: left;
+      box-shadow: 0 20px 34px -30px rgba(37, 64, 108, 0.3);
+    }
+
+    .decision-action svg {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 auto;
+    }
+
+    .decision-action strong,
+    .decision-action span {
+      display: block;
+    }
+
+    .decision-action strong {
+      font-size: 18px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .decision-action span {
+      margin-top: 3px;
+      font-size: 13px;
+      line-height: 1.35;
+      opacity: 0.9;
+      font-weight: 600;
+    }
+
+    .decision-action.approve {
+      background: var(--ap-green-bg);
+      border-color: rgba(22, 128, 90, 0.48);
+    }
+
+    .decision-action.reject {
+      background: var(--ap-red-bg);
+      border-color: rgba(180, 31, 52, 0.46);
+    }
+
+    .decision-action:hover:not(:disabled) {
+      filter: brightness(1.05);
+      transform: translateY(-1px);
+    }
+
+    .decision-action:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .decision-action:disabled {
+      opacity: 0.58;
+      cursor: not-allowed;
+      transform: none;
+      filter: none;
+    }
+
+    .decision-footnote {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--ap-muted);
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .decision-footnote svg {
+      width: 16px;
+      height: 16px;
+      color: #6984b2;
+      flex: 0 0 auto;
+      margin-top: 1px;
+    }
+
+    .decision-status {
+      display: block;
+      min-height: 1.25em;
+      margin-top: 14px;
+      color: var(--ap-muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .status-note {
+      color: #166534;
+      border: 1px solid rgba(34, 197, 94, 0.18);
+      background: rgba(236, 253, 245, 0.98);
+    }
+
+    .block-note,
+    .error-note {
+      color: #b91c1c;
+      border: 1px solid rgba(239, 68, 68, 0.22);
+      background: rgba(255, 241, 242, 0.98);
+    }
+
+    .error-note {
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 1180px) {
+      .main-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .decision-card {
+        position: static;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .ap-topbar__inner,
+      .ap-shell {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .details-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .detail-item {
+        grid-template-columns: 18px minmax(106px, 130px) minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .ap-topbar__inner {
+        align-items: flex-start;
+      }
+
+      .ap-auth {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .hero {
+        gap: 14px;
+      }
+
+      .hero h2 {
+        font-size: 28px;
+      }
+
+      .card-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .details-meta {
+        justify-content: flex-start;
+      }
+
+      .detail-item {
+        grid-template-columns: 18px 1fr;
+        gap: 8px 12px;
+        align-items: flex-start;
+      }
+
+      .detail-label {
+        grid-column: 2;
+        margin-bottom: 2px;
+      }
+
+      .detail-value {
+        grid-column: 2;
+      }
+    }
   </style>
 </head>
-<body>
-  <main class="wrap">
-    <!-- Top bar -->
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-logo" aria-hidden="true">
+<body class="approve-page">
+  <header class="ap-topbar">
+    <div class="ap-topbar__inner">
+      <div class="ap-brand">
+        <span class="ap-brand__mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
-            <path d="M9 14.5l2 2 4-4" />
+            <rect x="3.5" y="4.5" width="17" height="16" rx="3"></rect>
+            <path d="M3.5 9.2h17"></path>
+            <path d="M8 2.8v3.8"></path>
+            <path d="M16 2.8v3.8"></path>
+            <path d="M9.2 13h5.6"></path>
+            <path d="M12 10.2v5.6"></path>
           </svg>
         </span>
-        <div class="brand-text">
-          <div class="brand-name">PTO Central</div>
-          <div class="brand-page">Manager Approval</div>
+        <div class="ap-brand__text">
+          <h1>PTO Central</h1>
+          <p>Manager Approval</p>
         </div>
       </div>
-      <div class="auth-area">
-        <span id="user-chip" class="user-chip">
+
+      <div class="ap-auth">
+        <span id="user-chip" class="user-chip" aria-hidden="true">
           <span class="avatar" id="user-chip-avatar" aria-hidden="true">··</span>
           <span class="who">
             <span class="lbl">Signed in as</span>
@@ -283,232 +956,285 @@
         <button id="signout" class="btn small" type="button" disabled>
           Sign out
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <path d="M16 17l5-5-5-5"></path>
+            <path d="M21 12H9"></path>
           </svg>
         </button>
       </div>
-    </header>
-
-    <!-- Controlled-testing note -->
-    <div class="note-banner" role="note">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 7.75h.01" />
-      </svg>
-      <div>
-        <strong>Note:</strong> your decision writes to the live <code>PTO Requests</code> list.
-        Approving automatically creates the PTO calendar events. Manager notifications are still
-        in controlled testing.
-      </div>
     </div>
+  </header>
 
-    <!-- Page head -->
-    <div class="page-head">
-      <span class="page-badge" aria-hidden="true">
+  <main class="ap-shell">
+    <section id="info-banner" class="info-banner" role="note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 11v5"></path>
+        <path d="M12 7.8h.01"></path>
+      </svg>
+      <p class="info-banner__body">
+        <strong>Note:</strong> your decision writes to the live PTO Requests list. Approving automatically creates the PTO calendar events through the existing process. Notification behavior remains controlled by the current production flows.
+      </p>
+      <button id="dismiss-banner" class="banner-dismiss" type="button" aria-label="Dismiss information banner">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-2" />
-          <rect x="8" y="2" width="8" height="4" rx="1" /><path d="M8 11h8M8 15h5" />
+          <path d="M6 6l12 12"></path>
+          <path d="M18 6L6 18"></path>
+        </svg>
+      </button>
+    </section>
+
+    <section class="hero" aria-label="Page title">
+      <span class="hero-badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-2"></path>
+          <rect x="8" y="2" width="8" height="4" rx="1"></rect>
+          <path d="M8 11h8"></path>
+          <path d="M8 15h5"></path>
         </svg>
       </span>
       <div>
-        <h1>Review PTO Request</h1>
-        <p class="desc">Approve or reject a PTO request assigned to you.</p>
+        <h2>Review PTO Request</h2>
+        <p>Approve or reject a PTO request assigned to you.</p>
       </div>
-    </div>
-
-    <!-- Request summary -->
-    <section class="panel" aria-label="Request summary">
-      <div class="panel-head">
-        <span class="panel-ico indigo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" />
-            <path d="M9 13h6M9 17h4" />
-          </svg>
-        </span>
-        <div class="panel-head-main">
-          <h2 class="panel-title">Review PTO Request</h2>
-          <p class="panel-sub">Approve or reject a PTO request assigned to you.</p>
-        </div>
-        <span class="head-pill" id="d-key">—</span>
-      </div>
-
-      <div class="summary">
-        <!-- Left column -->
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20c0-3.4 2.9-5.5 6.5-5.5s6.5 2.1 6.5 5.5" /></svg></span>
-          <span class="sum-label">Requester</span>
-          <span class="sum-val" id="d-requester">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M4 7l8 6 8-6" /></svg></span>
-          <span class="sum-label">Requester email</span>
-          <span class="sum-val" id="d-requester-email">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 11.5L13 4H5v8l7.5 7.5a2 2 0 0 0 2.8 0l5.2-5.2a2 2 0 0 0 0-2.8z" /><circle cx="8.5" cy="7.5" r="1.2" /></svg></span>
-          <span class="sum-label">PTO type</span>
-          <span class="sum-val" id="d-type">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9h18M8 2.5v4M16 2.5v4" /></svg></span>
-          <span class="sum-label">Start date</span>
-          <span class="sum-val" id="d-start">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2" /><path d="M3 9h18M8 2.5v4M16 2.5v4" /></svg></span>
-          <span class="sum-label">End date</span>
-          <span class="sum-val" id="d-end">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z" /></svg></span>
-          <span class="sum-label">Reason</span>
-          <span class="sum-val" id="d-reason">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3" /><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5" /><circle cx="17.5" cy="9" r="2.2" /><path d="M17 14.6c2.4.3 4 1.9 4 4.2" /></svg></span>
-          <span class="sum-label">Backup contact</span>
-          <span class="sum-val" id="d-backup">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l2.5 2.5" /></svg></span>
-          <span class="sum-label">Status</span>
-          <span class="sum-val" id="d-status">—</span>
-        </div>
-
-        <!-- Right column -->
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg></span>
-          <span class="sum-label">Submitted at</span>
-          <span class="sum-val" id="d-submitted">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3" /><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5" /><circle cx="17.5" cy="9" r="2.2" /><path d="M17 14.6c2.4.3 4 1.9 4 4.2" /></svg></span>
-          <span class="sum-label">Manager</span>
-          <span class="sum-val" id="d-manager">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg></span>
-          <span class="sum-label">Approver</span>
-          <span class="sum-val" id="d-approver">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5L12 15.5 7 18.2l1-5.5-4-3.9 5.5-.8z" /></svg></span>
-          <span class="sum-label">Short notice</span>
-          <span class="sum-val" id="d-short">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10" /></svg></span>
-          <span class="sum-label">Notice days</span>
-          <span class="sum-val" id="d-notice">—</span>
-        </div>
-        <div class="sum-row">
-          <span class="sum-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg></span>
-          <span class="sum-label">SharePoint item</span>
-          <span class="sum-val" id="d-link">—</span>
-        </div>
-      </div>
-
-      <div id="approver-note" class="approver-note" role="status"></div>
     </section>
 
-    <!-- Decision -->
-    <section class="panel" aria-label="Decision">
-      <div class="panel-head">
-        <span class="panel-ico teal" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3v18" /><path d="M6 7h12" /><path d="M6 7l-3 6a3 3 0 0 0 6 0z" /><path d="M18 7l3 6a3 3 0 0 1-6 0z" /><path d="M8 21h8" />
-          </svg>
-        </span>
-        <div class="panel-head-main">
-          <h2 class="panel-title">Decision</h2>
-          <p class="panel-sub">Provide your decision on this PTO request.</p>
-        </div>
-      </div>
+    <section class="main-grid" aria-label="Approval workspace">
+      <div class="main-col">
+        <section class="card details-card" aria-label="Request details">
+          <div class="card__inner">
+            <div class="card-head">
+              <div class="card-head__main">
+                <span class="card-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path>
+                    <path d="M14 3v5h5"></path>
+                    <path d="M9 13h6"></path>
+                    <path d="M9 17h4"></path>
+                  </svg>
+                </span>
+                <div class="card-copy">
+                  <h3>Request details</h3>
+                  <p>Review the request information before you record a decision.</p>
+                </div>
+              </div>
+              <div class="details-meta">
+                <span id="d-status-head" class="detail-value is-subtle">—</span>
+                <span id="d-key" class="request-key-chip">—</span>
+              </div>
+            </div>
 
-      <!-- Blocked (not authorized) / already-decided notes -->
-      <div id="block-note" class="note block" role="alert"></div>
-      <div id="status-note" class="note info" role="status"></div>
+            <div class="details-grid">
+              <div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"></circle><path d="M5.5 20c0-3.4 2.9-5.5 6.5-5.5s6.5 2.1 6.5 5.5"></path></svg>
+                  </span>
+                  <span class="detail-label">Requester</span>
+                  <span class="detail-value" id="d-requester">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 11.5L13 4H5v8l7.5 7.5a2 2 0 0 0 2.8 0l5.2-5.2a2 2 0 0 0 0-2.8z"></path><circle cx="8.5" cy="7.5" r="1.2"></circle></svg>
+                  </span>
+                  <span class="detail-label">PTO type</span>
+                  <span class="detail-value" id="d-type">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M8 2.5v4"></path><path d="M16 2.5v4"></path></svg>
+                  </span>
+                  <span class="detail-label">End date</span>
+                  <span class="detail-value" id="d-end">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5"></path><circle cx="17.5" cy="9" r="2.2"></circle><path d="M17 14.6c2.4.3 4 1.9 4 4.2"></path></svg>
+                  </span>
+                  <span class="detail-label">Backup contact</span>
+                  <span class="detail-value" id="d-backup">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4l2.5 2.5"></path></svg>
+                  </span>
+                  <span class="detail-label">Submitted at</span>
+                  <span class="detail-value" id="d-submitted">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"></path><path d="M20 4l-9 9"></path><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"></path></svg>
+                  </span>
+                  <span class="detail-label">Approver</span>
+                  <span class="detail-value" id="d-approver">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h10"></path></svg>
+                  </span>
+                  <span class="detail-label">Notice days</span>
+                  <span class="detail-value" id="d-notice">—</span>
+                </div>
+              </div>
 
-      <!-- Active decision controls (shown only when authorized + Pending) -->
-      <div id="decision-ui" class="decision-grid" style="display:none;">
-        <div>
-          <label class="fld" for="comment">Comment (optional)</label>
-          <div class="comment-wrap">
-            <textarea id="comment" maxlength="1000" placeholder="Add any notes or context for your decision…"></textarea>
-            <span class="comment-count" id="comment-count">0/1000</span>
+              <div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M4 7l8 6 8-6"></path></svg>
+                  </span>
+                  <span class="detail-label">Requester email</span>
+                  <span class="detail-value" id="d-requester-email">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M8 2.5v4"></path><path d="M16 2.5v4"></path></svg>
+                  </span>
+                  <span class="detail-label">Start date</span>
+                  <span class="detail-value" id="d-start">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.8h.01"></path><path d="M12 11v5"></path></svg>
+                  </span>
+                  <span class="detail-label">Status</span>
+                  <span class="detail-value" id="d-status">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"></path></svg>
+                  </span>
+                  <span class="detail-label">Reason</span>
+                  <span class="detail-value" id="d-reason">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5"></path><circle cx="17.5" cy="9" r="2.2"></circle><path d="M17 14.6c2.4.3 4 1.9 4 4.2"></path></svg>
+                  </span>
+                  <span class="detail-label">Manager</span>
+                  <span class="detail-value" id="d-manager">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5L12 15.5 7 18.2l1-5.5-4-3.9 5.5-.8z"></path></svg>
+                  </span>
+                  <span class="detail-label">Short notice</span>
+                  <span class="detail-value" id="d-short">—</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"></path><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"></path></svg>
+                  </span>
+                  <span class="detail-label">SharePoint item</span>
+                  <span class="detail-value" id="d-link">—</span>
+                </div>
+              </div>
+            </div>
+
+            <div id="approver-note" class="routing-note" role="status"></div>
+
+            <details class="collapsible">
+              <summary>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+                Audit log
+              </summary>
+              <pre class="mono" id="auditlog">—</pre>
+            </details>
+
+            <div class="debug-row">
+              <details class="debug">
+                <summary>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+                  Show raw JSON (debug)
+                </summary>
+                <pre class="mono" id="raw">—</pre>
+              </details>
+            </div>
           </div>
-        </div>
-        <div class="decision-buttons">
-          <button id="approve" class="decide-btn approve" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="9" /><path d="M8.5 12.5l2.5 2.5 4.5-5" />
-            </svg>
-            <span class="db-main"><span class="db-t">Approve</span><span class="db-s">Approve this PTO request</span></span>
-          </button>
-          <button id="reject" class="decide-btn reject" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="9" /><path d="M9 9l6 6M15 9l-6 6" />
-            </svg>
-            <span class="db-main"><span class="db-t">Reject</span><span class="db-s">Reject this PTO request</span></span>
-          </button>
-        </div>
+        </section>
+
       </div>
 
-      <span id="decision-status" class="decision-status" aria-live="polite"></span>
-      <div id="error" class="error" role="alert" aria-live="assertive"></div>
+      <aside class="card decision-card" aria-label="Decision panel">
+        <div class="card__inner">
+          <div class="card-head">
+            <div class="card-head__main">
+              <span class="card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3v18"></path>
+                  <path d="M6 7h12"></path>
+                  <path d="M6 7l-3 6a3 3 0 0 0 6 0z"></path>
+                  <path d="M18 7l3 6a3 3 0 0 1-6 0z"></path>
+                  <path d="M8 21h8"></path>
+                </svg>
+              </span>
+              <div class="card-copy">
+                <h3>Decision</h3>
+                <p>Provide your decision on this PTO request.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="block-note" class="block-note" role="alert"></div>
+          <div id="status-note" class="status-note" role="status"></div>
+
+          <div id="decision-ui" class="decision-ui" style="display:none;">
+            <label class="field" for="comment">
+              <span class="field-label">Comment (optional)</span>
+              <span class="comment-shell">
+                <textarea id="comment" maxlength="1000" placeholder="Add any notes or context for your decision…"></textarea>
+                <span id="comment-count" class="comment-count">0/1000</span>
+              </span>
+            </label>
+
+            <div class="decision-actions">
+              <button id="approve" class="decision-action approve" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <path d="M8.5 12.5l2.5 2.5 4.5-5"></path>
+                </svg>
+                <span>
+                  <strong>Approve</strong>
+                  <span>Approve this PTO request</span>
+                </span>
+              </button>
+
+              <button id="reject" class="decision-action reject" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <path d="M9 9l6 6"></path>
+                  <path d="M15 9l-6 6"></path>
+                </svg>
+                <span>
+                  <strong>Reject</strong>
+                  <span>Reject this PTO request</span>
+                </span>
+              </button>
+            </div>
+
+            <div class="decision-footnote">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <path d="M9.5 12.5l1.8 1.8 3.4-3.8"></path>
+              </svg>
+              <span>Your decision will be recorded on this request.</span>
+            </div>
+          </div>
+
+          <span id="decision-status" class="decision-status" aria-live="polite"></span>
+          <div id="error" class="error-note" role="alert" aria-live="assertive"></div>
+        </div>
+      </aside>
     </section>
-
-    <!-- Audit log (collapsible) -->
-    <section class="panel" aria-label="Audit log">
-      <details class="collapsible" open>
-        <summary>
-          <span class="panel-ico purple" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 4v4h4" /><path d="M12 8v4l3 2" />
-            </svg>
-          </span>
-          <span class="panel-head-main">
-            <span class="panel-title" style="display:block;">Audit log</span>
-            <span class="panel-sub" style="display:block;">Recent activity for this request.</span>
-          </span>
-          <span class="summary-caret">
-            <span class="lbl-open">Collapse</span><span class="lbl-closed">Expand</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>
-          </span>
-        </summary>
-        <pre class="mono" id="auditlog">—</pre>
-      </details>
-
-      <div class="debug-row">
-        <details class="debug">
-          <summary>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-            Show raw JSON (debug)
-          </summary>
-          <pre class="mono" id="raw">—</pre>
-        </details>
-      </div>
-    </section>
-
-    <footer class="ap-footer">
-      © <span id="year"></span> myBasePay · Tech Support
-    </footer>
   </main>
 
-  <!--
-    Library + modules. Order matters; page last.
-    Cache-busting (?v=): same convention as hr.html / request.html — bump on any
-    change to approve.html or a module below. lib/msal-browser.min.js is
-    intentionally NOT versioned (pinned v3.28.1).
-  -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js?v=ap3"></script>
-  <script src="js/auth.js?v=ap3"></script>
-  <script src="js/graph.js?v=ap3"></script>
-  <script src="js/directory.js?v=ap3"></script>
-  <script src="js/rules.js?v=ap3"></script>
-  <script src="js/requests.js?v=ap3"></script>
-  <script src="js/authz.js?v=ap3"></script>
-  <script src="js/ui.js?v=ap3"></script>
-  <script src="js/pages/approve.page.js?v=ap3"></script>
+  <script src="js/config.js?v=ap5"></script>
+  <script src="js/auth.js?v=ap4"></script>
+  <script src="js/graph.js?v=ap4"></script>
+  <script src="js/directory.js?v=ap4"></script>
+  <script src="js/rules.js?v=ap4"></script>
+  <script src="js/requests.js?v=ap5"></script>
+  <script src="js/authz.js?v=ap4"></script>
+  <script src="js/ui.js?v=ap5"></script>
+  <script src="js/pages/approve.page.js?v=ap5"></script>
 </body>
 </html>

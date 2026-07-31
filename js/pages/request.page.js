@@ -40,13 +40,97 @@
     target: { requester: null, manager: null, managersManager: null },
     // Alternate approver (HR/Admin only) — routes THIS request's approval to
     // someone other than the target's manager. Independent of on-behalf.
-    approverOverride: { active: false, lookupOk: false, approver: null },
-    // Optional backup contact, selected via employee lookup (or free-text
-    // name-only fallback). Shape: { name, email } or null.
-    backup: null,
+    approverOverride: { active: false, lookupOk: false, approver: null, reason: "" },
+    approverDraft: { approver: null, reason: "" },
+    // Optional backup contacts, selected via employee lookup/autocomplete.
+    // Shape: [{ name, email }].
+    backups: [],
     submitted: false,
     authorized: false,
-    selectionCommitted: false,
+    selectionCommitted: true,
+  };
+
+  var PREVIEW_DIRECTORY = [
+    {
+      id: "preview-user",
+      displayName: "Jane Doe",
+      mail: "jane.doe@mybasepay.com",
+      userPrincipalName: "jane.doe@mybasepay.com",
+      department: "Human Resources",
+      jobTitle: "HR Manager",
+      accountEnabled: true,
+      userType: "Member",
+    },
+    {
+      id: "preview-alex",
+      displayName: "Alex Rivera",
+      mail: "alex.rivera@mybasepay.com",
+      userPrincipalName: "alex.rivera@mybasepay.com",
+      department: "Finance",
+      jobTitle: "Payroll Specialist",
+      accountEnabled: true,
+      userType: "Member",
+    },
+    {
+      id: "preview-jordan",
+      displayName: "Jordan Lee",
+      mail: "jordan.lee@mybasepay.com",
+      userPrincipalName: "jordan.lee@mybasepay.com",
+      department: "Customer Success",
+      jobTitle: "Support Specialist",
+      accountEnabled: true,
+      userType: "Member",
+    },
+    {
+      id: "preview-priya",
+      displayName: "Priya Shah",
+      mail: "priya.shah@mybasepay.com",
+      userPrincipalName: "priya.shah@mybasepay.com",
+      department: "Product",
+      jobTitle: "Product Designer",
+      accountEnabled: true,
+      userType: "Member",
+    },
+    {
+      id: "preview-maggie",
+      displayName: "Maggie Mondragon",
+      mail: "maggie.mondragon@mybasepay.com",
+      userPrincipalName: "maggie.mondragon@mybasepay.com",
+      department: "People Operations",
+      jobTitle: "Senior HR Business Partner",
+      accountEnabled: true,
+      userType: "Member",
+    },
+    {
+      id: "preview-manager",
+      displayName: "Michael Reed",
+      mail: "michael.reed@mybasepay.com",
+      userPrincipalName: "michael.reed@mybasepay.com",
+      department: "Human Resources",
+      jobTitle: "Director, People Operations",
+      accountEnabled: true,
+      userType: "Member",
+    },
+    {
+      id: "preview-escalation",
+      displayName: "Alicia Carter",
+      mail: "alicia.carter@mybasepay.com",
+      userPrincipalName: "alicia.carter@mybasepay.com",
+      department: "Executive",
+      jobTitle: "VP, People",
+      accountEnabled: true,
+      userType: "Member",
+    }
+  ];
+
+  var PREVIEW_MANAGER_CHAINS = {
+    "preview-user": { managerId: "preview-manager", managersManagerId: "preview-escalation" },
+    "preview-alex": { managerId: "preview-manager", managersManagerId: "preview-escalation" },
+    "preview-jordan": { managerId: "preview-maggie", managersManagerId: "preview-escalation" },
+    "preview-priya": { managerId: null, managersManagerId: null },
+    "preview-maggie": { managerId: "preview-escalation", managersManagerId: null },
+    "preview-manager": { managerId: "preview-escalation", managersManagerId: null },
+    "preview-escalation": { managerId: null, managersManagerId: null },
   };
 
   // ---- DOM ready (script is at end of body, so elements exist) ----
@@ -55,13 +139,16 @@
     userChip: $("user-chip"), userChipName: $("user-chip-name"),
     ptoType: $("ptoType"), startDate: $("startDate"), endDate: $("endDate"),
     reason: $("reason"), confirm: $("confirm"),
-    // Backup contact = employee lookup (fills BackupContactName/Email on submit).
+    // Backup contacts = employee autocomplete (fills BackupContactName/Email on submit).
     backupSearch: $("backupSearch"), backupLookup: $("backupLookup"),
     backupResults: $("backupResults"), backupSelected: $("backupSelected"),
-    backupSelectedText: $("backupSelectedText"), backupClear: $("backupClear"),
     backupError: $("backupError"),
     submit: $("submit"), submitStatus: $("submit-status"), error: $("error"),
+    submitLabel: $("submitLabel"),
     detailsTitle: $("details-title-text"),
+    requestEntryShell: $("requestEntryShell"),
+    pageTitle: $("request-page-title"),
+    pageSubtitle: $("request-page-subtitle"), dateRangeError: $("dateRangeError"),
     choicePanel: $("entryChoicePanel"),
     choiceMyselfCard: $("choiceMyselfCard"),
     choiceOtherCard: $("choiceOtherCard"),
@@ -72,10 +159,17 @@
     selectionSummaryNote: $("selectionSummaryNote"),
     changeSelection: $("changeSelection"),
     requestFlow: $("requestFlow"),
+    requestWorkspace: $("requestWorkspace"),
     pilotBanner: $("pilotBanner"),
     requesterDetailsPanel: $("requester-details-panel"),
     tipLine: $("tipLine"),
     requestFooter: $("requestFooter"),
+    reviewRequester: $("reviewRequester"),
+    reviewManager: $("reviewManager"),
+    reviewPtoType: $("reviewPtoType"),
+    reviewStartDate: $("reviewStartDate"),
+    reviewEndDate: $("reviewEndDate"),
+    reviewBackupContact: $("reviewBackupContact"),
     // "Who is this request for?" (all employees) controls.
     oboSection: $("obo-section"), oboFields: $("oboFields"),
     forWhoMyself: $("forWhoMyself"), forWhoOther: $("forWhoOther"),
@@ -84,17 +178,30 @@
     oboLookup: $("oboLookup"), oboReason: $("oboReason"),
     oboReasonWrap: $("oboReasonWrap"),
     oboStatus: $("oboStatus"), oboError: $("oboError"),
-    oboBadge: $("oboBadge"), oboBadgeText: $("oboBadgeText"),
-    // Alternate approver (HR/Admin) controls.
-    approverSection: $("approver-section"), approverToggle: $("approverToggle"),
-    approverFields: $("approverFields"), approverEmail: $("approverEmail"),
-    approverLookup: $("approverLookup"), approverReason: $("approverReason"),
+    oboBadge: $("oboBadge"), oboBadgeText: $("oboBadgeText"), sidebarApproverOpen: $("sidebarApproverOpen"),
+    // Alternate approver controls.
+    approverSection: $("approver-section"), approverModal: $("approverModal"),
+    approverOpen: $("approverOpen"), approverClear: $("approverClear"),
+    approverSummaryText: $("approverSummaryText"),
+    approverCompact: $("approverCompact"), approverCompactText: $("approverCompactText"),
+    approverCompactReason: $("approverCompactReason"), approverSearch: $("approverSearch"),
+    approverResults: $("approverResults"), approverReason: $("approverReason"),
+    approverConfirm: $("approverConfirm"), approverCancel: $("approverCancel"),
+    approverSelectionClear: $("approverSelectionClear"),
     approverStatus: $("approverStatus"), approverError: $("approverError"),
     approverBadge: $("approverBadge"), approverBadgeText: $("approverBadgeText"),
   };
 
   var yearEl = $("year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
+  var MAX_BACKUP_CONTACTS = 3;
+  var oboSearchTimer = 0;
+  var oboSearchRequestId = 0;
+  var backupSearchTimer = 0;
+  var backupSearchRequestId = 0;
+  var approverSearchTimer = 0;
+  var approverSearchRequestId = 0;
+  var approverModalInstance = null;
 
   // Default dates to tomorrow.
   var tomorrow = PTORules.formatDateOnly(PTORules.addDays(new Date(), 1));
@@ -139,9 +246,78 @@
   }
 
   // ---- employee context ----
-  function fmtUser(u) {
+  function fmtUserName(u) {
     if (!u) return "—";
-    return (u.displayName || "?") + " · " + (u.mail || u.userPrincipalName || "no email");
+    return u.displayName || emailOf(u) || "—";
+  }
+
+  function fmtReviewDate(value) {
+    if (!value) return "—";
+    var d = new Date(value + "T00:00:00");
+    if (isNaN(d.getTime())) return value;
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    });
+  }
+
+  function clonePreviewUser(user) {
+    return user ? Object.assign({}, user) : null;
+  }
+
+  function previewUserById(userId) {
+    for (var i = 0; i < PREVIEW_DIRECTORY.length; i += 1) {
+      if (PREVIEW_DIRECTORY[i].id === userId) return clonePreviewUser(PREVIEW_DIRECTORY[i]);
+    }
+    return null;
+  }
+
+  function previewSearchUsers(query) {
+    var raw = String(query === null || query === undefined ? "" : query).trim().toLowerCase();
+    if (raw.length < 2) throw new Error("Type at least 2 characters to search.");
+
+    var meId = state.me && state.me.id;
+    return PREVIEW_DIRECTORY.filter(function (user) {
+      var haystack = [
+        user.displayName || "",
+        emailOf(user),
+        user.department || "",
+        user.jobTitle || ""
+      ].join(" ").toLowerCase();
+      return user.id !== meId && haystack.indexOf(raw) !== -1;
+    }).slice(0, 8).map(clonePreviewUser);
+  }
+
+  function previewManagerChainForUser(userId) {
+    var chain = PREVIEW_MANAGER_CHAINS[userId] || { managerId: null, managersManagerId: null };
+    return {
+      manager: previewUserById(chain.managerId),
+      managersManager: previewUserById(chain.managersManagerId),
+    };
+  }
+
+  function directorySearchUsers(query) {
+    if (isPreviewMode()) return Promise.resolve(previewSearchUsers(query));
+    return PTODirectory.searchUsers(query);
+  }
+
+  function directoryGetManagerChainForUser(userId) {
+    if (isPreviewMode()) return Promise.resolve(previewManagerChainForUser(userId));
+    return PTODirectory.getManagerChainForUser(userId);
+  }
+
+  function setPreviewSearchHints() {
+    if (!isPreviewMode()) return;
+    if (els.oboSearch && !els.oboSearch.value) {
+      els.oboSearch.placeholder = "Try Alex Rivera, Jordan Lee, Priya Shah, or Maggie Mondragon";
+    }
+    if (els.backupSearch && !els.backupSearch.value) {
+      els.backupSearch.placeholder = "Try Michael Reed, Maggie Mondragon, or Alicia Carter";
+    }
+    if (els.approverSearch && !els.approverSearch.value) {
+      els.approverSearch.placeholder = "Try Maggie Mondragon, Michael Reed, or Alicia Carter";
+    }
   }
 
   async function loadContext() {
@@ -180,9 +356,10 @@
     var r = t.requester || {};
     PTOUI.setText("c-name", r.displayName);
     PTOUI.setText("c-email", emailOf(r));
-    PTOUI.setText("c-dept", (r.department || "—") + " / " + (r.jobTitle || "—"));
-    PTOUI.setText("c-mgr", t.manager ? fmtUser(t.manager) : (r.id ? "(none found)" : "—"));
-    PTOUI.setText("c-mm", t.managersManager ? fmtUser(t.managersManager) : (r.id ? "(none / unavailable)" : "—"));
+    PTOUI.setText("c-dept", r.department || "—");
+    PTOUI.setText("c-title", r.jobTitle || "—");
+    PTOUI.setText("c-mgr", t.manager ? fmtUserName(t.manager) : (r.id ? "(none found)" : "—"));
+    PTOUI.setText("c-mm", t.managersManager ? fmtUserName(t.managersManager) : (r.id ? "(none / unavailable)" : "—"));
 
     // Manager-missing warning (same rule for self and on-behalf: required unless Sick).
     var w = $("mgr-warn");
@@ -210,6 +387,8 @@
     }
 
     updateOboBadge();
+    syncApproverOverrideForCurrentTarget();
+    updateReviewSummary();
   }
 
   function setSelfTarget() {
@@ -235,6 +414,10 @@
     state.target = { requester: null, manager: null, managersManager: null };
     if (els.detailsTitle) els.detailsTitle.textContent = "Employee details";
     renderTargetDetails();
+    if (isPreviewMode()) {
+      setPreviewSearchHints();
+      setOboStatus("Preview demo: try Alex Rivera, Jordan Lee, Priya Shah, or Maggie Mondragon.");
+    }
     refreshSubmitEnabled();
     updateFlowUI();
   }
@@ -268,7 +451,6 @@
   }
 
   function currentSelectionMode() {
-    if (!state.selectionCommitted) return "";
     return els.forWhoOther && els.forWhoOther.checked ? "other" : "self";
   }
 
@@ -281,38 +463,105 @@
   }
 
   function updateSelectionSummary() {
-    if (!els.selectionSummaryTitle || !els.selectionSummaryNote || !els.selectionSummaryIcon) return;
     var other = currentSelectionMode() === "other";
-    var requester = state.target && state.target.requester;
-    if (other) {
-      els.selectionSummaryIcon.innerHTML = '<i class="bi bi-person-plus"></i>';
-      els.selectionSummaryLabel.textContent = "Request type";
-      els.selectionSummaryTitle.textContent = "Another employee";
-      els.selectionSummaryNote.textContent = state.lookupOk && requester
-        ? "Submitting on behalf of " + (requester.displayName || emailOf(requester) || "the selected employee") + "."
-        : "Select the employee first to continue with the PTO request form.";
-      return;
+    if (els.changeSelection) {
+      els.changeSelection.innerHTML = other
+        ? '<i class="bi bi-arrow-left" aria-hidden="true"></i><span>Back to my request</span>'
+        : '<i class="bi bi-arrow-left-right" aria-hidden="true"></i><span>Switch request type</span>';
+      els.changeSelection.setAttribute(
+        "aria-label",
+        other ? "Switch back to my PTO request" : "Switch this PTO request to another employee"
+      );
     }
-    els.selectionSummaryIcon.innerHTML = '<i class="bi bi-person"></i>';
-    els.selectionSummaryLabel.textContent = "Request type";
-    els.selectionSummaryTitle.textContent = "Myself";
-    els.selectionSummaryNote.textContent = "Create a PTO request for your own time off.";
+  }
+
+  function updateSubmitButtonCopy() {
+    if (!els.submitLabel || state.submitted) return;
+    var mode = currentSelectionMode();
+    els.submitLabel.textContent = mode === "other" ? "Submit PTO request" : "Submit my PTO request";
+  }
+
+  function updatePageHeading() {
+    if (!els.pageTitle || !els.pageSubtitle) return;
+    var mode = currentSelectionMode();
+    var title = "Submit PTO Request";
+    var subtitle = "Who is this PTO request for?";
+
+    if (mode === "self") {
+      title = "My PTO Request";
+      subtitle = "Create a PTO request for your own time off.";
+    } else if (mode === "other" && state.lookupOk && state.target.requester) {
+      title = "Employee PTO Request";
+      subtitle = "Create a PTO request on behalf of " + (state.target.requester.displayName || "the selected employee") + ".";
+    } else if (mode === "other") {
+      title = "PTO Request";
+      subtitle = "Select the employee this request is for to continue.";
+    }
+
+    els.pageTitle.textContent = title;
+    els.pageSubtitle.textContent = subtitle;
+  }
+
+  function updateReviewSummary() {
+    if (!els.reviewRequester) return;
+    var requester = state.target && state.target.requester ? state.target.requester : null;
+    var manager = state.target && state.target.manager ? state.target.manager : null;
+    PTOUI.setText("reviewRequester", requester ? (requester.displayName || emailOf(requester) || "—") : "—");
+    PTOUI.setText("reviewManager", manager ? (manager.displayName || emailOf(manager) || "—") : "—");
+    PTOUI.setText("reviewPtoType", els.ptoType && els.ptoType.value ? els.ptoType.value : "—");
+    PTOUI.setText("reviewStartDate", fmtReviewDate(els.startDate && els.startDate.value));
+    PTOUI.setText("reviewEndDate", fmtReviewDate(els.endDate && els.endDate.value));
+    PTOUI.setText(
+      "reviewBackupContact",
+      backupSummaryText() || "None selected"
+    );
+  }
+
+  function backupContacts() {
+    return state.backups || [];
+  }
+
+  function backupSummaryText() {
+    return backupContacts().map(function (contact) {
+      return contact.name + (contact.email ? " (" + contact.email + ")" : "");
+    }).join(", ");
+  }
+
+  function backupNameFieldValue() {
+    return backupContacts().map(function (contact) { return contact.name; }).join("; ");
+  }
+
+  function backupEmailFieldValue() {
+    return backupContacts().map(function (contact) { return contact.email; }).filter(Boolean).join("; ");
   }
 
   function updateFlowUI() {
     var mode = currentSelectionMode();
-    var showFlow = !!mode;
+    var showFlow = !!state.me || isPreviewMode();
     var showEmployeeSelection = mode === "other";
-    var showResolvedFlow = mode === "self" ||
-      (mode === "other" && state.lookupOk && !!(state.target.requester && state.target.requester.id));
+    var showResolvedFlow = showFlow && (
+      mode === "self" ||
+      (mode === "other" && state.lookupOk && !!(state.target.requester && state.target.requester.id))
+    );
 
     updateChoiceCards();
     updateSelectionSummary();
+    updatePageHeading();
+    updateSubmitButtonCopy();
+    renderApproverSummary();
+    updateReviewSummary();
+    if (els.requestEntryShell) {
+      els.requestEntryShell.classList.toggle("is-form-mode", showFlow);
+      els.requestEntryShell.classList.toggle("mode-selection", !showFlow);
+      els.requestEntryShell.classList.toggle("mode-self", mode === "self");
+      els.requestEntryShell.classList.toggle("mode-other", mode === "other");
+    }
 
-    setHidden(els.choicePanel, showFlow);
-    setHidden(els.selectionSummary, !showFlow);
+    setHidden(els.choicePanel, true);
+    setHidden(els.selectionSummary, true);
     setHidden(els.requestFlow, !showFlow);
     setHidden(els.oboSection, !showEmployeeSelection);
+    setHidden(els.requestWorkspace, !showResolvedFlow);
     setHidden(els.pilotBanner, !showResolvedFlow);
     setHidden(els.approverSection, !showResolvedFlow);
     setHidden(els.requesterDetailsPanel, !showResolvedFlow);
@@ -329,7 +578,6 @@
       if (els.signin && !PTOAuth.getAccount()) els.signin.focus();
       return;
     }
-    state.selectionCommitted = true;
     if (mode === "other") {
       if (els.forWhoOther) els.forWhoOther.checked = true;
     } else {
@@ -340,8 +588,7 @@
   }
 
   function resetSelection() {
-    state.selectionCommitted = false;
-    updateFlowUI();
+    commitSelection(currentSelectionMode() === "other" ? "self" : "other");
   }
 
   // ---- on-behalf messages ----
@@ -370,89 +617,234 @@
   }
   function clearApproverMessages() { setApproverStatus(""); showApproverError(""); }
 
+  function approverSelectionProblem(user) {
+    var problem = PTORules.userSelectionProblem(user);
+    var approverEmail = emailOf(user).toLowerCase();
+    var targetEmail = emailOf(state.target.requester || {}).toLowerCase();
+    var submitterEmail = emailOf(state.me || {}).toLowerCase();
+
+    if (!problem && approverEmail && targetEmail && approverEmail === targetEmail) {
+      problem = "The alternate approver must be different from the employee taking the PTO.";
+    }
+    if (!problem && approverEmail && submitterEmail && approverEmail === submitterEmail) {
+      problem = "You can't route approval to yourself.";
+    }
+    return problem;
+  }
+
+  function clearApproverResults() {
+    if (!els.approverResults) return;
+    els.approverResults.innerHTML = "";
+    els.approverResults.classList.remove("show");
+  }
+
+  function setApproverResultsEmpty(message) {
+    if (!els.approverResults) return;
+    els.approverResults.innerHTML = "";
+    var empty = document.createElement("div");
+    empty.className = "backup-results__empty";
+    empty.textContent = message;
+    els.approverResults.appendChild(empty);
+    els.approverResults.classList.add("show");
+  }
+
+  function loadApproverDraftFromState() {
+    state.approverDraft.approver = state.approverOverride.active ? state.approverOverride.approver : null;
+    state.approverDraft.reason = state.approverOverride.active ? (state.approverOverride.reason || "") : "";
+    if (els.approverSearch) els.approverSearch.value = "";
+    if (els.approverReason) els.approverReason.value = state.approverDraft.reason;
+    clearApproverResults();
+    clearApproverMessages();
+    updateApproverBadge();
+  }
+
+  function renderApproverSummary() {
+    var active = !!(state.approverOverride.active && state.approverOverride.lookupOk && state.approverOverride.approver);
+    var approver = active ? state.approverOverride.approver : null;
+    var managerMissing = !state.target.manager && els.ptoType && els.ptoType.value !== "Sick";
+
+    if (els.approverOpen) {
+      els.approverOpen.textContent = active ? "Change approver" : "Select alternate approver";
+    }
+    if (els.approverClear) els.approverClear.hidden = !active;
+    if (els.approverCompact) els.approverCompact.hidden = !active;
+
+    if (els.approverSummaryText) {
+      if (active && approver) {
+        els.approverSummaryText.textContent = "Approval will be routed to " + (approver.displayName || emailOf(approver) || "the selected approver") + ".";
+      } else if (managerMissing) {
+        els.approverSummaryText.textContent = "No manager is configured for this request, so selecting an alternate approver is required before you submit.";
+      } else {
+        els.approverSummaryText.textContent = "Keep the default manager routing, or choose an alternate approver if needed.";
+      }
+    }
+
+    if (active && approver) {
+      if (els.approverCompactText) {
+        els.approverCompactText.textContent = (approver.displayName || emailOf(approver) || "Selected approver") +
+          (emailOf(approver) ? " — " + emailOf(approver) : "");
+      }
+      if (els.approverCompactReason) {
+        els.approverCompactReason.textContent = state.approverOverride.reason ? "Reason: " + state.approverOverride.reason : "";
+      }
+    } else {
+      if (els.approverCompactText) els.approverCompactText.textContent = "None selected";
+      if (els.approverCompactReason) els.approverCompactReason.textContent = "";
+    }
+  }
+
   function updateApproverBadge() {
     if (!els.approverBadge) return;
-    var a = state.approverOverride.active && state.approverOverride.lookupOk
-      ? state.approverOverride.approver
-      : null;
+    var a = state.approverDraft && state.approverDraft.approver ? state.approverDraft.approver : null;
     if (a) {
       var who = a.displayName || emailOf(a) || "approver";
       var email = emailOf(a);
-      els.approverBadgeText.textContent =
-        "Approval routed to " + who + (email ? " (" + email + ")" : "");
-      els.approverBadge.classList.add("show");
+      els.approverBadgeText.textContent = who + (email ? " — " + email : "");
+      els.approverBadge.hidden = false;
     } else {
-      els.approverBadge.classList.remove("show");
+      els.approverBadge.hidden = true;
     }
   }
 
-  // ---- alternate-approver lookup (HR/Admin) ----
-  async function onApproverLookup() {
-    clearApproverMessages();
-    var email = (els.approverEmail.value || "").trim();
-    if (!email) { showApproverError('Enter the approver’s email, then click "Lookup approver".'); return; }
-
-    var targetEmail = emailOf(state.target.requester || {});
-    if (targetEmail && email.toLowerCase() === targetEmail.toLowerCase()) {
-      showApproverError("The alternate approver must be different from the employee taking the PTO.");
+  function syncApproverOverrideForCurrentTarget() {
+    if (!state.approverOverride.active || !state.approverOverride.approver) {
+      renderApproverSummary();
       return;
     }
+    var problem = approverSelectionProblem(state.approverOverride.approver);
+    if (problem) {
+      clearAlternateApprover();
+      return;
+    }
+    renderApproverSummary();
+  }
 
-    els.approverLookup.disabled = true;
+  function ensureApproverModal() {
+    if (!approverModalInstance && els.approverModal && window.bootstrap && window.bootstrap.Modal) {
+      approverModalInstance = new window.bootstrap.Modal(els.approverModal, {
+        backdrop: true,
+        focus: true
+      });
+    }
+    return approverModalInstance;
+  }
+
+  function openApproverModal() {
+    loadApproverDraftFromState();
+    var modal = ensureApproverModal();
+    if (modal) modal.show();
+  }
+
+  function closeApproverModal() {
+    var modal = ensureApproverModal();
+    if (modal) modal.hide();
+  }
+
+  function clearAlternateApprover() {
+    state.approverOverride.active = false;
     state.approverOverride.lookupOk = false;
-    setApproverStatus("Looking up " + email + "…");
+    state.approverOverride.approver = null;
+    state.approverOverride.reason = "";
+    clearApproverMessages();
+    renderApproverSummary();
+  }
+
+  function selectApproverDraft(approver) {
+    clearApproverMessages();
+    var problem = approverSelectionProblem(approver);
+    if (problem) {
+      showApproverError(problem);
+      return;
+    }
+    state.approverDraft.approver = approver;
+    updateApproverBadge();
+    clearApproverResults();
+    if (els.approverSearch) els.approverSearch.value = "";
+    setApproverStatus("Selected " + (approver.displayName || emailOf(approver) || "alternate approver") + ".");
+  }
+
+  function clearApproverDraftSelection() {
+    state.approverDraft.approver = null;
+    updateApproverBadge();
+    clearApproverMessages();
+    if (els.approverSearch) els.approverSearch.focus();
+  }
+
+  function validateApproverDraft() {
+    if (!state.approverDraft.approver) return "Select an alternate approver from the directory.";
+    var problem = approverSelectionProblem(state.approverDraft.approver);
+    if (problem) return problem;
+    if (!els.approverReason || !els.approverReason.value.trim()) {
+      return "Enter a reason for routing approval to an alternate approver.";
+    }
+    return null;
+  }
+
+  async function onApproverSearch() {
+    clearApproverMessages();
+    var q = (els.approverSearch && els.approverSearch.value || "").trim();
+    var requestId = ++approverSearchRequestId;
+    if (!q) { clearApproverResults(); return; }
+    if (q.length < 2) {
+      setApproverResultsEmpty("Type at least 2 characters to see alternate approver suggestions.");
+      return;
+    }
     try {
-      var approver = await PTODirectory.getUserByEmail(email);
-      if (!approver) {
-        updateApproverBadge();
-        setApproverStatus("");
-        showApproverError('No employee found for "' + email + '". Check the email and try again.');
+      var matches = await directorySearchUsers(q);
+      if (requestId !== approverSearchRequestId) return;
+      clearApproverResults();
+      var selectedEmail = emailOf(state.approverDraft.approver || {}).toLowerCase();
+      var eligible = (matches || []).filter(function (u) {
+        var email = emailOf(u).toLowerCase();
+        if (!email) return false;
+        if (selectedEmail && email === selectedEmail) return false;
+        return !approverSelectionProblem(u);
+      });
+      if (!eligible.length) {
+        setApproverResultsEmpty("No eligible alternate approvers matched that search.");
         return;
       }
-      // The approver is a directory-resolved object only (never free text).
-      // Shared pure checks: active / Member / @mybasepay.com / valid email.
-      var problem = PTORules.userSelectionProblem(approver);
-      // Context rules: an approver may not be the PTO employee (self-approval
-      // of the request) nor the signed-in submitter (routing your own filing
-      // to yourself). HR/Admin can always decide via approve.html regardless.
-      if (!problem && emailOf(approver).toLowerCase() === emailOf(state.me).toLowerCase()) {
-        problem = "You can't route approval to yourself.";
-      }
-      if (!problem) {
-        var reqEmail = emailOf(state.target.requester || {});
-        if (reqEmail && emailOf(approver).toLowerCase() === reqEmail.toLowerCase()) {
-          problem = "The alternate approver must be different from the employee taking the PTO.";
-        }
-      }
-      if (problem) {
-        state.approverOverride.lookupOk = false;
-        state.approverOverride.approver = null;
-        updateApproverBadge();
-        setApproverStatus("");
-        showApproverError(problem);
-        return;
-      }
-      state.approverOverride.lookupOk = true;
-      state.approverOverride.approver = approver;
-      updateApproverBadge();
-      setApproverStatus("✓ Approval will be routed to " + (approver.displayName || email) + ".");
+      eligible.forEach(function (u) {
+        var email = emailOf(u);
+        els.approverResults.appendChild(backupResultRow(
+          u.displayName || email,
+          email,
+          function () { selectApproverDraft(u); }
+        ));
+      });
+      els.approverResults.classList.add("show");
     } catch (e) {
-      state.approverOverride.lookupOk = false;
-      updateApproverBadge();
-      setApproverStatus("");
-      showApproverError("Lookup failed: " + friendly(e));
-    } finally {
-      els.approverLookup.disabled = false;
+      if (requestId !== approverSearchRequestId) return;
+      clearApproverResults();
+      showApproverError("Alternate approver suggestions are unavailable right now (" + friendly(e) + ").");
     }
   }
 
-  // ---- backup contact lookup (optional) --------------------------------------
-  // Employee search by name or email (PTODirectory.searchUsers). Selecting a
-  // match fills the SAME SharePoint fields as the old free-text inputs
-  // (BackupContactName/BackupContactEmail via gatherInput). Never blocks a
-  // submit: backup contact stays optional, and a failed lookup only shows a
-  // friendly message. A "name only" fallback keeps non-employee backups
-  // (e.g. an external vendor) possible.
+  function queueApproverSearch() {
+    window.clearTimeout(approverSearchTimer);
+    approverSearchTimer = window.setTimeout(onApproverSearch, 160);
+  }
+
+  function confirmAlternateApprover() {
+    clearApproverMessages();
+    var problem = validateApproverDraft();
+    if (problem) {
+      showApproverError(problem);
+      return;
+    }
+    state.approverOverride.active = true;
+    state.approverOverride.lookupOk = true;
+    state.approverOverride.approver = state.approverDraft.approver;
+    state.approverOverride.reason = (els.approverReason.value || "").trim();
+    renderApproverSummary();
+    closeApproverModal();
+  }
+
+  // ---- backup contact autocomplete (optional) ---------------------------------
+  // Employee search by name or email (PTODirectory.searchUsers). Selecting one
+  // or more matches fills the SAME SharePoint fields as before
+  // (BackupContactName/BackupContactEmail via gatherInput), serialized as
+  // semicolon-delimited values for compatibility with the live list schema.
   function showBackupError(text) {
     if (!els.backupError) return;
     els.backupError.textContent = text || "";
@@ -467,27 +859,75 @@
 
   function renderBackupSelected() {
     if (!els.backupSelected) return;
-    if (state.backup) {
-      els.backupSelectedText.textContent = "Selected: " + state.backup.name +
-        (state.backup.email ? " — " + state.backup.email : "");
+    var contacts = backupContacts();
+    els.backupSelected.innerHTML = "";
+    if (contacts.length) {
+      contacts.forEach(function (contact, index) {
+        var chip = document.createElement("span");
+        chip.className = "backup-chip";
+        chip.setAttribute("role", "listitem");
+
+        var text = document.createElement("span");
+        text.className = "backup-chip__text";
+        text.textContent = contact.name + (contact.email ? " — " + contact.email : "");
+        chip.appendChild(text);
+
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "backup-chip__remove";
+        remove.setAttribute("aria-label", "Remove backup contact " + contact.name);
+        remove.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>';
+        remove.addEventListener("click", function () {
+          removeBackup(index);
+        });
+        chip.appendChild(remove);
+
+        els.backupSelected.appendChild(chip);
+      });
       els.backupSelected.classList.add("show");
     } else {
       els.backupSelected.classList.remove("show");
     }
+    updateReviewSummary();
   }
 
-  function selectBackup(name, email) {
-    state.backup = { name: name || "", email: email || "" };
+  function removeBackup(index) {
+    var contacts = backupContacts().slice();
+    if (index < 0 || index >= contacts.length) return;
+    contacts.splice(index, 1);
+    state.backups = contacts;
+    renderBackupSelected();
+    showBackupError("");
+  }
+
+  function selectBackup(contact) {
+    var name = contact && contact.name ? contact.name : "";
+    var email = contact && contact.email ? contact.email : "";
+    var normalizedEmail = email.toLowerCase();
+    var targetEmail = emailOf(state.target.requester || {}).toLowerCase();
+    var contacts = backupContacts().slice();
+
+    if (!name) {
+      showBackupError("Select a valid backup contact from the directory.");
+      return;
+    }
+    if (email && targetEmail && normalizedEmail === targetEmail) {
+      showBackupError("Choose someone other than the employee taking PTO as the backup contact.");
+      return;
+    }
+    if (email && contacts.some(function (item) { return item.email && item.email.toLowerCase() === normalizedEmail; })) {
+      showBackupError(name + " is already selected as a backup contact.");
+      return;
+    }
+    if (contacts.length >= MAX_BACKUP_CONTACTS) {
+      showBackupError("You can select up to " + MAX_BACKUP_CONTACTS + " backup contacts.");
+      return;
+    }
+    state.backups = contacts.concat([{ name: name, email: email }]);
     clearBackupResults();
     showBackupError("");
     if (els.backupSearch) els.backupSearch.value = "";
     renderBackupSelected();
-  }
-
-  function clearBackup() {
-    state.backup = null;
-    renderBackupSelected();
-    showBackupError("");
   }
 
   function backupResultRow(label, sub, onPick) {
@@ -508,39 +948,114 @@
     return row;
   }
 
+  function setBackupResultsEmpty(message) {
+    if (!els.backupResults) return;
+    els.backupResults.innerHTML = "";
+    var empty = document.createElement("div");
+    empty.className = "backup-results__empty";
+    empty.textContent = message;
+    els.backupResults.appendChild(empty);
+    els.backupResults.classList.add("show");
+  }
+
   async function onBackupSearch() {
     showBackupError("");
-    clearBackupResults();
     var q = (els.backupSearch.value || "").trim();
-    if (!q) { showBackupError("Type a name or email to search for a backup contact."); return; }
-
-    els.backupLookup.disabled = true;
+    var requestId = ++backupSearchRequestId;
+    if (!q) { clearBackupResults(); return; }
+    if (backupContacts().length >= MAX_BACKUP_CONTACTS) {
+      clearBackupResults();
+      showBackupError("You can select up to " + MAX_BACKUP_CONTACTS + " backup contacts.");
+      return;
+    }
+    if (q.length < 2) {
+      setBackupResultsEmpty("Type at least 2 characters to see backup contact suggestions.");
+      return;
+    }
     try {
-      var matches = await PTODirectory.searchUsers(q);
+      var matches = await directorySearchUsers(q);
+      if (requestId !== backupSearchRequestId) return;
+      clearBackupResults();
       els.backupResults.innerHTML = "";
-      (matches || []).forEach(function (u) {
+      var selectedEmails = backupContacts().map(function (item) { return (item.email || "").toLowerCase(); });
+      var targetEmail = emailOf(state.target.requester || {}).toLowerCase();
+      var eligible = (matches || []).filter(function (u) {
+        var email = emailOf(u);
+        var problem = PTORules.userSelectionProblem(u);
+        if (problem) return false;
+        if (!email) return false;
+        if (targetEmail && email.toLowerCase() === targetEmail) return false;
+        return selectedEmails.indexOf(email.toLowerCase()) === -1;
+      });
+      eligible.forEach(function (u) {
         var email = emailOf(u);
         els.backupResults.appendChild(backupResultRow(
-          u.displayName || email, email,
-          function () { selectBackup(u.displayName || email, email); }
+          u.displayName || email,
+          email,
+          function () { selectBackup({ name: u.displayName || email, email: email }); }
         ));
       });
-      // Free-text fallback (name only, no email) — keeps non-employee backup
-      // contacts possible and keeps a failed/empty search from being a dead end.
+      // Free-text fallback (name only, no email) — keeps a non-employee/external
+      // backup contact possible and keeps an empty/failed search from being a
+      // dead end. Directory matches above are still validated via
+      // PTORules.userSelectionProblem; this path is intentionally unvalidated
+      // since it's for people who aren't in the directory at all.
       els.backupResults.appendChild(backupResultRow(
-        (matches && matches.length ? "Or use “" : "No employee match — use “") + q + "” as the name only",
+        (eligible.length ? "Or use “" : "No employee match — use “") + q + "” as the name only",
         null,
-        function () { selectBackup(q, ""); }
+        function () { selectBackup({ name: q, email: "" }); }
       ));
       els.backupResults.classList.add("show");
     } catch (e) {
+      if (requestId !== backupSearchRequestId) return;
+      clearBackupResults();
       showBackupError(
-        "Backup contact search is unavailable right now (" + friendly(e) + "). " +
-        "You can submit without a backup contact, or try again."
+        "Backup contact suggestions are unavailable right now (" + friendly(e) + "). " +
+        "You can submit without backup contacts, or try again in a moment."
       );
-    } finally {
-      els.backupLookup.disabled = false;
     }
+  }
+
+  function queueBackupSearch() {
+    window.clearTimeout(backupSearchTimer);
+    backupSearchTimer = window.setTimeout(onBackupSearch, 160);
+  }
+
+  function dateRangeProblem() {
+    var start = els.startDate && els.startDate.value;
+    var end = els.endDate && els.endDate.value;
+    if (!start || !end) return "";
+    if (start > end) return "Start Date cannot be after End Date.";
+    return "";
+  }
+
+  function updateDateRangeUI() {
+    var message = dateRangeProblem();
+    if (els.endDate) {
+      if (els.startDate && els.startDate.value) els.endDate.min = els.startDate.value;
+      else els.endDate.removeAttribute("min");
+      if (message) els.endDate.setAttribute("aria-invalid", "true");
+      else els.endDate.removeAttribute("aria-invalid");
+    }
+    if (els.startDate) {
+      els.startDate.removeAttribute("max");
+      if (message) els.startDate.setAttribute("aria-invalid", "true");
+      else els.startDate.removeAttribute("aria-invalid");
+    }
+    if (els.dateRangeError) {
+      els.dateRangeError.textContent = message;
+      els.dateRangeError.style.display = message ? "block" : "none";
+    }
+    return message;
+  }
+
+  function maybeOpenDatePicker(input) {
+    if (!input || typeof input.showPicker !== "function") return;
+    try { input.showPicker(); } catch (e) {}
+  }
+
+  function syncDateRangeFromStart() {
+    updateDateRangeUI();
   }
 
   // ---- employee search + selection (on-behalf — all employees) --------------
@@ -567,6 +1082,16 @@
     els.oboResults.classList.remove("show");
   }
 
+  function setOboResultsEmpty(message) {
+    if (!els.oboResults) return;
+    els.oboResults.innerHTML = "";
+    var empty = document.createElement("div");
+    empty.className = "backup-results__empty";
+    empty.textContent = message;
+    els.oboResults.appendChild(empty);
+    els.oboResults.classList.add("show");
+  }
+
   function oboResultRow(u) {
     var row = document.createElement("button");
     row.type = "button";
@@ -585,28 +1110,45 @@
 
   async function onOboSearch() {
     clearOboMessages();
-    clearOboResults();
     var q = (els.oboSearch.value || "").trim();
-    if (!q) { showOboError("Type the employee's name or email, then click Search."); return; }
+    var requestId = ++oboSearchRequestId;
+    if (!q) {
+      clearOboResults();
+      if (isPreviewMode()) {
+        setOboStatus("Preview demo: try Alex Rivera, Jordan Lee, Priya Shah, or Maggie Mondragon.");
+      } else {
+        setOboStatus("");
+      }
+      return;
+    }
+    if (q.length < 2) {
+      clearOboResults();
+      setOboResultsEmpty("Type at least 2 characters to see employee suggestions.");
+      return;
+    }
 
-    els.oboLookup.disabled = true;
-    setOboStatus("Searching for \"" + q + "\"…");
     try {
-      var matches = await PTODirectory.searchUsers(q);
+      var matches = await directorySearchUsers(q);
+      if (requestId !== oboSearchRequestId) return;
+      clearOboResults();
       setOboStatus("");
       if (!matches || !matches.length) {
-        showOboError('No employee found for "' + q + '". Check the spelling and try again.');
+        setOboResultsEmpty('No employee found for "' + q + '".');
         return;
       }
       els.oboResults.innerHTML = "";
       matches.forEach(function (u) { els.oboResults.appendChild(oboResultRow(u)); });
       els.oboResults.classList.add("show");
     } catch (e) {
+      if (requestId !== oboSearchRequestId) return;
       setOboStatus("");
       showOboError("Employee search failed: " + friendly(e));
-    } finally {
-      els.oboLookup.disabled = false;
     }
+  }
+
+  function queueOboSearch() {
+    window.clearTimeout(oboSearchTimer);
+    oboSearchTimer = window.setTimeout(onOboSearch, 160);
   }
 
   async function selectEmployee(employee) {
@@ -621,7 +1163,7 @@
     try {
       // Resolve the EMPLOYEE's manager chain (User.Read.All). A hard failure here
       // throws and is caught below → submit stays blocked with a clear message.
-      var chain = await PTODirectory.getManagerChainForUser(employee.id);
+      var chain = await directoryGetManagerChainForUser(employee.id);
 
       state.onBehalf = true;
       state.lookupOk = true;
@@ -650,6 +1192,7 @@
   function recomputeRuleUI() {
     var type = els.ptoType.value;
     var start = els.startDate.value;
+    updateDateRangeUI();
 
     // Sick note + manager-requirement messaging.
     PTOUI.show("sickNote", type === "Sick");
@@ -672,6 +1215,8 @@
       PTOUI.show("notice", false);
       PTOUI.show("shortNotice", false);
     }
+    renderApproverSummary();
+    updateReviewSummary();
   }
 
   // ---- validation (app-enforced; SharePoint columns are optional) ----
@@ -687,7 +1232,8 @@
     if (!type) return "Choose a PTO type.";
     if (!els.startDate.value) return "Choose a start date.";
     if (!els.endDate.value) return "Choose an end date.";
-    if (els.endDate.value < els.startDate.value) return "End date must be on or after the start date.";
+    var dateProblem = updateDateRangeUI();
+    if (dateProblem) return dateProblem;
 
     // An approval route is required unless Sick (auto-approved): either the
     // resolved target has a manager in Entra, OR the user enabled "Route
@@ -706,21 +1252,23 @@
     // whenever the toggle is on.
     if (state.approverOverride.active) {
       if (!state.approverOverride.lookupOk || !state.approverOverride.approver) {
-        return 'Look up the alternate approver first — enter their email and click "Lookup approver".';
+        return "Select and confirm an alternate approver before submitting.";
       }
-      if (!els.approverReason.value.trim()) {
+      if (!state.approverOverride.reason.trim()) {
         return "Enter a reason for routing approval to an alternate approver.";
       }
     }
 
-    if (!els.confirm.checked) return 'Please check "I confirm this PTO request is accurate".';
+    if (!els.confirm.checked) {
+      return 'Please confirm the request is accurate and that any selected backup contact has been notified.';
+    }
     return null; // ok
   }
 
   function refreshSubmitEnabled() {
     // Submit is enabled when signed in and not already submitted; detailed
     // validation runs on click so the user sees a specific reason.
-    els.submit.disabled = state.submitted || !PTOAuth.getAccount();
+    els.submit.disabled = state.submitted || (!PTOAuth.getAccount() && !isPreviewMode());
   }
 
   // ---- submit ----
@@ -730,16 +1278,16 @@
       startDate: els.startDate.value,
       endDate: els.endDate.value,
       reason: els.reason.value,
-      // Backup contact comes from the employee lookup (state.backup); the
-      // SharePoint fields BackupContactName/BackupContactEmail are unchanged.
-      backupContactName: state.backup ? state.backup.name : "",
-      backupContactEmail: state.backup ? state.backup.email : "",
+      // Backup contacts come from the employee autocomplete; the SharePoint
+      // fields stay unchanged and receive semicolon-delimited values.
+      backupContactName: backupNameFieldValue(),
+      backupContactEmail: backupEmailFieldValue(),
       // Partial day was removed from the UI (2026-07-03). Safe defaults keep
       // buildCreateRequestFields' contract intact: IsPartialDay = false is
       // still written; Hours is omitted (only written for partial days).
       isPartialDay: false,
       hours: "",
-      onBehalfReason: state.onBehalf ? els.oboReason.value : "",
+      onBehalfReason: state.onBehalf && els.oboReason ? els.oboReason.value : "",
     };
   }
 
@@ -788,7 +1336,7 @@
         managersManager: state.target.managersManager,
         onBehalf: state.onBehalf,
         approverOverride: state.approverOverride.active
-          ? { approver: state.approverOverride.approver, reason: els.approverReason.value }
+          ? { approver: state.approverOverride.approver, reason: state.approverOverride.reason }
           : null,
       };
       var fields = PTORequests.buildCreateRequestFields(input, context);
@@ -804,7 +1352,11 @@
           (context.approverOverride.approver.displayName || emailOf(context.approverOverride.approver)) + ".";
       }
       setSubmitStatus(statusMsg + " Submit is disabled to avoid duplicates.");
-      els.submit.textContent = "Submitted";
+      if (els.submitLabel) {
+        els.submitLabel.textContent = "Submitted";
+      } else {
+        els.submit.textContent = "Submitted";
+      }
     } catch (e) {
       setSubmitStatus("");
       // Detailed INTERNAL diagnostics (console only) — endpoint, method, HTTP
@@ -841,18 +1393,38 @@
 
   // ---- wiring ----
   els.ptoType.addEventListener("change", recomputeRuleUI);
-  els.startDate.addEventListener("change", recomputeRuleUI);
+  els.startDate.addEventListener("change", function () {
+    syncDateRangeFromStart();
+    recomputeRuleUI();
+  });
   els.endDate.addEventListener("change", recomputeRuleUI);
   els.confirm.addEventListener("change", refreshSubmitEnabled);
 
-  // Backup contact lookup (optional).
-  if (els.backupLookup) els.backupLookup.addEventListener("click", onBackupSearch);
+  if (els.startDate) {
+    els.startDate.addEventListener("click", function () { maybeOpenDatePicker(els.startDate); });
+  }
+  if (els.endDate) {
+    els.endDate.addEventListener("click", function () { maybeOpenDatePicker(els.endDate); });
+  }
+
+  // Backup contact autocomplete (optional).
   if (els.backupSearch) {
+    els.backupSearch.addEventListener("input", queueBackupSearch);
+    els.backupSearch.addEventListener("focus", function () {
+      if ((els.backupSearch.value || "").trim().length >= 2) queueBackupSearch();
+    });
     els.backupSearch.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); onBackupSearch(); }
+      if (e.key === "Enter") {
+        var first = els.backupResults ? els.backupResults.querySelector(".backup-result") : null;
+        e.preventDefault();
+        if (first) {
+          first.click();
+        } else {
+          onBackupSearch();
+        }
+      }
     });
   }
-  if (els.backupClear) els.backupClear.addEventListener("click", clearBackup);
 
   // On-behalf (HR/Admin): toggle reveals the lookup; switching off restores self.
   // "Who is this request for?" radios — Myself (default) / Another employee.
@@ -865,7 +1437,7 @@
       enterOnBehalfMode();
     } else {
       if (els.oboSearch) els.oboSearch.value = "";
-      els.oboReason.value = "";
+      if (els.oboReason) els.oboReason.value = "";
       setSelfTarget();
     }
     updateFlowUI();
@@ -891,33 +1463,48 @@
     });
   }
   if (els.changeSelection) els.changeSelection.addEventListener("click", resetSelection);
-  if (els.oboLookup) els.oboLookup.addEventListener("click", onOboSearch);
   if (els.oboSearch) {
+    els.oboSearch.addEventListener("input", queueOboSearch);
+    els.oboSearch.addEventListener("focus", function () {
+      if ((els.oboSearch.value || "").trim().length >= 2) queueOboSearch();
+    });
     els.oboSearch.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); onOboSearch(); }
+      if (e.key === "Enter") {
+        var first = els.oboResults ? els.oboResults.querySelector(".backup-result") : null;
+        e.preventDefault();
+        if (first) first.click();
+        else onOboSearch();
+      }
     });
   }
 
-  // Alternate approver (HR/Admin): toggle reveals the lookup; switching off clears it.
-  if (els.approverToggle) {
-    els.approverToggle.addEventListener("change", function () {
-      var on = els.approverToggle.checked;
-      state.approverOverride.active = on;
-      if (els.approverFields) els.approverFields.classList.toggle("show", on);
-      clearApproverMessages();
-      if (!on) {
-        state.approverOverride.lookupOk = false;
-        state.approverOverride.approver = null;
-        els.approverEmail.value = "";
-        els.approverReason.value = "";
+  if (els.sidebarApproverOpen) els.sidebarApproverOpen.addEventListener("click", openApproverModal);
+  if (els.approverOpen) els.approverOpen.addEventListener("click", openApproverModal);
+  if (els.approverClear) els.approverClear.addEventListener("click", clearAlternateApprover);
+  if (els.approverConfirm) els.approverConfirm.addEventListener("click", confirmAlternateApprover);
+  if (els.approverSelectionClear) els.approverSelectionClear.addEventListener("click", clearApproverDraftSelection);
+  if (els.approverSearch) {
+    els.approverSearch.addEventListener("input", queueApproverSearch);
+    els.approverSearch.addEventListener("focus", function () {
+      if ((els.approverSearch.value || "").trim().length >= 2) queueApproverSearch();
+    });
+    els.approverSearch.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        var first = els.approverResults ? els.approverResults.querySelector(".backup-result") : null;
+        e.preventDefault();
+        if (first) first.click();
+        else onApproverSearch();
       }
-      updateApproverBadge();
     });
   }
-  if (els.approverLookup) els.approverLookup.addEventListener("click", onApproverLookup);
-  if (els.approverEmail) {
-    els.approverEmail.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); onApproverLookup(); }
+  if (els.approverModal) {
+    els.approverModal.addEventListener("shown.bs.modal", function () {
+      if (els.approverSearch) els.approverSearch.focus();
+    });
+    els.approverModal.addEventListener("hidden.bs.modal", function () {
+      clearApproverResults();
+      clearApproverMessages();
+      if (els.approverSearch) els.approverSearch.value = "";
     });
   }
 
@@ -983,41 +1570,30 @@
     try { sessionStorage.removeItem(AUTO_LOGIN_FLAG); } catch (e) {}
   }
 
+  // ?preview=1 only activates on localhost/loopback — see PTOUI.isLocalDevHost().
   function isPreviewMode() {
     try {
-      return /(?:^|[?&])preview=1(?:&|$)/.test(window.location.search || "");
+      return /(?:^|[?&])preview=1(?:&|$)/.test(window.location.search || "") && PTOUI.isLocalDevHost();
     } catch (e) {
       return false;
     }
   }
 
+  function getPreviewEntryMode() {
+    try {
+      var mode = new URLSearchParams(window.location.search || "").get("mode");
+      return mode === "other" ? "other" : mode === "self" ? "self" : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
   function enterPreviewMode() {
     state.authorized = true;
-    state.me = {
-      id: "preview-user",
-      displayName: "Jane Doe",
-      mail: "jane.doe@mybasepay.com",
-      userPrincipalName: "jane.doe@mybasepay.com",
-      department: "Human Resources",
-      jobTitle: "HR Manager",
-    };
-    state.self.requester = state.me;
-    state.self.manager = {
-      id: "preview-manager",
-      displayName: "Michael Reed",
-      mail: "michael.reed@mybasepay.com",
-      userPrincipalName: "michael.reed@mybasepay.com",
-      department: "Human Resources",
-      jobTitle: "Director, People Operations",
-    };
-    state.self.managersManager = {
-      id: "preview-escalation",
-      displayName: "Alicia Carter",
-      mail: "alicia.carter@mybasepay.com",
-      userPrincipalName: "alicia.carter@mybasepay.com",
-      department: "Executive",
-      jobTitle: "VP, People",
-    };
+    state.me = previewUserById("preview-user");
+    state.self.requester = clonePreviewUser(state.me);
+    state.self.manager = previewUserById("preview-manager");
+    state.self.managersManager = previewUserById("preview-escalation");
     state.self.managersManagerError = null;
 
     if (els.userChip) els.userChip.classList.add("show");
@@ -1029,9 +1605,15 @@
     if (els.signout) els.signout.disabled = false;
     if (els.account) els.account.classList.remove("show-text");
 
+    setPreviewSearchHints();
     setSelfTarget();
     recomputeRuleUI();
     refreshSubmitEnabled();
+    if (getPreviewEntryMode() === "other") {
+      commitSelection("other");
+    } else {
+      commitSelection("self");
+    }
     updateFlowUI();
   }
 

@@ -20,18 +20,64 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
+  var query = new URLSearchParams(window.location.search || "");
+  var PREVIEW_USER = {
+    id: "preview-approver",
+    displayName: "Rodolfo Chacon",
+    mail: "rodolfo.chacon@example.test",
+    userPrincipalName: "rodolfo.chacon@example.test",
+  };
+  var PREVIEW_ITEM = {
+    id: "preview-approve-1",
+    webUrl: "https://example.test/sharepoint/pto-requests/preview-approve-1",
+    fields: {
+      Title: "PTO-20260731-030551-WERL",
+      RequesterName: "Tech Support",
+      RequesterEmail: "techsupport@mybasepay.com",
+      PtoType: "PTO",
+      StartDate: "2026-08-02",
+      EndDate: "2026-08-02",
+      Status: "Pending",
+      BackupContactName: "Rodolfo Chacon",
+      BackupContactEmail: "rodolfo@mybasepay.com",
+      SubmittedAt: "2026-07-31T09:05:51.000Z",
+      ManagerName: "",
+      ManagerEmail: "",
+      Reason: "",
+      IsShortNotice: true,
+      NoticeDays: 2,
+      AuditLog:
+        "2026-07-31T09:05:51.786Z    [INFO]  Created by Tech Support - PTO Central app - self-service (Pending);\n" +
+        "approval routed to Rodolfo Chacon <rodolfo@mybasepay.com> instead of -\n" +
+        "override reason: test\n" +
+        "2026-07-31T09:06:29.490Z    [INFO]  MANAGER NOTIFICATION MVP v1",
+      ApproverName: "Rodolfo Chacon",
+      ApproverEmail: "rodolfo@mybasepay.com",
+      ApproverOverride: true,
+      ApproverOverrideReason: "test",
+      OriginalManagerName: "",
+      OriginalManagerEmail: "",
+    },
+  };
+
+  function clonePreviewItem() {
+    return JSON.parse(JSON.stringify(PREVIEW_ITEM));
+  }
 
   var els = {
     signin: $("signin"), signout: $("signout"), account: $("account"),
     userChip: $("user-chip"), userChipName: $("user-chip-name"), userChipAvatar: $("user-chip-avatar"),
+    dismissBanner: $("dismiss-banner"), infoBanner: $("info-banner"),
     decisionUi: $("decision-ui"), comment: $("comment"), commentCount: $("comment-count"),
     approve: $("approve"), reject: $("reject"), decisionStatus: $("decision-status"),
     blockNote: $("block-note"), statusNote: $("status-note"),
-    error: $("error"), auditlog: $("auditlog"), raw: $("raw"),
+    error: $("error"),
     approverNote: $("approver-note"),
   };
 
   var state = {
+    // ?preview=1 only activates on localhost/loopback — see PTOUI.isLocalDevHost().
+    preview: query.get("preview") === "1" && PTOUI.isLocalDevHost(),
     itemId: null, me: null, item: null, fields: null, approverMeta: null,
     decided: false, authorized: false, isHrAdmin: false, canAct: false,
   };
@@ -83,7 +129,7 @@
     }
     return id;
   }
-  state.itemId = getItemIdFromUrl();
+  state.itemId = getItemIdFromUrl() || (state.preview ? PREVIEW_ITEM.id : null);
 
   var ITEM_ID_HELP = "No itemId in the URL. Open this page as one of:\n"
     + "  approve.html?itemId=123\n"
@@ -93,11 +139,36 @@
   function friendly(e) {
     return (e && (e.message || e.errorMessage)) ? (e.message || e.errorMessage) : String(e);
   }
+  function formatBackupContacts(nameValue, emailValue) {
+    var names = String(nameValue || "").split(/\s*;\s*/).filter(Boolean);
+    var emails = String(emailValue || "").split(/\s*;\s*/).filter(Boolean);
+    if (!names.length && !emails.length) return "";
+    if (names.length <= 1 && emails.length <= 1) {
+      return (names[0] || "") + (emails[0] ? " <" + emails[0] + ">" : "");
+    }
+    var out = [];
+    var len = Math.max(names.length, emails.length);
+    for (var i = 0; i < len; i++) {
+      var name = names[i] || "";
+      var email = emails[i] || "";
+      out.push((name || email) + (email && name ? " <" + email + ">" : ""));
+    }
+    return out.join("; ");
+  }
   function showError(msg) { els.error.textContent = msg; els.error.style.display = "block"; }
   function clearError() { els.error.style.display = "none"; els.error.textContent = ""; }
   function showNote(el, msg) {
     if (!msg) { el.style.display = "none"; el.textContent = ""; return; }
     el.textContent = msg; el.style.display = "block";
+  }
+
+  function setDetailValue(id, value) {
+    var node = $(id);
+    var text = (value === undefined || value === null || value === "") ? "—" : String(value);
+    PTOUI.setText(id, text);
+    if (!node) return;
+    node.title = text === "—" ? "" : text;
+    node.classList.toggle("is-subtle", text === "—");
   }
 
   /** Two-letter initials for the user chip avatar (e.g. "Rodolfo Chacon" → "RC"). */
@@ -109,6 +180,21 @@
   }
 
   function renderAuth() {
+    if (state.preview) {
+      els.signin.disabled = true;
+      els.signin.style.display = "none";
+      els.signout.disabled = true;
+      els.signout.style.display = "none";
+      if (els.userChip) {
+        els.userChip.classList.add("show");
+        if (els.userChipName) els.userChipName.textContent = PREVIEW_USER.displayName;
+        if (els.userChipAvatar) els.userChipAvatar.textContent = initialsOf(PREVIEW_USER.displayName);
+      }
+      els.account.classList.remove("show-text");
+      els.account.textContent = "";
+      return;
+    }
+
     var acct = PTOAuth.getAccount();
     var signedIn = !!acct;
     // Signed in: show the user chip, hide the Sign in button entirely (same as
@@ -155,23 +241,33 @@
 
   function renderDetails(f, item, approverMeta) {
     approverMeta = approverMeta || {};
-    PTOUI.setText("d-key", f.Title);
-    PTOUI.setText("d-requester", f.RequesterName);
-    PTOUI.setText("d-requester-email", f.RequesterEmail);
-    PTOUI.setText("d-type", f.PtoType);
-    PTOUI.setText("d-start", PTOUI.formatDateOnly(f.StartDate));
-    PTOUI.setText("d-end", PTOUI.formatDateOnly(f.EndDate));
-    PTOUI.setText("d-reason", f.Reason);
-    var backup = (f.BackupContactName || "") + (f.BackupContactEmail ? " <" + f.BackupContactEmail + ">" : "");
-    PTOUI.setText("d-backup", backup.trim() || "—");
+    setDetailValue("d-key", f.Title);
+    setDetailValue("d-requester", f.RequesterName);
+    setDetailValue("d-requester-email", f.RequesterEmail);
+    setDetailValue("d-type", f.PtoType);
+    setDetailValue("d-start", PTOUI.formatDateOnly(f.StartDate));
+    setDetailValue("d-end", PTOUI.formatDateOnly(f.EndDate));
+    setDetailValue("d-reason", f.Reason);
+    var backup = formatBackupContacts(f.BackupContactName, f.BackupContactEmail);
+    setDetailValue("d-backup", backup.trim() || "—");
 
     var statusDd = $("d-status");
     statusDd.textContent = "";
     statusDd.appendChild(PTOUI.statusBadge(f.Status));
+    statusDd.title = f.Status || "";
+    statusDd.classList.remove("is-subtle");
 
-    PTOUI.setText("d-submitted", f.SubmittedAt ? new Date(f.SubmittedAt).toLocaleString() : "—");
+    var statusHead = $("d-status-head");
+    if (statusHead) {
+      statusHead.textContent = "";
+      statusHead.appendChild(PTOUI.statusBadge(f.Status));
+      statusHead.title = f.Status || "";
+      statusHead.classList.remove("is-subtle");
+    }
+
+    setDetailValue("d-submitted", f.SubmittedAt ? new Date(f.SubmittedAt).toLocaleString() : "—");
     var mgr = (f.ManagerName || "") + (f.ManagerEmail ? " <" + f.ManagerEmail + ">" : "");
-    PTOUI.setText("d-manager", mgr.trim() || "—");
+    setDetailValue("d-manager", mgr.trim() || "—");
 
     // Approver: falls back to the manager when ApproverEmail is blank (legacy
     // requests / column not yet provisioned) — never shown as a separate
@@ -179,21 +275,49 @@
     var approverEmail = approverMeta.ApproverEmail || f.ManagerEmail || "";
     var approverName = approverMeta.ApproverName || f.ManagerName || "";
     var apr = (approverName || "") + (approverEmail ? " <" + approverEmail + ">" : "");
-    PTOUI.setText("d-approver", apr.trim() || "—");
+    setDetailValue("d-approver", apr.trim() || "—");
     renderApproverNote(f, approverMeta);
 
-    PTOUI.setText("d-short", f.IsShortNotice ? "Yes" : "No");
-    PTOUI.setText("d-notice", (f.NoticeDays === undefined || f.NoticeDays === null) ? "—" : f.NoticeDays);
+    setDetailValue("d-short", f.IsShortNotice ? "Yes" : "No");
+    setDetailValue("d-notice", (f.NoticeDays === undefined || f.NoticeDays === null) ? "—" : f.NoticeDays);
 
     var linkDd = $("d-link");
     linkDd.textContent = "";
     if (item && item.webUrl) {
-      linkDd.appendChild(PTOUI.el("a", { href: item.webUrl, target: "_blank", rel: "noopener noreferrer" }, "Open"));
+      linkDd.appendChild(PTOUI.el("a", {
+        href: item.webUrl,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        title: item.webUrl,
+      }, [
+        "Open",
+        PTOUI.el("svg", {
+          viewBox: "0 0 24 24",
+          fill: "none",
+          stroke: "currentColor",
+          "stroke-width": "1.8",
+          "stroke-linecap": "round",
+          "stroke-linejoin": "round",
+          "aria-hidden": "true",
+        }, [
+          PTOUI.el("path", { d: "M14 4h6v6" }),
+          PTOUI.el("path", { d: "M20 4l-9 9" }),
+          PTOUI.el("path", { d: "M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" }),
+        ]),
+      ]));
+      linkDd.classList.remove("is-subtle");
+      linkDd.title = item.webUrl;
     } else {
       linkDd.textContent = "—";
+      linkDd.classList.add("is-subtle");
+      linkDd.title = "";
     }
 
-    els.auditlog.textContent = f.AuditLog || "—";
+    var auditEl = $("auditlog");
+    if (auditEl) auditEl.textContent = f.AuditLog ? String(f.AuditLog) : "—";
+
+    var rawEl = $("raw");
+    if (rawEl) rawEl.textContent = item ? JSON.stringify(item, null, 2) : "—";
   }
 
   /** Decide what the decision panel shows based on auth + status. */
@@ -233,6 +357,35 @@
 
   async function loadRequest() {
     clearError();
+    if (state.preview) {
+      state.me = Object.assign({}, PREVIEW_USER);
+      state.authorized = true;
+      state.isHrAdmin = true;
+      state.decided = false;
+      state.item = clonePreviewItem();
+      state.fields = Object.assign({}, state.item.fields);
+      state.approverMeta = {
+        ApproverName: state.fields.ApproverName,
+        ApproverEmail: state.fields.ApproverEmail,
+        ApproverOverride: state.fields.ApproverOverride,
+        ApproverOverrideReason: state.fields.ApproverOverrideReason,
+        OriginalManagerName: state.fields.OriginalManagerName,
+        OriginalManagerEmail: state.fields.OriginalManagerEmail,
+      };
+      if (els.infoBanner) {
+        var bannerBody = els.infoBanner.querySelector(".info-banner__body");
+        if (bannerBody) {
+          bannerBody.innerHTML =
+            "<strong>Preview mode:</strong> sample PTO approval data for layout review only. " +
+            "No live request is being loaded and no decision writes back to production.";
+        }
+      }
+      renderDetails(state.fields, state.item, state.approverMeta);
+      evaluateGate();
+      els.decisionStatus.textContent = "";
+      return;
+    }
+
     if (!state.itemId) {
       showError(ITEM_ID_HELP);
       return;
@@ -256,7 +409,6 @@
       try { await PTORequests.resolveApproverFieldMap(); } catch (e) { /* tolerated */ }
       state.approverMeta = PTORequests.readApproverMetadata(state.fields);
 
-      els.raw.textContent = JSON.stringify(item, null, 2);
       renderDetails(state.fields, item, state.approverMeta);
       evaluateGate();
       els.decisionStatus.textContent = "";
@@ -274,22 +426,48 @@
     els.reject.disabled = true;
     els.decisionStatus.textContent = "Submitting decision…";
     try {
-      var result = await PTORequests.updateRequestDecision(state.itemId, {
-        status: status,
-        actor: state.me,
-        comment: els.comment.value,
-        existingAuditLog: (state.fields && state.fields.AuditLog) || "",
-      });
+      var result;
+      if (state.preview) {
+        var previewAuditLine =
+          "[" + new Date().toISOString() + "] " + status + " by " +
+          (state.me.displayName || state.me.mail || "Preview Approver") +
+          (els.comment.value ? " — " + els.comment.value : "");
+        result = {
+          fields: Object.assign({}, state.fields, {
+            Status: status,
+            AuditLog: ((state.fields && state.fields.AuditLog) || "") +
+              (((state.fields && state.fields.AuditLog) || "") ? "\n" : "") +
+              previewAuditLine,
+          }),
+        };
+      } else {
+        result = await PTORequests.updateRequestDecision(state.itemId, {
+          status: status,
+          actor: state.me,
+          comment: els.comment.value,
+          existingAuditLog: (state.fields && state.fields.AuditLog) || "",
+        });
+      }
 
       state.decided = true;
       // Reflect the new values locally.
       state.fields = Object.assign({}, state.fields, result.fields);
+      if (state.item) state.item.fields = Object.assign({}, state.item.fields || {}, state.fields);
 
       var statusDd = $("d-status");
       statusDd.textContent = "";
       statusDd.appendChild(PTOUI.statusBadge(state.fields.Status));
-      els.auditlog.textContent = state.fields.AuditLog || "—";
-
+      statusDd.title = state.fields.Status || "";
+      var statusHead = $("d-status-head");
+      if (statusHead) {
+        statusHead.textContent = "";
+        statusHead.appendChild(PTOUI.statusBadge(state.fields.Status));
+        statusHead.title = state.fields.Status || "";
+      }
+      var auditElAfterDecision = $("auditlog");
+      if (auditElAfterDecision) auditElAfterDecision.textContent = state.fields.AuditLog ? String(state.fields.AuditLog) : "—";
+      var rawElAfterDecision = $("raw");
+      if (rawElAfterDecision && state.item) rawElAfterDecision.textContent = JSON.stringify(state.item, null, 2);
       // Lock the panel and show the outcome.
       els.decisionUi.style.display = "none";
       showNote(els.statusNote, "Decision recorded: this request is now " + state.fields.Status + ".");
@@ -311,6 +489,7 @@
     els.commentCount.textContent = (els.comment.value.length) + "/" + max;
   }
   if (els.comment) els.comment.addEventListener("input", updateCommentCount);
+  updateCommentCount();
 
   els.signin.addEventListener("click", async function () {
     clearError();
@@ -336,6 +515,11 @@
 
   els.approve.addEventListener("click", function () { decide("Approved"); });
   els.reject.addEventListener("click", function () { decide("Rejected"); });
+  if (els.dismissBanner) {
+    els.dismissBanner.addEventListener("click", function () {
+      if (els.infoBanner) els.infoBanner.hidden = true;
+    });
+  }
 
   // ---- boot -------------------------------------------------------------------
   // Auto sign-in, same pattern as request.html / hr.html (validated live):
@@ -371,6 +555,12 @@
 
   (async function boot() {
     try {
+      if (state.preview) {
+        renderAuth();
+        await loadRequest();
+        return;
+      }
+
       await PTOAuth.initialize(); // handles a returning redirect internally
       renderAuth();
 

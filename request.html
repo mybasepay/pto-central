@@ -264,11 +264,17 @@
     }
     .backup-search-wrap input { padding-right: 38px; }
     .backup-hint { margin-top: 6px; font-size: 12px; color: var(--muted); }
+    .backup-meta { margin-top: 8px; font-size: 12px; color: var(--muted); }
     .backup-results {
       display: none; margin-top: 8px; border: 1px solid var(--rq-line); border-radius: 11px;
       background: #101a2c; overflow: hidden;
     }
     .backup-results.show { display: block; }
+    .backup-results__empty {
+      padding: 11px 13px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
     .backup-result {
       display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box;
       padding: 10px 13px; border: 0; border-bottom: 1px solid var(--rq-line-soft);
@@ -279,21 +285,33 @@
     .backup-result:hover, .backup-result:focus-visible { background: rgba(255, 255, 255, 0.06); outline: none; }
     .backup-result .sub { color: var(--muted); font-size: 12px; margin-left: auto; white-space: nowrap; }
     .backup-selected {
-      display: none; align-items: center; gap: 9px; margin-top: 10px; padding: 8px 9px 8px 14px;
-      border-radius: 999px; width: fit-content; max-width: 100%;
-      font-size: 12.5px; font-weight: 650; color: #a7f3d0;
+      display: none;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .backup-selected.show { display: flex; }
+    .backup-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 100%;
+      padding: 7px 8px 7px 12px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 650;
+      color: #a7f3d0;
       background: linear-gradient(180deg, rgba(52, 211, 153, 0.16), rgba(52, 211, 153, 0.05));
       border: 1px solid rgba(52, 211, 153, 0.4);
     }
-    .backup-selected.show { display: inline-flex; }
-    .backup-selected .txt { overflow-wrap: anywhere; }
-    .backup-selected .clear {
+    .backup-chip__text { overflow-wrap: anywhere; }
+    .backup-chip__remove {
       display: grid; place-items: center; width: 22px; height: 22px; padding: 0; flex: 0 0 auto;
-      border: 0; border-radius: 50%; cursor: pointer; color: #a7f3d0;
+      border: 0; border-radius: 50%; cursor: pointer; color: inherit;
       background: rgba(255, 255, 255, 0.08); font: inherit;
     }
-    .backup-selected .clear:hover { background: rgba(255, 255, 255, 0.16); }
-    .backup-selected .clear svg { width: 12px; height: 12px; }
+    .backup-chip__remove:hover { background: rgba(255, 255, 255, 0.16); }
+    .backup-chip__remove svg { width: 12px; height: 12px; }
 
     /* ---- Notes / notices ---- */
     .note { display: none; margin-top: 12px; padding: 10px 13px; border-radius: 11px;
@@ -360,6 +378,50 @@
       width: 100%;
       max-width: 1240px;
       margin: 0 auto;
+    }
+
+    body.request-page .pto-shell-header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      padding-inline: 2px;
+      background: linear-gradient(180deg, rgba(248, 251, 255, 0.92), rgba(248, 251, 255, 0.76));
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    body.request-page .pto-shell-header__company,
+    body.request-page .pto-shell-header__product {
+      color: #13254d;
+    }
+
+    body.request-page .pto-shell-header__mark {
+      color: #24b8aa;
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(226, 247, 244, 0.96));
+      border-color: rgba(36, 184, 170, 0.18);
+      box-shadow: 0 18px 38px -28px rgba(36, 184, 170, 0.36);
+    }
+
+    body.request-page .pto-shell-header__account {
+      border-color: rgba(195, 208, 228, 0.62);
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 18px 38px -30px rgba(15, 23, 42, 0.24);
+    }
+
+    body.request-page .pto-shell-header__avatar {
+      color: #7c61f1;
+      background: linear-gradient(180deg, rgba(244, 239, 255, 0.94), rgba(255, 255, 255, 0.98));
+      border-color: rgba(143, 120, 240, 0.18);
+    }
+
+    body.request-page .pto-shell-header__auth .btn {
+      min-width: 112px;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.84);
+    }
+
+    body.request-page .pto-shell-header__auth .btn.small {
+      min-width: 122px;
     }
 
     body.request-page .topbar {
@@ -892,6 +954,51 @@
       color: #24b8aa;
     }
 
+    body.request-page .panel-title--stack {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 16px;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    body.request-page .panel-title__icon {
+      width: 46px;
+      height: 46px;
+      flex: 0 0 auto;
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(180deg, rgba(241, 247, 255, 0.96), rgba(255, 255, 255, 0.98));
+      border: 1px solid rgba(208, 220, 240, 0.92);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    }
+
+    body.request-page .panel-title__icon svg {
+      width: 21px;
+      height: 21px;
+    }
+
+    body.request-page .panel-title__body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    body.request-page .panel-title__body > span:first-child {
+      font-size: 14px;
+      font-weight: 800;
+      color: #13254d;
+    }
+
+    body.request-page .panel-title__meta {
+      font-size: 13px;
+      font-weight: 500;
+      color: #71839e;
+    }
+
     body.request-page .obo-badge,
     body.request-page .approver-badge,
     body.request-page .note.info {
@@ -935,6 +1042,11 @@
       box-shadow: 0 24px 34px -28px rgba(42, 78, 134, 0.22);
     }
 
+    body.request-page .backup-results__empty,
+    body.request-page .backup-meta {
+      color: #71839a;
+    }
+
     body.request-page .backup-result {
       color: #13254d;
       border-bottom-color: rgba(148, 163, 184, 0.12);
@@ -947,6 +1059,21 @@
 
     body.request-page .backup-result .sub {
       color: #71839a;
+    }
+
+    body.request-page .backup-chip {
+      color: #1a5f76;
+      border-color: rgba(36, 184, 170, 0.24);
+      background: linear-gradient(180deg, rgba(235, 252, 249, 0.92), rgba(242, 255, 252, 0.92));
+      box-shadow: 0 16px 26px -24px rgba(36, 184, 170, 0.32);
+    }
+
+    body.request-page .backup-chip__remove {
+      background: rgba(26, 95, 118, 0.08);
+    }
+
+    body.request-page .backup-chip__remove:hover {
+      background: rgba(26, 95, 118, 0.14);
     }
 
     body.request-page .tip-line {
@@ -1017,6 +1144,11 @@
       max-width: 1040px;
       margin: 0 auto;
       padding: 22px 0 0;
+      transition: max-width 0.24s ease;
+    }
+
+    body.request-page .request-entry-shell.is-form-mode {
+      max-width: 1120px;
     }
 
     body.request-page .page-head {
@@ -1044,6 +1176,29 @@
       font-size: clamp(18px, 2.3vw, 24px);
       color: #607390;
       max-width: 560px;
+    }
+
+    body.request-page .request-entry-shell.is-form-mode .page-head {
+      max-width: 1120px;
+      margin-top: 34px;
+      justify-content: flex-start;
+      text-align: left;
+    }
+
+    body.request-page .request-entry-shell.is-form-mode .page-head__copy {
+      align-items: flex-start;
+    }
+
+    body.request-page .request-entry-shell.is-form-mode .page-head h1 {
+      font-size: clamp(36px, 4.6vw, 58px);
+    }
+
+    body.request-page .request-entry-shell.is-form-mode .page-head .desc {
+      max-width: 680px;
+    }
+
+    body.request-page .request-entry-shell.mode-self .page-head {
+      margin-bottom: 4px;
     }
 
     body.request-page .request-choice-panel {
@@ -1197,19 +1352,69 @@
       min-width: 96px;
     }
 
+    body.request-page .request-entry-shell.mode-self .request-selection-summary {
+      max-width: 1120px;
+      margin: 12px auto 0;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    body.request-page .request-entry-shell.mode-self .request-selection-summary__card {
+      gap: 0;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+
+    body.request-page .request-entry-shell.mode-self .request-selection-summary__icon,
+    body.request-page .request-entry-shell.mode-self .request-selection-summary__copy {
+      display: none;
+    }
+
+    body.request-page .request-entry-shell.mode-self .request-selection-summary__change {
+      min-width: 0;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border-color: rgba(195, 208, 228, 0.74);
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 16px 28px -24px rgba(42, 78, 134, 0.3);
+      color: #334a70;
+    }
+
     body.request-page .request-flow {
       max-width: 1120px;
       margin: 22px auto 0;
       animation: requestFlowReveal 0.26s ease;
+      display: grid;
+      grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+      gap: 22px 24px;
+      align-items: start;
     }
+
+    body.request-page .request-flow .pilot,
+    body.request-page #obo-section,
+    body.request-page #result,
+    body.request-page #tipLine,
+    body.request-page #requestFooter {
+      grid-column: 1 / -1;
+    }
+
+    body.request-page #pilotBanner { order: 1; }
+    body.request-page #obo-section { order: 2; }
+    body.request-page #requester-details-panel { order: 3; }
+    body.request-page #request-details-panel { order: 4; }
+    body.request-page #approver-section { order: 5; }
+    body.request-page #result { order: 6; }
+    body.request-page #tipLine { order: 7; }
+    body.request-page #requestFooter { order: 8; }
 
     body.request-page .request-flow .pilot {
       margin-top: 0;
     }
 
     body.request-page .employee-selector-panel {
-      max-width: 1020px;
-      margin: 18px auto 0;
+      margin-top: 0;
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 249, 255, 0.92));
     }
 
@@ -1246,6 +1451,228 @@
       margin-right: auto;
     }
 
+    body.request-page #requester-details-panel {
+      grid-column: 1;
+      margin-top: 0;
+      padding: 20px 18px 18px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 249, 255, 0.96));
+      border-color: rgba(195, 208, 228, 0.68);
+      box-shadow: 0 26px 58px -44px rgba(15, 23, 42, 0.34);
+    }
+
+    body.request-page #requester-details-panel .panel-title {
+      color: #13254d;
+    }
+
+    body.request-page #requester-details-panel .tile-grid {
+      grid-template-columns: 1fr;
+      gap: 0;
+      border-top: 1px solid rgba(221, 228, 239, 0.94);
+      margin-top: 6px;
+    }
+
+    body.request-page #requester-details-panel .tile,
+    body.request-page #requester-details-panel .tile.span2 {
+      border-radius: 0;
+      border: 0;
+      border-bottom: 1px solid rgba(221, 228, 239, 0.94);
+      padding: 14px 4px 14px 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    body.request-page #requester-details-panel .tile:last-child {
+      border-bottom: 0;
+    }
+
+    body.request-page .requester-workflow-note {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(221, 228, 239, 0.94);
+      color: #607392;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    body.request-page .requester-workflow-note i {
+      font-size: 17px;
+      color: #5d7596;
+      line-height: 1;
+      margin-top: 2px;
+    }
+
+    body.request-page #requester-details-panel .tile .lbl {
+      margin-bottom: 6px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7b8aa3;
+    }
+
+    body.request-page #requester-details-panel .tile .val {
+      font-size: 15px;
+      line-height: 1.45;
+      color: #13254d;
+    }
+
+    body.request-page #requester-details-panel .note.warn {
+      margin-top: 14px;
+    }
+
+    body.request-page #request-details-panel {
+      grid-column: 2;
+      margin-top: 0;
+      padding: 22px 22px 18px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 251, 255, 0.96));
+      border-color: rgba(195, 208, 228, 0.68);
+      box-shadow: 0 26px 58px -44px rgba(15, 23, 42, 0.34);
+    }
+
+    body.request-page #request-details-panel .panel-title {
+      margin-bottom: 18px;
+      font-size: 17px;
+      letter-spacing: -0.01em;
+      text-transform: none;
+      color: #13254d;
+    }
+
+    body.request-page #request-details-panel .panel-title svg {
+      width: 18px;
+      height: 18px;
+      color: #2a8cff;
+    }
+
+    body.request-page #request-details-panel input,
+    body.request-page #request-details-panel select,
+    body.request-page #request-details-panel textarea,
+    body.request-page #approver-section input,
+    body.request-page #approver-section textarea,
+    body.request-page #obo-section input,
+    body.request-page #obo-section textarea {
+      min-height: 48px;
+      border-radius: 14px;
+      border-color: rgba(206, 216, 232, 0.98);
+      background: #fff;
+      color: #16305b;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    body.request-page #request-details-panel textarea,
+    body.request-page #approver-section textarea,
+    body.request-page #obo-section textarea {
+      min-height: 96px;
+    }
+
+    body.request-page #request-details-panel label.fld,
+    body.request-page #approver-section label.fld,
+    body.request-page #obo-section label.fld {
+      font-size: 12px;
+      font-weight: 700;
+      color: #30486f;
+    }
+
+    body.request-page #approver-section {
+      grid-column: 2;
+      margin-top: 0;
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.94));
+      border-color: rgba(205, 214, 232, 0.72);
+      box-shadow: 0 22px 50px -42px rgba(15, 23, 42, 0.3);
+    }
+
+    body.request-page .review-strip {
+      margin-top: 18px;
+      padding: 18px 18px 8px;
+      border-radius: 20px;
+      border: 1px solid rgba(214, 223, 237, 0.9);
+      background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(255, 255, 255, 0.96));
+    }
+
+    body.request-page .review-strip__head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    body.request-page .review-strip__head h4 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 800;
+      color: #13254d;
+    }
+
+    body.request-page .review-strip__head p {
+      margin: 0;
+      font-size: 13px;
+      color: #71839e;
+    }
+
+    body.request-page .review-strip__grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    body.request-page .review-pill {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      min-width: 0;
+      border-radius: 16px;
+      border: 1px solid rgba(223, 230, 242, 0.96);
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    body.request-page .review-pill__icon {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: #5b86ff;
+      background: linear-gradient(180deg, rgba(237, 242, 255, 0.94), rgba(255, 255, 255, 0.98));
+      border: 1px solid rgba(200, 213, 244, 0.92);
+    }
+
+    body.request-page .review-pill__icon i {
+      font-size: 19px;
+      line-height: 1;
+    }
+
+    body.request-page .review-pill__copy {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    body.request-page .review-pill__label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #7a8ba4;
+    }
+
+    body.request-page .review-pill__value {
+      font-size: 15px;
+      line-height: 1.35;
+      color: #13254d;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     @keyframes requestFlowReveal {
       from {
         opacity: 0;
@@ -1258,7 +1685,8 @@
     }
 
     @media (max-width: 860px) {
-      body.request-page .topbar {
+      body.request-page .topbar,
+      body.request-page .pto-shell-header {
         position: static;
       }
 
@@ -1279,6 +1707,20 @@
 
       body.request-page .request-selection-summary__change {
         margin-left: 0;
+      }
+
+      body.request-page .request-flow {
+        grid-template-columns: 1fr;
+      }
+
+      body.request-page #requester-details-panel,
+      body.request-page #request-details-panel,
+      body.request-page #approver-section {
+        grid-column: 1;
+      }
+
+      body.request-page .review-strip__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
@@ -1341,138 +1783,1524 @@
         border-radius: 20px;
       }
 
+      body.request-page #requester-details-panel,
+      body.request-page #request-details-panel,
+      body.request-page #approver-section,
+      body.request-page .employee-selector-panel {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      body.request-page .review-strip {
+        padding: 16px 14px 8px;
+      }
+
+      body.request-page .review-strip__grid {
+        grid-template-columns: 1fr;
+      }
+
       body.request-page .tip-line {
         align-items: flex-start;
+      }
+    }
+    /* =====================================================================
+       2026-07-31 layout pass
+       Refines the request page to match the approved My PTO Request reference:
+       wider hero, unified workspace shell, compact review strip, and inline
+       alternate approver placement.
+       ================================================================== */
+
+    body.request-page .request-entry-shell {
+      max-width: 1260px;
+      padding-top: 14px;
+    }
+
+    body.request-page .request-entry-shell.is-form-mode,
+    body.request-page .request-entry-shell.mode-self,
+    body.request-page .request-entry-shell.mode-other {
+      max-width: 1260px;
+    }
+
+    body.request-page .page-head,
+    body.request-page .request-entry-shell.is-form-mode .page-head {
+      max-width: 1260px;
+      margin: 14px auto 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      text-align: left;
+    }
+
+    body.request-page .page-head__lead {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      min-width: 0;
+      flex: 1 1 640px;
+    }
+
+    body.request-page .page-head__copy,
+    body.request-page .request-entry-shell.is-form-mode .page-head__copy {
+      align-items: flex-start;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    body.request-page .page-head__actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex: 0 0 auto;
+    }
+
+    body.request-page .page-badge {
+      width: 58px;
+      height: 58px;
+      border-radius: 18px;
+    }
+
+    body.request-page .page-badge svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    body.request-page .page-head h1,
+    body.request-page .request-entry-shell.is-form-mode .page-head h1 {
+      margin: 0;
+      font-size: clamp(42px, 5vw, 60px);
+      line-height: 0.96;
+      letter-spacing: -0.045em;
+    }
+
+    body.request-page .page-head .desc,
+    body.request-page .request-entry-shell.is-form-mode .page-head .desc {
+      margin: 0;
+      max-width: 640px;
+      font-size: 15px;
+      line-height: 1.55;
+      color: #617493;
+    }
+
+    body.request-page .request-switch-btn {
+      min-width: 0;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border-color: rgba(195, 208, 228, 0.74);
+      background: rgba(255, 255, 255, 0.88);
+      color: #334a70;
+      box-shadow: 0 16px 28px -24px rgba(42, 78, 134, 0.3);
+    }
+
+    body.request-page .request-switch-btn i {
+      color: #5169a8;
+    }
+
+    body.request-page .request-mode-inputs {
+      display: none;
+    }
+
+    body.request-page .request-flow {
+      max-width: 1320px;
+      margin: 18px auto 0;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    body.request-page .request-flow .pilot,
+    body.request-page #obo-section,
+    body.request-page #requestWorkspace,
+    body.request-page #result,
+    body.request-page #tipLine,
+    body.request-page #requestFooter {
+      max-width: 1320px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    body.request-page #obo-section {
+      margin-top: 0;
+      padding: 18px 20px 20px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.94));
+      border-color: rgba(195, 208, 228, 0.72);
+      box-shadow: 0 26px 58px -44px rgba(15, 23, 42, 0.28);
+    }
+
+    body.request-page #requestWorkspace {
+      display: grid;
+      grid-template-columns: minmax(320px, 362px) minmax(0, 1fr);
+      gap: 0;
+      padding: 18px 18px 16px;
+      border-radius: 28px;
+      border: 1px solid rgba(195, 208, 228, 0.76);
+      background:
+        radial-gradient(120% 120% at 0% 0%, rgba(122, 174, 255, 0.08), transparent 54%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 255, 0.95));
+      box-shadow: 0 30px 68px -46px rgba(15, 23, 42, 0.26);
+      align-items: stretch;
+    }
+
+    body.request-page #requester-details-panel,
+    body.request-page #request-details-panel {
+      margin: 0;
+      max-width: none;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+
+    body.request-page #requester-details-panel {
+      padding: 4px 22px 8px 2px;
+      border-right: 1px solid rgba(221, 228, 239, 0.94);
+    }
+
+    body.request-page #request-details-panel {
+      padding: 4px 0 4px 24px;
+    }
+
+    body.request-page #requester-details-panel .panel-title,
+    body.request-page #request-details-panel .panel-title {
+      margin-bottom: 16px;
+    }
+
+    body.request-page #request-details-panel .form-grid {
+      gap: 14px 16px;
+    }
+
+    body.request-page .lookup-row {
+      align-items: stretch;
+    }
+
+    body.request-page .lookup-row > div:last-child,
+    body.request-page .lookup-row .btn {
+      align-self: stretch;
+    }
+
+    body.request-page .lookup-row .btn {
+      min-height: 48px;
+      padding-inline: 18px;
+    }
+
+    body.request-page .notice-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    body.request-page .notice-row .note {
+      margin-top: 0;
+    }
+
+    body.request-page .review-strip {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(221, 228, 239, 0.94);
+    }
+
+    body.request-page .review-strip__head {
+      margin-bottom: 12px;
+    }
+
+    body.request-page .review-strip__head h4 {
+      font-size: 16px;
+    }
+
+    body.request-page .review-strip__head p {
+      font-size: 13px;
+    }
+
+    body.request-page .review-strip__grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    body.request-page .review-pill {
+      min-height: 0;
+      padding: 11px 12px;
+      border-radius: 15px;
+      box-shadow: 0 14px 24px -24px rgba(42, 78, 134, 0.18);
+    }
+
+    body.request-page .review-pill__icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+    }
+
+    body.request-page .review-pill__icon i {
+      font-size: 15px;
+    }
+
+    body.request-page .review-pill__label {
+      font-size: 10px;
+      letter-spacing: 0.08em;
+    }
+
+    body.request-page .review-pill__value {
+      font-size: 13px;
+      line-height: 1.3;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+    }
+
+    body.request-page .confirm-box {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 16px;
+    }
+
+    body.request-page .form-actions-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 452px);
+      gap: 16px;
+      align-items: start;
+      margin-top: 14px;
+    }
+
+    body.request-page .actions {
+      margin-top: 0;
+      min-height: 100%;
+      align-items: flex-start;
+      align-content: flex-start;
+      gap: 12px;
+      padding-top: 2px;
+    }
+
+    body.request-page .actions .submit-btn {
+      min-height: 46px;
+      padding: 13px 22px;
+    }
+
+    body.request-page .request-approver-inline {
+      margin-top: 0;
+      padding: 14px 16px 16px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(252, 250, 255, 0.98), rgba(248, 243, 255, 0.92));
+      border-color: rgba(219, 204, 255, 0.72);
+      box-shadow: 0 18px 32px -28px rgba(124, 58, 237, 0.18);
+    }
+
+    body.request-page .request-approver-inline .option-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+    }
+
+    body.request-page .request-approver-inline .option-main .t {
+      font-size: 14px;
+    }
+
+    body.request-page .request-approver-inline .option-note {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    body.request-page .request-approver-inline .obo-fields {
+      margin-top: 12px;
+      padding-top: 12px;
+    }
+
+    body.request-page .tip-line {
+      margin-top: 0;
+      justify-content: center;
+      text-align: center;
+      border-radius: 18px;
+    }
+
+    body.request-page .rq-footer {
+      margin-top: 0;
+    }
+
+    @media (max-width: 1180px) {
+      body.request-page #requestWorkspace {
+        grid-template-columns: minmax(248px, 292px) minmax(0, 1fr);
+      }
+
+      body.request-page .review-strip__grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      body.request-page .form-actions-row {
+        grid-template-columns: minmax(0, 1fr) minmax(290px, 380px);
+      }
+    }
+
+    @media (max-width: 980px) {
+      body.request-page .page-head,
+      body.request-page .request-entry-shell.is-form-mode .page-head {
+        align-items: flex-start;
+      }
+
+      body.request-page .page-head__actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      body.request-page #requestWorkspace {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+
+      body.request-page #requester-details-panel {
+        border-right: 0;
+        border-bottom: 1px solid rgba(221, 228, 239, 0.94);
+        padding: 4px 0 18px;
+      }
+
+      body.request-page #request-details-panel {
+        padding: 18px 0 4px;
+      }
+
+      body.request-page .form-actions-row {
+        grid-template-columns: 1fr;
+      }
+
+      body.request-page .actions {
+        padding-top: 0;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body.request-page .page-head,
+      body.request-page .request-entry-shell.is-form-mode .page-head {
+        margin-top: 16px;
+        gap: 12px;
+      }
+
+      body.request-page .page-head__lead {
+        gap: 14px;
+      }
+
+      body.request-page .page-badge {
+        width: 56px;
+        height: 56px;
+      }
+
+      body.request-page .page-head h1,
+      body.request-page .request-entry-shell.is-form-mode .page-head h1 {
+        font-size: 32px;
+      }
+
+      body.request-page .page-head .desc,
+      body.request-page .request-entry-shell.is-form-mode .page-head .desc {
+        font-size: 14px;
+      }
+
+      body.request-page .request-switch-btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      body.request-page #obo-section,
+      body.request-page #requestWorkspace {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      body.request-page .lookup-row {
+        flex-direction: column;
+      }
+
+      body.request-page .notice-row,
+      body.request-page .review-strip__grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 980px) {
+      body.request-page .page-head,
+      body.request-page .request-entry-shell.is-form-mode .page-head {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      body.request-page .page-head__lead {
+        width: 100%;
+        flex: 1 1 auto;
+      }
+
+      body.request-page .page-head__actions {
+        width: auto;
+        justify-content: flex-start;
+      }
+
+      body.request-page .page-head h1,
+      body.request-page .request-entry-shell.is-form-mode .page-head h1 {
+        font-size: clamp(34px, 7vw, 48px);
+      }
+    }
+
+    @media (max-width: 640px) {
+      body.request-page .page-head h1,
+      body.request-page .request-entry-shell.is-form-mode .page-head h1 {
+        font-size: 32px;
+      }
+    }
+    body.request-page #pilotBanner {
+      order: 1;
+    }
+
+    body.request-page #obo-section {
+      order: 2;
+    }
+
+    body.request-page #requestWorkspace {
+      order: 3;
+    }
+
+    body.request-page #result {
+      order: 4;
+    }
+
+    body.request-page #tipLine {
+      order: 5;
+    }
+
+    body.request-page #requestFooter {
+      order: 6;
+    }
+
+    @media (min-width: 1200px) {
+      body.request-page {
+        padding-bottom: 28px;
+      }
+
+      body.request-page .pto-shell-header {
+        padding: 10px 0 10px;
+      }
+
+      body.request-page .pto-shell-header__mark {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+      }
+
+      body.request-page .pto-shell-header__actions {
+        gap: 12px;
+      }
+
+      body.request-page .pto-shell-header__account {
+        padding: 8px 12px;
+      }
+
+      body.request-page .pto-shell-header__avatar {
+        width: 34px;
+        height: 34px;
+      }
+
+      body.request-page .pto-shell-header__name {
+        max-width: 180px;
+        font-size: 13px;
+      }
+
+      body.request-page .pto-shell-header__auth .btn {
+        min-width: 0;
+        padding: 8px 14px;
+      }
+
+      body.request-page .pto-shell-header__auth .btn.small {
+        min-width: 0;
+        padding: 8px 14px;
+      }
+
+      body.request-page .request-entry-shell {
+        padding-top: 8px;
+      }
+
+      body.request-page .page-head,
+      body.request-page .request-entry-shell.is-form-mode .page-head {
+        margin-top: 8px;
+        gap: 14px;
+      }
+
+      body.request-page .page-head__lead {
+        gap: 14px;
+      }
+
+      body.request-page .page-badge {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+      }
+
+      body.request-page .page-badge svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      body.request-page .page-head h1,
+      body.request-page .request-entry-shell.is-form-mode .page-head h1 {
+        font-size: clamp(34px, 3.6vw, 50px);
+      }
+
+      body.request-page .page-head .desc,
+      body.request-page .request-entry-shell.is-form-mode .page-head .desc {
+        font-size: 13.5px;
+        line-height: 1.4;
+      }
+
+      body.request-page .request-switch-btn {
+        padding: 8px 14px;
+      }
+
+      body.request-page .request-flow {
+        margin-top: 12px;
+        gap: 12px;
+      }
+
+      body.request-page .pilot {
+        padding: 9px 12px;
+        border-radius: 14px;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      body.request-page #requestWorkspace {
+        padding: 12px 14px;
+        border-radius: 24px;
+      }
+
+      body.request-page #requester-details-panel {
+        padding: 0 14px 0 0;
+      }
+
+      body.request-page #request-details-panel {
+        padding: 0 0 0 16px;
+      }
+
+      body.request-page .panel-title--stack,
+      body.request-page #requester-details-panel .panel-title,
+      body.request-page #request-details-panel .panel-title {
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      body.request-page .panel-title__icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+      }
+
+      body.request-page .panel-title__icon svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      body.request-page .panel-title__body > span:first-child {
+        font-size: 13.5px;
+      }
+
+      body.request-page .panel-title__meta {
+        font-size: 12px;
+      }
+
+      body.request-page #requester-details-panel .tile,
+      body.request-page #requester-details-panel .tile.span2 {
+        padding: 10px 0;
+      }
+
+      body.request-page #requester-details-panel .tile .lbl {
+        margin-bottom: 4px;
+        font-size: 10px;
+      }
+
+      body.request-page #requester-details-panel .tile .val {
+        font-size: 13.5px;
+        line-height: 1.35;
+      }
+
+      body.request-page .requester-workflow-note {
+        margin-top: 12px;
+        padding-top: 12px;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      body.request-page #request-details-panel .form-grid {
+        gap: 10px 12px;
+      }
+
+      body.request-page #request-details-panel label.fld,
+      body.request-page #approver-section label.fld,
+      body.request-page #obo-section label.fld {
+        margin-bottom: 4px;
+        font-size: 11.5px;
+      }
+
+      body.request-page #request-details-panel input,
+      body.request-page #request-details-panel select,
+      body.request-page #request-details-panel textarea,
+      body.request-page #approver-section input,
+      body.request-page #approver-section textarea,
+      body.request-page #obo-section input,
+      body.request-page #obo-section textarea {
+        min-height: 42px;
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+
+      body.request-page #request-details-panel textarea,
+      body.request-page #approver-section textarea,
+      body.request-page #obo-section textarea {
+        min-height: 68px;
+      }
+
+      body.request-page .backup-hint,
+      body.request-page .status,
+      body.request-page .confirm-box .s {
+        font-size: 11px;
+      }
+
+      body.request-page .notice-row {
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      body.request-page .note {
+        padding: 8px 10px;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      body.request-page .review-strip {
+        margin-top: 12px;
+        padding-top: 12px;
+      }
+
+      body.request-page .review-strip__head {
+        margin-bottom: 8px;
+      }
+
+      body.request-page .review-strip__head h4 {
+        font-size: 15px;
+      }
+
+      body.request-page .review-strip__head p {
+        font-size: 12px;
+      }
+
+      body.request-page .review-strip__grid {
+        gap: 8px;
+      }
+
+      body.request-page .review-pill {
+        gap: 8px;
+        padding: 9px 10px;
+        border-radius: 14px;
+      }
+
+      body.request-page .review-pill__icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+      }
+
+      body.request-page .review-pill__icon i {
+        font-size: 13px;
+      }
+
+      body.request-page .review-pill__label {
+        font-size: 9.5px;
+      }
+
+      body.request-page .review-pill__value {
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      body.request-page .confirm-box {
+        margin-top: 12px;
+        padding: 10px 12px;
+        gap: 10px;
+      }
+
+      body.request-page .confirm-box .t {
+        font-size: 13px;
+      }
+
+      body.request-page .confirm-box .s {
+        line-height: 1.3;
+      }
+
+      body.request-page .form-actions-row {
+        margin-top: 10px;
+        gap: 12px;
+        grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+      }
+
+      body.request-page .actions .submit-btn {
+        min-height: 44px;
+        padding: 11px 18px;
+        font-size: 14px;
+      }
+
+      body.request-page .request-approver-inline {
+        padding: 10px 12px 12px;
+      }
+
+      body.request-page .request-approver-inline .option-head {
+        gap: 10px;
+      }
+
+      body.request-page .request-approver-inline .option-icon {
+        width: 34px;
+        height: 34px;
+      }
+
+      body.request-page .request-approver-inline .option-main .t {
+        font-size: 13px;
+      }
+
+      body.request-page .request-approver-inline .option-note {
+        margin-top: 2px;
+        font-size: 11.5px;
+      }
+
+      body.request-page .request-approver-inline .obo-fields {
+        margin-top: 8px;
+        padding-top: 8px;
+      }
+    }
+
+    @media (min-width: 1200px) and (max-height: 930px) {
+      body.request-page .pto-shell-header {
+        padding: 8px 0;
+      }
+
+      body.request-page .pilot {
+        padding: 8px 10px;
+        font-size: 11.5px;
+      }
+
+      body.request-page .page-head,
+      body.request-page .request-entry-shell.is-form-mode .page-head {
+        margin-top: 6px;
+      }
+
+      body.request-page .page-head h1,
+      body.request-page .request-entry-shell.is-form-mode .page-head h1 {
+        font-size: clamp(32px, 3.2vw, 46px);
+      }
+
+      body.request-page .page-head .desc,
+      body.request-page .request-entry-shell.is-form-mode .page-head .desc {
+        font-size: 13px;
+      }
+
+      body.request-page .review-strip__head p {
+        display: none;
+      }
+
+      body.request-page .review-strip {
+        margin-top: 10px;
+        padding-top: 10px;
+      }
+
+      body.request-page .review-strip__grid {
+        gap: 6px;
+      }
+
+      body.request-page .review-pill {
+        padding: 7px 8px;
+      }
+
+      body.request-page .confirm-box {
+        margin-top: 10px;
+        padding: 8px 10px;
+      }
+
+      body.request-page .form-actions-row {
+        margin-top: 8px;
+        gap: 10px;
+        grid-template-columns: minmax(0, 1fr) minmax(340px, 380px);
+      }
+
+      body.request-page .actions .submit-btn {
+        padding: 10px 16px;
+      }
+
+      body.request-page .request-approver-inline {
+        padding: 8px 10px 10px;
+      }
+
+      body.request-page .request-approver-inline .option-head {
+        align-items: center;
+      }
+
+      body.request-page .request-approver-inline .option-note {
+        display: none;
+      }
+    }
+
+    body.request-page .page-head,
+    body.request-page .request-entry-shell.is-form-mode .page-head {
+      margin-top: 10px;
+      gap: 14px;
+    }
+
+    body.request-page .page-badge {
+      width: 52px;
+      height: 52px;
+    }
+
+    body.request-page .page-head h1,
+    body.request-page .request-entry-shell.is-form-mode .page-head h1 {
+      font-size: clamp(34px, 3.7vw, 48px);
+    }
+
+    body.request-page .page-head .desc,
+    body.request-page .request-entry-shell.is-form-mode .page-head .desc {
+      font-size: 14px;
+      line-height: 1.42;
+      max-width: 560px;
+    }
+
+    body.request-page .request-flow {
+      margin-top: 12px;
+      gap: 12px;
+    }
+
+    body.request-page #requestWorkspace {
+      grid-template-columns: minmax(332px, 378px) minmax(0, 1fr);
+      padding: 14px 16px 12px;
+    }
+
+    body.request-page #request-details-panel .form-grid {
+      gap: 12px 14px;
+    }
+
+    body.request-page #request-details-panel textarea,
+    body.request-page #approver-section textarea {
+      min-height: 64px;
+    }
+
+    body.request-page .notice-row {
+      margin-top: 10px;
+      gap: 10px;
+    }
+
+    body.request-page .note {
+      padding: 9px 11px;
+      font-size: 12px;
+      line-height: 1.38;
+    }
+
+    body.request-page .review-strip {
+      margin-top: 14px;
+      padding-top: 14px;
+    }
+
+    body.request-page .review-strip__head {
+      margin-bottom: 10px;
+    }
+
+    body.request-page .review-pill {
+      padding: 9px 10px;
+      gap: 9px;
+    }
+
+    body.request-page .review-pill__icon {
+      width: 32px;
+      height: 32px;
+    }
+
+    body.request-page .review-pill__value {
+      font-size: 12.5px;
+      line-height: 1.28;
+    }
+
+    body.request-page .confirm-box {
+      margin-top: 12px;
+      padding: 11px 12px;
+    }
+
+    body.request-page .form-actions-row {
+      margin-top: 10px;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) minmax(290px, 360px);
+    }
+
+    body.request-page .actions .submit-btn {
+      min-height: 44px;
+      padding: 11px 18px;
+    }
+
+    body.request-page .request-approver-inline {
+      padding: 11px 12px 12px;
+    }
+
+    body.request-page .request-approver-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    body.request-page .approver-summary__row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    body.request-page .approver-summary__copy {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    body.request-page .approver-summary__eyebrow {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7d6ae6;
+    }
+
+    body.request-page .approver-summary__title {
+      display: block;
+      font-size: 14px;
+      font-weight: 800;
+      color: #13254d;
+      line-height: 1.25;
+    }
+
+    body.request-page .approver-summary__note {
+      margin: 4px 0 0;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #617493;
+    }
+
+    body.request-page .approver-summary__actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      flex: 0 0 auto;
+    }
+
+    body.request-page .approver-summary__selected {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(219, 204, 255, 0.88);
+      background: linear-gradient(180deg, rgba(252, 250, 255, 0.98), rgba(248, 243, 255, 0.92));
+    }
+
+    body.request-page .approver-summary__selected-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7d6ae6;
+    }
+
+    body.request-page .approver-summary__selected-name {
+      font-size: 13px;
+      line-height: 1.35;
+      color: #13254d;
+    }
+
+    body.request-page .approver-summary__selected-reason {
+      font-size: 11.5px;
+      line-height: 1.4;
+      color: #617493;
+    }
+
+    body.request-page .details-approver-action {
+      margin-top: 8px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: #6d55db;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    body.request-page .details-approver-action:hover {
+      color: #5a44c8;
+      text-decoration: underline;
+    }
+
+    @media (min-width: 1200px) and (max-height: 930px) {
+      body.request-page .page-head,
+      body.request-page .request-entry-shell.is-form-mode .page-head {
+        margin-top: 6px;
+        gap: 12px;
+      }
+
+      body.request-page .page-head h1,
+      body.request-page .request-entry-shell.is-form-mode .page-head h1 {
+        font-size: clamp(32px, 3.2vw, 44px);
+      }
+
+      body.request-page .page-head .desc,
+      body.request-page .request-entry-shell.is-form-mode .page-head .desc {
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      body.request-page .request-flow {
+        margin-top: 10px;
+        gap: 10px;
+      }
+
+      body.request-page #requestWorkspace {
+        grid-template-columns: minmax(332px, 372px) minmax(0, 1fr);
+        padding: 12px 14px 10px;
+      }
+
+      body.request-page #requester-details-panel {
+        padding: 2px 18px 4px 0;
+      }
+
+      body.request-page #request-details-panel {
+        padding: 2px 0 2px 18px;
+      }
+
+      body.request-page #requester-details-panel .panel-title,
+      body.request-page #request-details-panel .panel-title {
+        margin-bottom: 12px;
+      }
+
+      body.request-page #requester-details-panel .tile,
+      body.request-page #requester-details-panel .tile.span2 {
+        padding: 10px 0;
+      }
+
+      body.request-page #requester-details-panel .tile .val {
+        line-height: 1.32;
+      }
+
+      body.request-page #pilotBanner,
+      body.request-page .note {
+        padding: 8px 10px;
+        font-size: 11.75px;
+        line-height: 1.34;
+      }
+
+      body.request-page .notice-row {
+        margin-top: 8px;
+        gap: 8px;
+      }
+
+      body.request-page .review-strip {
+        margin-top: 10px;
+        padding-top: 10px;
+      }
+
+      body.request-page .review-strip__head {
+        margin-bottom: 8px;
+      }
+
+      body.request-page .review-strip__head p {
+        display: none;
+      }
+
+      body.request-page .review-strip__grid {
+        gap: 6px;
+      }
+
+      body.request-page .review-pill {
+        padding: 7px 8px;
+        gap: 8px;
+      }
+
+      body.request-page .review-pill__icon {
+        width: 30px;
+        height: 30px;
+      }
+
+      body.request-page .review-pill__value {
+        font-size: 12px;
+        line-height: 1.24;
+      }
+
+      body.request-page .confirm-box {
+        margin-top: 10px;
+        padding: 8px 10px;
+        gap: 10px;
+      }
+
+      body.request-page .confirm-box .t {
+        font-size: 13px;
+      }
+
+      body.request-page .confirm-box .s {
+        font-size: 11px;
+        line-height: 1.28;
+      }
+
+      body.request-page .form-actions-row {
+        margin-top: 8px;
+        gap: 10px;
+        grid-template-columns: minmax(0, 1fr) minmax(330px, 370px);
+      }
+
+      body.request-page .actions .submit-btn {
+        min-height: 42px;
+        padding: 10px 16px;
+      }
+
+      body.request-page .request-approver-inline {
+        padding: 8px 10px 10px;
+      }
+
+      body.request-page .request-approver-summary {
+        gap: 8px;
+      }
+
+      body.request-page .approver-summary__row {
+        gap: 10px;
+      }
+
+      body.request-page .approver-summary__note {
+        margin-top: 2px;
+        line-height: 1.35;
+      }
+
+      body.request-page .approver-summary__selected {
+        padding: 8px 10px;
+      }
+    }
+
+    body.request-page .request-approver-modal .modal-dialog {
+      max-width: min(720px, calc(100vw - 28px));
+    }
+
+    body.request-page .request-approver-modal .modal-content {
+      border: 1px solid rgba(205, 214, 232, 0.82);
+      border-radius: 24px;
+      box-shadow: 0 34px 80px -48px rgba(15, 23, 42, 0.42);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 251, 255, 0.98));
+      color: #13254d;
+      overflow: hidden;
+    }
+
+    body.request-page .request-approver-modal .modal-header,
+    body.request-page .request-approver-modal .modal-footer {
+      border-color: rgba(221, 228, 239, 0.96);
+      padding: 18px 20px;
+    }
+
+    body.request-page .request-approver-modal .modal-body {
+      display: grid;
+      gap: 14px;
+      padding: 18px 20px 20px;
+    }
+
+    body.request-page .request-approver-modal label.fld {
+      font-size: 12px;
+      font-weight: 700;
+      color: #30486f;
+    }
+
+    body.request-page .request-approver-modal input,
+    body.request-page .request-approver-modal textarea {
+      min-height: 48px;
+      border-radius: 14px;
+      border-color: rgba(206, 216, 232, 0.98);
+      background: #fff;
+      color: #16305b;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    body.request-page .request-approver-modal textarea {
+      min-height: 96px;
+    }
+
+    body.request-page .approver-modal__header-copy {
+      min-width: 0;
+      padding-right: 12px;
+    }
+
+    body.request-page .approver-modal__lead {
+      margin: 6px 0 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #617493;
+    }
+
+    body.request-page .request-approver-modal .btn-close {
+      box-shadow: none;
+    }
+
+    body.request-page .approver-selection-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(219, 204, 255, 0.9);
+      background: linear-gradient(180deg, rgba(252, 250, 255, 0.98), rgba(248, 243, 255, 0.92));
+    }
+
+    body.request-page .approver-selection-card__body {
+      min-width: 0;
+    }
+
+    body.request-page .approver-selection-card__label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7d6ae6;
+    }
+
+    body.request-page .approver-selection-card__value {
+      display: block;
+      font-size: 13px;
+      line-height: 1.35;
+      color: #13254d;
+      overflow-wrap: anywhere;
+    }
+
+    body.request-page .tip-line {
+      margin-top: 4px;
+      font-size: 11.5px;
+    }
+
+    body.request-page .rq-footer {
+      margin-top: 2px;
+    }
+
+    @media (max-width: 980px) {
+      body.request-page .approver-summary__row {
+        flex-direction: column;
+      }
+
+      body.request-page .approver-summary__actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body.request-page .request-approver-modal .modal-dialog {
+        max-width: calc(100vw - 20px);
+      }
+
+      body.request-page .request-approver-modal .modal-header,
+      body.request-page .request-approver-modal .modal-footer,
+      body.request-page .request-approver-modal .modal-body {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      body.request-page .request-approver-modal .modal-footer {
+        gap: 8px;
+      }
+
+      body.request-page .request-approver-modal .modal-footer .btn,
+      body.request-page .request-approver-modal .modal-footer .submit-btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      body.request-page .approver-selection-card {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+
+    /* =====================================================================
+       2026-07-31 polish pass
+       Wider desktop canvas, safer review-card wrapping, fuller preview search
+       shell, and a single-cut approval routing band under submit.
+       ================================================================== */
+
+    body.request-page .wrap {
+      max-width: 1480px;
+    }
+
+    body.request-page .page-head .desc,
+    body.request-page .request-entry-shell.is-form-mode .page-head .desc {
+      margin-top: 6px;
+    }
+
+    body.request-page .request-entry-shell,
+    body.request-page .request-entry-shell.is-form-mode,
+    body.request-page .request-entry-shell.mode-self,
+    body.request-page .request-entry-shell.mode-other,
+    body.request-page .page-head,
+    body.request-page .request-entry-shell.is-form-mode .page-head,
+    body.request-page .request-flow,
+    body.request-page .request-flow .pilot,
+    body.request-page #obo-section,
+    body.request-page #requestWorkspace,
+    body.request-page #result,
+    body.request-page #tipLine,
+    body.request-page #requestFooter {
+      max-width: 1440px;
+    }
+
+    body.request-page .request-flow {
+      margin-top: 16px;
+      gap: 14px;
+    }
+
+    body.request-page #obo-section {
+      width: min(1060px, 100%);
+      margin-top: 4px;
+    }
+
+    body.request-page #requestWorkspace {
+      grid-template-columns: minmax(344px, 396px) minmax(0, 1fr);
+      padding: 14px 18px 12px;
+    }
+
+    body.request-page .review-strip__grid {
+      grid-template-columns: repeat(6, minmax(126px, 1fr));
+      gap: 12px;
+    }
+
+    body.request-page .review-pill {
+      align-items: flex-start;
+    }
+
+    body.request-page .review-pill__copy {
+      flex: 1 1 auto;
+    }
+
+    body.request-page .review-pill__value {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    body.request-page .form-actions-row {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+
+    body.request-page .actions {
+      width: 100%;
+      min-height: 0;
+      padding-top: 0;
+      align-items: center;
+      align-content: center;
+    }
+
+    body.request-page #approver-section {
+      width: 100%;
+      margin-top: 0;
+    }
+
+    body.request-page .request-approver-summary {
+      width: 100%;
+      gap: 10px;
+    }
+
+    body.request-page .approver-summary__row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+    }
+
+    body.request-page .approver-summary__copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    body.request-page .approver-summary__note {
+      max-width: none;
+    }
+
+    body.request-page .approver-summary__actions {
+      justify-content: flex-end;
+      align-self: center;
+    }
+
+    @media (max-width: 1180px) {
+      body.request-page #requestWorkspace {
+        grid-template-columns: minmax(292px, 340px) minmax(0, 1fr);
+      }
+
+      body.request-page .review-strip__grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 980px) {
+      body.request-page #obo-section {
+        width: 100%;
+      }
+
+      body.request-page #requestWorkspace {
+        grid-template-columns: 1fr;
+      }
+
+      body.request-page .approver-summary__row {
+        grid-template-columns: 1fr;
+        align-items: flex-start;
+      }
+
+      body.request-page .approver-summary__actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body.request-page .review-strip__grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
 </head>
 <body class="request-page">
   <main class="wrap">
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
-          </svg>
-        </span>
-        <span class="brand-company">myBasePay</span>
-        <span class="brand-sep" aria-hidden="true"></span>
-        <span class="brand-name">PTO Central</span>
-      </div>
-      <div class="auth-area">
-        <div class="request-auth-meta" hidden aria-hidden="true">
-          <div class="view-as" aria-label="View as selector">
-            <span class="view-as__label">View as</span>
-            <div class="view-as__seg" role="group" aria-label="View as">
-              <label class="view-as__opt" id="viewAsMyself" for="forWhoMyself">Myself</label>
-              <label class="view-as__opt" id="viewAsOther" for="forWhoOther">Another employee</label>
-            </div>
-          </div>
-          <span id="user-chip" class="user-chip">
-            <span class="avatar" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
-              </svg>
-            </span>
-            <span class="who">
-              <span class="lbl">Signed in as</span>
-              <span class="name" id="user-chip-name">—</span>
-            </span>
-          </span>
-          <span id="account" aria-live="polite">Not signed in.</span>
-        </div>
-        <button id="signin" class="btn" type="button">Sign in</button>
-        <button id="signout" class="btn small" type="button" disabled>
-          Sign out
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
-          </svg>
-        </button>
-      </div>
-    </header>
+    <div id="requestHeaderMount"></div>
 
-    <section class="request-entry-shell" aria-labelledby="request-page-title">
+    <section id="requestEntryShell" class="request-entry-shell" aria-labelledby="request-page-title">
       <div class="page-head">
-        <span class="page-badge" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
-            <path d="M12 12.5v4M10 14.5h4" />
-          </svg>
-        </span>
-        <div class="page-head__copy">
-          <h1 id="request-page-title">Submit PTO Request</h1>
-          <p class="desc">Who is this PTO request for?</p>
+        <div class="page-head__lead">
+          <span class="page-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
+              <path d="M12 12.5v4M10 14.5h4" />
+            </svg>
+          </span>
+          <div class="page-head__copy">
+            <h1 id="request-page-title">Submit PTO Request</h1>
+            <p id="request-page-subtitle" class="desc">Who is this PTO request for?</p>
+          </div>
+        </div>
+        <div class="page-head__actions">
+          <button id="changeSelection" class="btn small request-switch-btn" type="button">
+            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+            <span>Switch request type</span>
+          </button>
         </div>
       </div>
 
-      <section id="entryChoicePanel" class="request-choice-panel" aria-label="Select request type">
-        <div class="forwho-row request-choice-grid" role="radiogroup" aria-label="Who is this PTO request for">
-          <label id="choiceMyselfCard" class="forwho-card forwho-card--self" tabindex="0">
-            <input type="radio" name="forWho" id="forWhoMyself" checked />
-            <span class="forwho-card__icon" aria-hidden="true">
-              <i class="bi bi-person"></i>
-            </span>
-            <span class="forwho-card__copy">
-              <span class="forwho-card__title">Myself</span>
-              <span class="forwho-card__note">Create a PTO request for your own time off.</span>
-            </span>
-            <span class="forwho-card__arrow" aria-hidden="true">
-              <i class="bi bi-arrow-right"></i>
-            </span>
-            <span class="forwho-card__decor" aria-hidden="true">
-              <span class="forwho-wave forwho-wave--1"></span>
-              <span class="forwho-wave forwho-wave--2"></span>
-            </span>
-          </label>
-
-          <label id="choiceOtherCard" class="forwho-card forwho-card--other" tabindex="0">
-            <input type="radio" name="forWho" id="forWhoOther" />
-            <span class="forwho-card__icon" aria-hidden="true">
-              <i class="bi bi-person-plus"></i>
-            </span>
-            <span class="forwho-card__copy">
-              <span class="forwho-card__title">Another employee</span>
-              <span class="forwho-card__note">Submit a request on behalf of an eligible employee.</span>
-            </span>
-            <span class="forwho-card__arrow" aria-hidden="true">
-              <i class="bi bi-arrow-right"></i>
-            </span>
-            <span class="forwho-card__decor" aria-hidden="true">
-              <span class="forwho-wave forwho-wave--1"></span>
-              <span class="forwho-wave forwho-wave--2"></span>
-            </span>
-          </label>
-        </div>
-      </section>
-
-      <section id="requestSelectionSummary" class="request-selection-summary" aria-live="polite" hidden>
-        <div class="request-selection-summary__card">
-          <span id="selectionSummaryIcon" class="request-selection-summary__icon" aria-hidden="true">
-            <i class="bi bi-person"></i>
-          </span>
-          <div class="request-selection-summary__copy">
-            <span id="selectionSummaryLabel" class="request-selection-summary__eyebrow">Request type</span>
-            <strong id="selectionSummaryTitle" class="request-selection-summary__title">Myself</strong>
-            <span id="selectionSummaryNote" class="request-selection-summary__note">Create a PTO request for your own time off.</span>
-          </div>
-          <button id="changeSelection" class="btn small request-selection-summary__change" type="button">Change</button>
-        </div>
-      </section>
+      <div class="request-mode-inputs" hidden aria-hidden="true">
+        <input type="radio" name="forWho" id="forWhoMyself" checked />
+        <input type="radio" name="forWho" id="forWhoOther" />
+      </div>
     </section>
 
     <div id="requestFlow" class="request-flow" hidden>
-      <div id="pilotBanner" class="pilot" role="note" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 7.75h.01" />
-        </svg>
-        <div>
-          <strong>Pilot phase:</strong> requests are written to the live <code>PTO Requests</code> list,
-          and calendar events are created automatically when a request is approved.
-          Manager email/Teams notifications are still in controlled testing.
-        </div>
-      </div>
-
       <div id="obo-section" class="option-card obo employee-selector-panel" aria-label="Employee selection" hidden>
         <div class="option-head">
           <span class="option-icon" aria-hidden="true">
@@ -1484,7 +3312,7 @@
           <div class="option-main">
             <span class="employee-selector-panel__eyebrow">Another employee</span>
             <span class="employee-selector-panel__title">Select the employee first</span>
-            <p class="option-note">Search by name or email to continue with the request form.</p>
+            <p class="option-note">Start typing a name or email to continue with the request form.</p>
           </div>
         </div>
         <div id="oboFields" class="obo-fields">
@@ -1493,91 +3321,66 @@
               <label class="fld" for="oboSearch">Find the employee (name or email)</label>
               <input type="text" id="oboSearch" placeholder="Search for an employee by name or email…" autocomplete="off" />
             </div>
-            <div>
-              <button id="oboLookup" class="btn" type="button">Search</button>
-            </div>
           </div>
           <div id="oboResults" class="backup-results" role="listbox" aria-label="Employee matches"></div>
-          <div id="oboReasonWrap" class="obo-reason-wrap" hidden>
-            <label class="fld" for="oboReason">Reason for submitting on their behalf (optional)</label>
-            <textarea id="oboReason" placeholder="e.g. Employee is out and asked me to file this request."></textarea>
-          </div>
           <div id="oboStatus" class="note info" role="status"></div>
           <div id="oboError" class="note danger" role="alert"></div>
         </div>
       </div>
 
-      <div id="approver-section" class="option-card approver" aria-label="Alternate approver" hidden>
-        <div class="option-head">
-          <span class="option-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="7" cy="7" r="2.8" /><path d="M2.8 17.5c0-2.5 1.9-4.2 4.2-4.2" />
-              <path d="M13 7h8" /><path d="M18 4l3 3-3 3" /><path d="M13 15.5h8" /><path d="M16 12.5l-3 3 3 3" />
+      <div id="requestWorkspace" class="request-workspace" hidden>
+        <section id="requester-details-panel" class="panel" aria-label="Requester details" hidden>
+          <h3 class="panel-title panel-title--stack" id="details-title">
+            <span class="panel-title__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
+              </svg>
+            </span>
+            <span class="panel-title__body">
+              <span id="details-title-text">Your details</span>
+              <span class="panel-title__meta">Details about this request</span>
+            </span>
+          </h3>
+          <div id="oboBadge" class="obo-badge" role="status" aria-live="polite" style="margin: 0 0 12px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
+            </svg>
+            <span class="who" id="oboBadgeText">Submitting on behalf of …</span>
+          </div>
+          <div class="tile-grid">
+            <div class="tile"><span class="lbl">Requester</span><span class="val" id="c-name">—</span></div>
+            <div class="tile"><span class="lbl">Email</span><span class="val" id="c-email">—</span></div>
+            <div class="tile"><span class="lbl">Department</span><span class="val" id="c-dept">—</span></div>
+            <div class="tile"><span class="lbl">Title</span><span class="val" id="c-title">—</span></div>
+            <div class="tile">
+              <span class="lbl">Manager</span>
+              <span class="val" id="c-mgr">—</span>
+              <button id="sidebarApproverOpen" class="details-approver-action" type="button">Change approver</button>
+            </div>
+            <div class="tile"><span class="lbl">Manager's Manager</span><span class="val" id="c-mm">—</span></div>
+          </div>
+          <div id="mgr-warn" class="note warn" role="alert"></div>
+          <div id="mm-warn" class="note warn" role="alert"></div>
+          <div class="note info" role="note" style="display:block;">
+            If you do not have a manager, or your manager is unavailable, select Maggie Mondragon as your approver.
+          </div>
+          <div class="requester-workflow-note" aria-hidden="true">
+            <i class="bi bi-check-circle"></i>
+            <span>Approval will follow your organization's workflow.</span>
+          </div>
+        </section>
+
+        <section id="request-details-panel" class="panel" aria-label="Request details" hidden>
+        <h3 class="panel-title panel-title--stack">
+          <span class="panel-title__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 6.5h14" /><path d="M5 11.5h14" /><path d="M5 16.5h9" />
             </svg>
           </span>
-          <div class="option-main">
-            <label class="option-toggle" for="approverToggle">
-              <input type="checkbox" id="approverToggle" />
-              <span class="t">Route approval to someone else</span>
-            </label>
-            <p class="option-note">Select an alternate approver if the manager is unavailable — or when no manager is configured.</p>
-          </div>
-        </div>
-        <div id="approverFields" class="obo-fields">
-          <div class="lookup-row">
-            <div class="grow">
-              <label class="fld" for="approverEmail">Alternate approver's email</label>
-              <input type="email" id="approverEmail" placeholder="approver@mybasepay.com" autocomplete="off" />
-            </div>
-            <div>
-              <button id="approverLookup" class="btn" type="button">Lookup approver</button>
-            </div>
-          </div>
-          <div style="margin-top:12px;">
-            <label class="fld" for="approverReason">Reason for routing approval to this person <span class="req">*</span></label>
-            <textarea id="approverReason" placeholder="e.g. Manager is on leave through July; Michelle is covering approvals."></textarea>
-          </div>
-          <div id="approverBadge" class="approver-badge" role="status" aria-live="polite">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
-            </svg>
-            <span class="who" id="approverBadgeText">Approval routed to …</span>
-          </div>
-          <div id="approverStatus" class="note info" role="status"></div>
-          <div id="approverError" class="note danger" role="alert"></div>
-        </div>
-      </div>
-
-      <section id="requester-details-panel" class="panel" aria-label="Requester details" hidden>
-        <h3 class="panel-title" id="details-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
-          </svg>
-          <span id="details-title-text">Your details</span>
-        </h3>
-        <div id="oboBadge" class="obo-badge" role="status" aria-live="polite" style="margin: 0 0 12px;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
-          </svg>
-          <span class="who" id="oboBadgeText">Submitting on behalf of …</span>
-        </div>
-        <div class="tile-grid">
-          <div class="tile"><span class="lbl">Requester</span><span class="val" id="c-name">—</span></div>
-          <div class="tile"><span class="lbl">Email</span><span class="val" id="c-email">—</span></div>
-          <div class="tile"><span class="lbl">Department / Title</span><span class="val" id="c-dept">—</span></div>
-          <div class="tile span2"><span class="lbl">Manager</span><span class="val" id="c-mgr">—</span></div>
-          <div class="tile"><span class="lbl">Manager's manager</span><span class="val" id="c-mm">—</span></div>
-        </div>
-        <div id="mgr-warn" class="note warn" role="alert"></div>
-        <div id="mm-warn" class="note warn" role="alert"></div>
-      </section>
-
-      <section id="request-details-panel" class="panel" aria-label="Request details" hidden>
-        <h3 class="panel-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
-          </svg>
-          Request details
+          <span class="panel-title__body">
+            <span>PTO request details</span>
+            <span class="panel-title__meta">Tell us about your time off</span>
+          </span>
         </h3>
 
         <div class="form-grid">
@@ -1594,11 +3397,11 @@
           </div>
           <div>
             <label class="fld" for="startDate">Start Date <span class="req">*</span></label>
-            <input type="date" id="startDate" />
+            <input type="date" id="startDate" autocomplete="off" />
           </div>
           <div>
             <label class="fld" for="endDate">End Date <span class="req">*</span></label>
-            <input type="date" id="endDate" />
+            <input type="date" id="endDate" autocomplete="off" />
           </div>
 
           <div class="full">
@@ -1610,28 +3413,19 @@
             <label class="fld" for="backupSearch">Backup contact (optional)</label>
             <div class="lookup-row">
               <div class="grow backup-search-wrap">
-                <input type="text" id="backupSearch" placeholder="Search for an employee by name or email…" autocomplete="off" />
+                <input type="text" id="backupSearch" placeholder="Type a name or email to add backup contacts…" autocomplete="off" />
                 <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
                 </svg>
               </div>
-              <div>
-                <button id="backupLookup" class="btn" type="button">Search</button>
-              </div>
             </div>
-            <div class="backup-hint">When selected, name and email will be filled automatically.</div>
             <div id="backupResults" class="backup-results" role="listbox" aria-label="Backup contact matches"></div>
-            <span id="backupSelected" class="backup-selected">
-              <span class="txt" id="backupSelectedText">—</span>
-              <button id="backupClear" class="clear" type="button" aria-label="Clear selected backup contact">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
-              </button>
-            </span>
+            <div id="backupSelected" class="backup-selected" role="list" aria-live="polite"></div>
             <div id="backupError" class="note warn" role="alert"></div>
           </div>
         </div>
+
+        <div id="dateRangeError" class="note danger" role="alert"></div>
 
         <div class="notice-row">
           <div id="notice" class="note info" role="status"></div>
@@ -1639,26 +3433,149 @@
           <div id="sickNote" class="note info" role="status"></div>
         </div>
 
+        <section class="review-strip" aria-label="Review before submitting">
+          <div class="review-strip__head">
+            <h4>Review before submitting</h4>
+            <p>Confirm the key details before sending your PTO request.</p>
+          </div>
+          <div class="review-strip__grid">
+            <div class="review-pill">
+              <span class="review-pill__icon" aria-hidden="true"><i class="bi bi-person"></i></span>
+              <span class="review-pill__copy">
+                <span class="review-pill__label">Requester</span>
+                <strong id="reviewRequester" class="review-pill__value">—</strong>
+              </span>
+            </div>
+            <div class="review-pill">
+              <span class="review-pill__icon" aria-hidden="true"><i class="bi bi-people"></i></span>
+              <span class="review-pill__copy">
+                <span class="review-pill__label">Manager</span>
+                <strong id="reviewManager" class="review-pill__value">—</strong>
+              </span>
+            </div>
+            <div class="review-pill">
+              <span class="review-pill__icon" aria-hidden="true"><i class="bi bi-tag"></i></span>
+              <span class="review-pill__copy">
+                <span class="review-pill__label">PTO Type</span>
+                <strong id="reviewPtoType" class="review-pill__value">—</strong>
+              </span>
+            </div>
+            <div class="review-pill">
+              <span class="review-pill__icon" aria-hidden="true"><i class="bi bi-calendar-event"></i></span>
+              <span class="review-pill__copy">
+                <span class="review-pill__label">Start Date</span>
+                <strong id="reviewStartDate" class="review-pill__value">—</strong>
+              </span>
+            </div>
+            <div class="review-pill">
+              <span class="review-pill__icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>
+              <span class="review-pill__copy">
+                <span class="review-pill__label">End Date</span>
+                <strong id="reviewEndDate" class="review-pill__value">—</strong>
+              </span>
+            </div>
+            <div class="review-pill">
+              <span class="review-pill__icon" aria-hidden="true"><i class="bi bi-person-hearts"></i></span>
+              <span class="review-pill__copy">
+                <span class="review-pill__label">Backup Contacts</span>
+                <strong id="reviewBackupContact" class="review-pill__value">None selected</strong>
+              </span>
+            </div>
+          </div>
+        </section>
+
         <div class="confirm-box">
           <input type="checkbox" id="confirm" />
           <label for="confirm">
-            <span class="t">I confirm this PTO request is accurate</span>
-            <span class="s">By checking this box, you confirm the information provided is correct.</span>
+            <span class="t">I confirm this PTO request is accurate and any selected backup contact has been notified</span>
+            <span class="s">By checking this box, you confirm the request details are correct and that any backup contact you selected is aware of the coverage plan.</span>
           </label>
         </div>
 
-        <div class="actions">
-          <button id="submit" class="btn submit-btn" type="button" disabled>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
-            </svg>
-            Submit PTO Request
-          </button>
-          <span id="submit-status" class="status" aria-live="polite"></span>
+        <div class="form-actions-row">
+          <div class="actions">
+            <button id="submit" class="btn submit-btn" type="button" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" />
+              </svg>
+              <span id="submitLabel">Submit my PTO request</span>
+            </button>
+            <span id="submit-status" class="status" aria-live="polite"></span>
+          </div>
+
+          <div id="approver-section" class="option-card approver request-approver-inline request-approver-summary" aria-label="Alternate approver" hidden>
+            <div class="approver-summary__row">
+              <div class="approver-summary__copy">
+                <span class="approver-summary__eyebrow">Approval routing</span>
+                <strong class="approver-summary__title">Route approval to someone else</strong>
+                <p id="approverSummaryText" class="approver-summary__note">Keep the default manager routing, or choose an alternate approver if needed.</p>
+              </div>
+              <div class="approver-summary__actions">
+                <button id="approverOpen" class="btn small" type="button">Route approval to someone else</button>
+                <button id="approverClear" class="btn small" type="button" hidden>Clear</button>
+              </div>
+            </div>
+            <div id="approverCompact" class="approver-summary__selected" hidden>
+              <span class="approver-summary__selected-label">Alternate approver</span>
+              <strong id="approverCompactText" class="approver-summary__selected-name">None selected</strong>
+              <span id="approverCompactReason" class="approver-summary__selected-reason"></span>
+            </div>
+          </div>
         </div>
 
         <div id="error" class="error" role="alert" aria-live="assertive"></div>
-      </section>
+        </section>
+      </div>
+
+      <div class="modal fade request-approver-modal" id="approverModal" tabindex="-1" aria-labelledby="approverModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <div class="approver-modal__header-copy">
+                <h2 class="modal-title h5" id="approverModalTitle">Select an alternate approver</h2>
+                <p class="approver-modal__lead">
+                  Search by name or email to choose the person who should approve this request instead of the default manager.
+                  If HR guidance says to use Maggie, search and select Maggie manually; she is never auto-selected.
+                </p>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div>
+                <label class="fld" for="approverSearch">Alternate approver</label>
+                <div class="backup-search-wrap">
+                  <input type="text" id="approverSearch" placeholder="Type a name or email to search…" autocomplete="off" aria-describedby="approverSearchHelp" />
+                  <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+                  </svg>
+                </div>
+                <div id="approverSearchHelp" class="backup-hint">Suggestions appear automatically as you type. No separate lookup button is required.</div>
+                <div id="approverResults" class="backup-results" role="listbox" aria-label="Alternate approver matches"></div>
+              </div>
+
+              <div id="approverBadge" class="approver-selection-card" hidden>
+                <div class="approver-selection-card__body">
+                  <span class="approver-selection-card__label">Selected approver</span>
+                  <strong id="approverBadgeText" class="approver-selection-card__value">Approval routed to …</strong>
+                </div>
+                <button id="approverSelectionClear" class="btn small" type="button">Clear</button>
+              </div>
+
+              <div>
+                <label class="fld" for="approverReason">Reason for alternate routing <span class="req">*</span></label>
+                <textarea id="approverReason" placeholder="e.g. Manager is on leave through July, so Michelle is covering approvals."></textarea>
+              </div>
+
+              <div id="approverStatus" class="note info" role="status"></div>
+              <div id="approverError" class="note danger" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+              <button id="approverCancel" class="btn" type="button" data-bs-dismiss="modal">Cancel</button>
+              <button id="approverConfirm" class="btn submit-btn" type="button">Confirm alternate approver</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <section id="result" class="panel" aria-label="Result">
         <h3 class="panel-title">
@@ -1698,14 +3615,23 @@
     lib/msal-browser.min.js is intentionally NOT versioned (pinned v3.28.1).
   -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js?v=rq5"></script>
+  <script src="js/config.js?v=rq14"></script>
   <script src="js/auth.js?v=rq5"></script>
   <script src="js/graph.js?v=rq5"></script>
   <script src="js/directory.js?v=rq5"></script>
   <script src="js/rules.js?v=rq5"></script>
-  <script src="js/requests.js?v=rq5"></script>
+  <script src="js/requests.js?v=rq14"></script>
   <script src="js/authz.js?v=rq5"></script>
-  <script src="js/ui.js?v=rq5"></script>
-  <script src="js/pages/request.page.js?v=rq7"></script>
+  <script src="js/ui.js?v=rq14"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/components/pto-header.js?v=rq9"></script>
+  <script>
+    PTOHeader.render("requestHeaderMount", {
+      singleTitle: "PTO Central",
+      accountLabel: "Your Account",
+      homeHref: "index.html"
+    });
+  </script>
+  <script src="js/pages/request.page.js?v=rq14"></script>
 </body>
 </html>

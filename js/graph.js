@@ -133,9 +133,10 @@ window.PTOGraph = (function () {
    * @param {string} url
    * @param {any} body
    * @param {string[]} [scopes]
+   * @param {object} [headers]
    */
-  async function patch(url, body, scopes) {
-    return request("PATCH", url, { body: body, scopes: scopes });
+  async function patch(url, body, scopes, headers) {
+    return request("PATCH", url, { body: body, scopes: scopes, headers: headers });
   }
 
   /** Convenience: GET the signed-in user's basic profile. */
@@ -300,16 +301,20 @@ window.PTOGraph = (function () {
    *   on the /fields endpoint). Only the supplied fields are changed.
    * @param {string|number} itemId
    * @param {object} fields - field internal-name → value map
+   * @param {object} [options] - { ifMatch?: string, headers?: object }
    * @returns {Promise<object>} the updated fieldValueSet
    */
-  async function updateListItem(itemId, fields) {
+  async function updateListItem(itemId, fields, options) {
     if (itemId === undefined || itemId === null || itemId === "") {
       throw new Error("updateListItem requires an itemId.");
     }
+    options = options || {};
     var ctx = await resolveContext();
     var path = "/sites/" + ctx.siteId + "/lists/" + ctx.listId + "/items/" + itemId + "/fields";
     console.log("[PTOGraph] updateListItem → PATCH", buildUrl(path), fields);
-    var res = await patch(path, fields, PTOConfig.scopes.siteWrite);
+    var headers = Object.assign({}, options.headers || {});
+    if (options.ifMatch) headers["If-Match"] = options.ifMatch;
+    var res = await patch(path, fields, PTOConfig.scopes.siteWrite, headers);
     console.log("[PTOGraph] updateListItem ← ok");
     return res;
   }

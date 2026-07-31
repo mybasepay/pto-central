@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Redirecting — PTO Central</title>
+  <meta http-equiv="refresh" content="0; url=my-requests.html?entry=cancel" />
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+      color: #11264b;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    .redirect-card {
+      width: min(100%, 520px);
+      border-radius: 24px;
+      border: 1px solid rgba(183, 201, 230, 0.7);
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 26px 54px -38px rgba(15, 23, 42, 0.22);
+      padding: 28px;
+      text-align: center;
+    }
+
+    a {
+      color: #3e78ef;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <section class="redirect-card" aria-labelledby="redirect-title">
+    <h1 id="redirect-title">Opening Manage PTO Requests…</h1>
+    <p>
+      If you are not redirected automatically, continue to
+      <a id="redirectLink" href="my-requests.html?entry=cancel">Manage PTO Requests</a>.
+    </p>
+  </section>
+
+  <script>
+    (function () {
+      var target = new URL("my-requests.html", window.location.href);
+      var source = new URL(window.location.href);
+      source.searchParams.forEach(function (value, key) {
+        target.searchParams.set(key, value);
+      });
+      if (!target.searchParams.has("entry")) {
+        target.searchParams.set("entry", "cancel");
+      }
+      var href = target.toString();
+      var link = document.getElementById("redirectLink");
+      if (link) link.href = href;
+      window.location.replace(href);
+    })();
+  </script>
+</body>
+</html>

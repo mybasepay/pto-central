@@ -5,473 +5,1784 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>HR Center — PTO Central</title>
   <link rel="stylesheet" href="styles.css" />
-  <!--
-    HR Center (hr.html) — HR/Admin ONLY.
-    Access is role-gated by js/authz.js (ROLE_REQUIRED["hr.html"] = HR/Admin from
-    the "PTO Authorized Users" list; fails CLOSED). Non-HR users get a clean
-    "Not authorized" block and NO request data is loaded.
-
-    Data source: the modern "PTO Requests" list only. The legacy "PTO Tracking"
-    list is NOT read, merged, or migrated here (stub note below).
-
-    Cancellation sets Status = "Cancelled" + appends AuditLog (+ optional
-    Cancelled-by/CancelReason metadata when the columns exist). Calendar event
-    deletion is the job of the validated "PTO Calendar Cancellation MVP Clean"
-    flow (triggers on Status = Cancelled). This page NEVER touches
-    EmployeeEventId/CorpEventId and never deletes items.
-
-    This file is UI only; all data/cancel/authz logic lives in js/pages/hr.page.js
-    and js/requests.js (unchanged behavior).
-  -->
   <style>
-    /* ===== HR Center dashboard — page-scoped (this <style> follows styles.css,
-       so equal-specificity element rules win). Wide admin layout on normal
-       document flow (not the shared flex-centered card). ===== */
-
-    /* Palette (scoped) */
     :root {
-      --hr-surface: #0e1626;
-      --hr-surface-2: #0b1220;
-      --hr-line: rgba(120,150,210,0.16);
-      --hr-line-soft: rgba(255,255,255,0.06);
-      --hr-blue: #3b82f6;
-      --hr-blue-2: #2563eb;
-      --hr-accent: #93c5fd;
+      --hr-page: #eef4fb;
+      --hr-page-2: #f7fbff;
+      --hr-surface: rgba(255, 255, 255, 0.9);
+      --hr-surface-strong: rgba(255, 255, 255, 0.97);
+      --hr-line: rgba(173, 191, 219, 0.34);
+      --hr-line-strong: rgba(150, 172, 207, 0.46);
+      --hr-text: #13254d;
+      --hr-text-strong: #0f2148;
+      --hr-muted: #6d7f9d;
+      --hr-muted-soft: #8b99af;
+      --hr-blue: #2f7bff;
+      --hr-blue-deep: #1d68f0;
+      --hr-blue-soft: rgba(47, 123, 255, 0.1);
+      --hr-focus: 0 0 0 3px rgba(122, 174, 255, 0.28);
+      --hr-shadow-panel: 0 30px 54px -36px rgba(53, 80, 126, 0.22),
+        0 10px 24px -22px rgba(53, 80, 126, 0.18);
+      --hr-shadow-card: 0 24px 40px -34px rgba(53, 80, 126, 0.2);
+      --hr-shadow-float: 0 28px 48px -26px rgba(42, 66, 109, 0.24);
+      --hr-radius-xl: 24px;
+      --hr-radius-lg: 18px;
+      --hr-radius-md: 14px;
+      --hr-radius-sm: 12px;
+      --hr-filter-width: 320px;
     }
 
-    /* Layout: full-width, centered, normal top→bottom scroll. */
-    html, body { height: auto; min-height: 100%; }
+    html,
     body {
-      display: block;
-      padding: clamp(18px, 2vw, 32px) clamp(16px, 2.4vw, 44px) 64px;
-      background:
-        radial-gradient(1100px 640px at 8% -6%, #0d1730, transparent 60%),
-        radial-gradient(1200px 700px at 100% 0%, #0a1424, transparent 55%),
-        linear-gradient(180deg, #0a111e 0%, #070c16 60%, #05080f 100%);
+      min-height: 100%;
+      height: auto;
     }
-    .wrap { width: 100%; max-width: 1760px; margin: 0 auto; }
 
-    /* Panels replace the single big card — distinct rounded surfaces. */
-    .panel {
-      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)) , var(--hr-surface);
-      border: 1px solid var(--hr-line);
+    body.hr-center-page {
+      display: block;
+      margin: 0;
+      padding: 0;
+      min-width: 320px;
+      font-family: Aptos, "Segoe UI", system-ui, sans-serif;
+      color: var(--hr-text);
+      background:
+        radial-gradient(1120px 560px at 0% 4%, rgba(122, 174, 255, 0.16), transparent 60%),
+        radial-gradient(840px 420px at 100% 0%, rgba(36, 184, 170, 0.1), transparent 58%),
+        linear-gradient(180deg, #f9fcff 0%, #eef4fb 48%, #e8eff8 100%);
+      overflow-x: hidden;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 1760px;
+      margin: 0 auto;
+      padding: 0 24px 52px;
+    }
+
+    .hr-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      background: rgba(249, 252, 255, 0.84);
+      border-bottom: 1px solid rgba(183, 198, 222, 0.32);
+      box-shadow: 0 12px 30px -30px rgba(53, 80, 126, 0.24);
+    }
+
+    .hr-topbar__inner {
+      width: 100%;
+      max-width: 1760px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .hr-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .hr-brand__mark {
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
       border-radius: 16px;
-      box-shadow: 0 18px 40px -28px rgba(0,0,0,0.8);
-      padding: clamp(16px, 1.6vw, 22px) clamp(18px, 1.8vw, 26px);
+      color: var(--hr-blue);
+      background: linear-gradient(180deg, rgba(93, 149, 255, 0.14), rgba(255, 255, 255, 0.96));
+      border: 1px solid rgba(116, 163, 247, 0.3);
+      box-shadow: 0 24px 42px -34px rgba(47, 123, 255, 0.34);
+    }
+
+    .hr-brand__mark svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    .hr-brand__text {
+      min-width: 0;
+    }
+
+    .hr-brand__text h1 {
+      margin: 0;
+      color: var(--hr-text-strong);
+      font-size: clamp(22px, 2vw, 28px);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .hr-brand__text p {
+      margin: 2px 0 0;
+      color: var(--hr-muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .hr-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .account-chip {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(195, 208, 228, 0.72);
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 18px 34px -32px rgba(42, 66, 109, 0.24);
+    }
+
+    .account-chip.show {
+      display: inline-flex;
+    }
+
+    .account-chip__avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: #7a5ce6;
+      background: linear-gradient(180deg, rgba(157, 124, 255, 0.1), rgba(255, 255, 255, 0.94));
+      border: 1px solid rgba(157, 124, 255, 0.2);
+    }
+
+    .account-chip__avatar svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .account-chip__meta {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      gap: 1px;
+    }
+
+    .account-chip__eyebrow {
+      color: var(--hr-muted-soft);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .account-chip__name {
+      color: var(--hr-text-strong);
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid rgba(186, 201, 223, 0.88);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--hr-text-strong);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+      padding: 11px 16px;
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease,
+        transform 0.15s ease, background 0.15s ease;
+      box-shadow: 0 16px 28px -28px rgba(53, 80, 126, 0.22);
+    }
+
+    .btn:hover:not(:disabled) {
+      border-color: rgba(116, 163, 247, 0.72);
+      transform: translateY(-1px);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn:focus-visible,
+    .icon-btn:focus-visible,
+    .header-filter-btn:focus-visible,
+    .kebab:focus-visible,
+    .popover-action:focus-visible,
+    .page-btn:focus-visible {
+      outline: none;
+      box-shadow: var(--hr-focus);
+    }
+
+    .btn:disabled,
+    .icon-btn:disabled,
+    .page-btn:disabled {
+      opacity: 0.48;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn.primary {
+      color: #fff;
+      border-color: rgba(47, 123, 255, 0.84);
+      background: linear-gradient(180deg, var(--hr-blue), var(--hr-blue-deep));
+      box-shadow: 0 18px 30px -24px rgba(47, 123, 255, 0.4);
+    }
+
+    .btn.primary:hover:not(:disabled) {
+      border-color: rgba(47, 123, 255, 0.96);
+      background: linear-gradient(180deg, #418aff, #236ef4);
+    }
+
+    .btn.destructive {
+      color: #dc2626;
+      border-color: rgba(239, 68, 68, 0.18);
+      background: rgba(255, 245, 245, 0.96);
+    }
+
+    .btn.small {
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+
+    .btn.icon-left,
+    .btn.icon-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn svg,
+    .icon-btn svg,
+    .header-filter-btn svg,
+    .popover-action svg,
+    .kebab svg {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+    }
+
+    .icon-btn {
+      display: inline-grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      padding: 0;
+      border: 1px solid rgba(186, 201, 223, 0.88);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--hr-text-strong);
+      cursor: pointer;
+    }
+
+    .shell {
+      padding-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(122, 174, 255, 0.3);
+      background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(234, 244, 255, 0.92));
+      box-shadow: 0 22px 40px -34px rgba(47, 123, 255, 0.3);
+      color: #27518d;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .notice::after {
+      content: "";
+      position: absolute;
+      right: -36px;
+      top: -32px;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(122, 174, 255, 0.14), transparent 70%);
+      pointer-events: none;
+    }
+
+    .notice[hidden] {
+      display: none;
+    }
+
+    .notice svg {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      margin-top: 1px;
+      color: var(--hr-blue);
+    }
+
+    .notice strong {
+      color: #23467d;
+    }
+
+    .notice p {
+      margin: 0;
+      line-height: 1.45;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .notice-dismiss {
+      margin-left: auto;
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: #4f77b1;
+      cursor: pointer;
+    }
+
+    .notice-dismiss:hover {
+      background: rgba(255, 255, 255, 0.74);
+    }
+
+    .panel {
+      position: relative;
+      border-radius: var(--hr-radius-xl);
+      border: 1px solid rgba(195, 208, 228, 0.64);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.92)),
+        var(--hr-surface);
+      box-shadow: 0 32px 58px -38px rgba(53, 80, 126, 0.26),
+        0 16px 28px -28px rgba(53, 80, 126, 0.16);
+      overflow: hidden;
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 4px;
+      background: linear-gradient(90deg,
+        rgba(47, 123, 255, 0.95) 0%,
+        rgba(85, 167, 255, 0.82) 48%,
+        rgba(49, 198, 179, 0.72) 100%);
+      opacity: 0.92;
+    }
+
+    .panel::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      top: -70px;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(122, 174, 255, 0.11), transparent 72%);
+      pointer-events: none;
+    }
+
+    .panel-inner {
+      padding: 20px 22px;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .panel-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--hr-text-strong);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    .panel-title svg {
+      width: 16px;
+      height: 16px;
+      color: var(--hr-blue);
+    }
+
+    .panel-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--hr-muted);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .panel-toggle svg {
+      width: 14px;
+      height: 14px;
+      transition: transform 0.18s ease;
+    }
+
+    .panel-toggle[aria-expanded="false"] svg {
+      transform: rotate(180deg);
+    }
+
+    .filters-body[hidden] {
+      display: none;
+    }
+
+    .filters-grid {
+      display: grid;
+      grid-template-columns: minmax(320px, 1.5fr) repeat(4, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .fld {
+      display: block;
+    }
+
+    .fld-label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--hr-muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .field-shell {
+      position: relative;
+    }
+
+    .field-shell svg {
+      position: absolute;
+      top: 50%;
+      left: 12px;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: var(--hr-muted-soft);
+      pointer-events: none;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 42px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(186, 201, 223, 0.9);
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--hr-text-strong);
+      font: inherit;
+      font-size: 14px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    .field-shell input {
+      padding-left: 38px;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: var(--hr-muted-soft);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: rgba(77, 142, 255, 0.92);
+      box-shadow: var(--hr-focus);
+    }
+
+    input[type="date"] {
+      color-scheme: light;
+    }
+
+    .checks {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .checks label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--hr-text);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .checks input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      min-height: 0;
+      accent-color: var(--hr-blue);
+      padding: 0;
+    }
+
+    .filters-foot {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
       margin-top: 16px;
     }
 
-    /* ---- Header bar: brand left, auth right ---- */
-    .hr-head {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 18px; flex-wrap: wrap; padding: 4px 4px 2px;
+    .count {
+      margin-left: auto;
+      color: var(--hr-muted);
+      font-size: 13px;
+      font-weight: 700;
     }
-    .hr-brand { display: flex; align-items: center; gap: 14px; }
-    .hr-logo {
-      width: 46px; height: 46px; border-radius: 13px; flex: 0 0 auto;
-      display: grid; place-items: center; color: var(--hr-accent);
-      background: linear-gradient(160deg, rgba(59,130,246,0.22), rgba(147,197,253,0.08));
-      border: 1px solid rgba(96,165,250,0.32);
+
+    .msg-ok,
+    .warn,
+    .error {
+      display: none;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 700;
     }
-    .hr-logo svg { width: 26px; height: 26px; }
-    .hr-brand h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
-    .hr-brand .desc { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
-    .hr-auth { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
-    .hr-acct { font-size: 12px; color: var(--muted); text-align: right; line-height: 1.3; max-width: 220px; }
 
-    /* ---- Buttons ---- */
-    .btn { appearance: none; cursor: pointer; color: var(--text); font: inherit; font-weight: 600;
-      padding: 9px 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(255,255,255,0.03); transition: border-color .15s ease, background .15s ease, transform .1s ease; }
-    .btn:hover { border-color: rgba(147,197,253,0.5); background: rgba(255,255,255,0.06); }
-    .btn:active { transform: translateY(1px); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; }
-    .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.45); }
-    .btn.primary { color: #fff; font-weight: 700; border-color: var(--hr-blue-2);
-      background: linear-gradient(180deg, var(--hr-blue), var(--hr-blue-2)); }
-    .btn.primary:hover { filter: brightness(1.07); border-color: var(--hr-blue); }
-    .btn.small { padding: 6px 11px; font-size: 12.5px; border-radius: 9px; }
-    .icon-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; }
-    .icon-btn svg { width: 17px; height: 17px; }
-
-    .status-text { font-size: 13px; color: var(--muted); }
-
-    /* ---- HR banner ---- */
-    .hr-banner {
-      display: flex; align-items: flex-start; gap: 10px;
-      margin-top: 14px; padding: 12px 16px; border-radius: 12px; font-size: 13px;
-      background: rgba(59,130,246,0.08); border: 1px solid rgba(96,165,250,0.30); color: #cfe0f8;
+    .msg-ok {
+      color: #166534;
+      border: 1px solid rgba(34, 197, 94, 0.18);
+      background: rgba(236, 253, 245, 0.96);
     }
-    .hr-banner svg { width: 18px; height: 18px; flex: 0 0 auto; margin-top: 1px; color: var(--hr-accent); }
-    .hr-banner strong { color: #eaf2ff; }
 
-    /* ---- Panel titles ---- */
-    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-    .panel-title { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--hr-accent);
-      text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-    .panel-title svg { width: 15px; height: 15px; }
+    .warn {
+      color: #9a6700;
+      border: 1px solid rgba(234, 179, 8, 0.18);
+      background: rgba(255, 251, 235, 0.96);
+    }
 
-    /* ---- Filters ---- */
-    .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px 16px; }
-    .filters .wide { grid-column: span 2; }
-    label.fld { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 5px; letter-spacing: .02em; }
-    input, select, textarea {
-      width: 100%; box-sizing: border-box; padding: 10px 11px; border-radius: 10px;
-      background: var(--hr-surface-2); color: var(--text); border: 1px solid rgba(255,255,255,0.12);
-      font: inherit; font-size: 13.5px; }
-    input::placeholder { color: #5f708a; }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--hr-blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.3); }
-    /* Date inputs: native calendar picker (no free-text reliance). `color-scheme:
-       dark` tells the browser to render its OWN date/time controls — including
-       the calendar-icon glyph and the popup calendar panel — in a dark-mode
-       palette, so the icon isn't invisible (a dark glyph on our dark background). */
-    input[type="date"] { color-scheme: dark; }
-    .checks { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
-    .checks label { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text); cursor: pointer; }
-    .checks input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--hr-blue); }
-    .filters-foot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
-    .filters-foot .count { margin-left: auto; font-size: 13px; color: var(--muted); }
+    .error {
+      color: #b91c1c;
+      border: 1px solid rgba(239, 68, 68, 0.22);
+      background: rgba(255, 241, 242, 0.98);
+      white-space: pre-wrap;
+    }
 
-    /* ---- Messages ---- */
-    .msg-ok { display:none; margin-top: 14px; padding: 10px 12px; border-radius: 10px; font-size: 13px;
-      background: #07261a; border: 1px solid #0a7e51; color: #a7f3d0; }
-    .warn { display:none; margin-top: 14px; padding: 10px 12px; border-radius: 10px; font-size: 13px;
-      background: #2a1206; border: 1px solid #b45309; color: #fed7aa; }
-    .error { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 10px; border-left: 6px solid var(--brand2);
-      background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 14px; }
-    .empty { display:none; margin-top: 16px; color: var(--muted); font-size: 14px; text-align: center; padding: 22px; }
+    .cancel-panel {
+      display: none;
+      margin-top: 14px;
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(239, 68, 68, 0.18);
+      background: rgba(255, 248, 248, 0.96);
+    }
 
-    /* ---- Cancel confirmation panel ---- */
-    .cancel-panel { display: none; margin-top: 14px; padding: 14px 16px; border-radius: 12px;
-      background: #170c10; border: 1px solid rgba(185,28,28,0.5); }
-    .cancel-panel h4 { margin: 0 0 6px; font-size: 14px; color: #fecaca; }
-    .cancel-panel .meta { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
-    .cancel-panel textarea { min-height: 56px; resize: vertical; }
-    .btn.danger { color: #fff; border-color: rgba(220,38,38,0.6);
-      background: linear-gradient(180deg, #ef4444, #dc2626); font-weight: 700; }
-    .btn.danger:hover { filter: brightness(1.06); border-color: #ef4444; }
-    .cancel-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+    .cancel-panel h4 {
+      margin: 0 0 6px;
+      color: #991b1b;
+      font-size: 15px;
+      font-weight: 800;
+    }
 
-    /* ---- Table ---- */
-    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
-    table.reqs { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 1180px; }
+    .cancel-panel .meta,
+    .cancel-note,
+    .status-text {
+      color: var(--hr-muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .cancel-panel textarea {
+      min-height: 72px;
+      resize: vertical;
+      margin-top: 4px;
+    }
+
+    .table-card {
+      overflow: visible;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 251, 255, 0.95)),
+        var(--hr-surface);
+    }
+
+    .table-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(213, 223, 239, 0.72);
+      margin-bottom: 12px;
+    }
+
+    .table-tip {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      color: var(--hr-muted);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.45;
+      max-width: 520px;
+    }
+
+    .table-tip svg {
+      width: 16px;
+      height: 16px;
+      color: var(--hr-muted-soft);
+      flex: 0 0 auto;
+      margin-top: 1px;
+    }
+
+    .table-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+      margin-left: auto;
+    }
+
+    .active-column-filters {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .active-column-filters.show {
+      display: flex;
+    }
+
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(122, 174, 255, 0.26);
+      background: rgba(242, 247, 255, 0.96);
+      color: #32598d;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .filter-chip button {
+      display: inline-grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.72);
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .pager {
+      display: none;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--hr-muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .pager .left,
+    .pager .right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pager select {
+      width: auto;
+      min-width: 0;
+      min-height: 34px;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+
+    .page-nums {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .page-btn {
+      min-width: 34px;
+      height: 34px;
+      padding: 0 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(186, 201, 223, 0.9);
+      background: rgba(255, 255, 255, 0.98);
+      color: var(--hr-text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .page-btn.active {
+      background: linear-gradient(180deg, var(--hr-blue), var(--hr-blue-deep));
+      border-color: rgba(47, 123, 255, 0.84);
+      color: #fff;
+    }
+
+    .page-ellipsis {
+      color: var(--hr-muted-soft);
+      font-weight: 800;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid rgba(213, 223, 239, 0.72);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    }
+
+    table.reqs {
+      width: 100%;
+      min-width: 1420px;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 14px;
+    }
+
     table.reqs thead th {
-      position: sticky; top: 0; z-index: 1;
-      text-align: left; padding: 12px 14px; background: var(--hr-surface-2);
-      color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700;
-      border-bottom: 1px solid var(--hr-line); white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 0;
+      background: linear-gradient(180deg, rgba(245, 249, 255, 0.99), rgba(239, 245, 255, 0.98));
+      border-bottom: 1px solid rgba(213, 223, 239, 0.8);
+      text-align: left;
+      white-space: nowrap;
     }
-    table.reqs tbody td { padding: 13px 14px; border-bottom: 1px solid var(--hr-line-soft); vertical-align: top; white-space: nowrap; }
-    table.reqs tbody tr:hover > td { background: rgba(255,255,255,0.02); }
-    table.reqs a { color: #7dd3fc; }
-    th.col-actions, td.col-actions { text-align: right; }
-    td.who { white-space: normal; min-width: 180px; max-width: 250px; overflow-wrap: anywhere; }
-    td.who .sub, .sub { display:block; font-size: 12px; color: var(--muted); margin-top: 1px; }
-    .flag-short { color: #fdba74; font-weight: 600; }
-    .flag-none { color: #64748b; }
-    .mode-obo { color: #a5b4fc; font-weight: 600; }
-    .mode-self { color: var(--muted); }
 
-    /* Kebab trigger */
-    .kebab { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0;
-      border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
-    .kebab:hover { color: var(--text); background: rgba(255,255,255,0.06); border-color: var(--hr-line); }
-    .kebab[aria-expanded="true"] { color: var(--text); background: rgba(255,255,255,0.08); border-color: rgba(147,197,253,0.5); }
-    .kebab:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.45); }
-    .kebab svg { width: 18px; height: 18px; }
+    .header-filter-btn {
+      appearance: none;
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 14px;
+      border: 0;
+      background: transparent;
+      color: #3b5176;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      text-align: left;
+    }
 
-    /* Row action menu (fixed-positioned; appended near body end so overflow can't clip it) */
+    .header-filter-btn svg {
+      color: #8aa0c2;
+    }
+
+    .header-filter-btn:hover {
+      color: var(--hr-text-strong);
+      background: rgba(241, 247, 255, 0.92);
+    }
+
+    .header-filter-btn.is-active {
+      color: var(--hr-blue-deep);
+    }
+
+    .header-filter-btn.is-active svg {
+      color: var(--hr-blue-deep);
+    }
+
+    th.col-actions .header-filter-btn {
+      justify-content: flex-end;
+      cursor: default;
+    }
+
+    table.reqs tbody td {
+      padding: 13px 14px;
+      border-bottom: 1px solid rgba(231, 236, 246, 0.94);
+      vertical-align: top;
+      color: var(--hr-text);
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    table.reqs tbody tr:hover > td {
+      background: rgba(244, 249, 255, 0.96);
+    }
+
+    table.reqs tbody tr:nth-child(even) > td {
+      background: rgba(251, 253, 255, 0.96);
+    }
+
+    table.reqs tbody tr.row-highlight > td {
+      background: rgba(239, 246, 255, 0.96);
+    }
+
+    .table-person {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .table-person__avatar {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(93, 149, 255, 0.16), rgba(36, 184, 170, 0.12));
+      color: #4c76cb;
+      border: 1px solid rgba(122, 174, 255, 0.18);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .table-person__body,
+    .table-stack {
+      min-width: 0;
+    }
+
+    .table-primary {
+      display: block;
+      color: var(--hr-text-strong);
+      font-weight: 800;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+
+    .table-secondary {
+      display: block;
+      margin-top: 1px;
+      color: var(--hr-muted);
+      font-size: 12.5px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .cell-tight {
+      white-space: nowrap;
+    }
+
+    table.reqs th:nth-child(1),
+    table.reqs td:nth-child(1) {
+      min-width: 250px;
+    }
+
+    table.reqs th:nth-child(2),
+    table.reqs td:nth-child(2) {
+      min-width: 90px;
+    }
+
+    table.reqs th:nth-child(3),
+    table.reqs td:nth-child(3) {
+      min-width: 200px;
+    }
+
+    table.reqs th:nth-child(4),
+    table.reqs td:nth-child(4) {
+      min-width: 170px;
+    }
+
+    table.reqs th:nth-child(5),
+    table.reqs td:nth-child(5) {
+      min-width: 220px;
+    }
+
+    table.reqs th:nth-child(6),
+    table.reqs td:nth-child(6) {
+      min-width: 150px;
+    }
+
+    table.reqs th:nth-child(7),
+    table.reqs td:nth-child(7) {
+      min-width: 90px;
+    }
+
+    table.reqs th:nth-child(8),
+    table.reqs td:nth-child(8) {
+      min-width: 100px;
+    }
+
+    table.reqs th:nth-child(9),
+    table.reqs td:nth-child(9) {
+      min-width: 200px;
+    }
+
+    .cell-status {
+      min-width: 150px;
+    }
+
+    .cell-actions {
+      text-align: right;
+      width: 54px;
+      white-space: nowrap;
+    }
+
+    .flag-short {
+      color: #b7791f;
+      font-weight: 800;
+    }
+
+    .flag-none,
+    .mode-self {
+      color: var(--hr-muted);
+      font-weight: 700;
+    }
+
+    .mode-obo {
+      color: #586cdf;
+      font-weight: 800;
+    }
+
+    .kebab {
+      display: inline-grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: 1px solid rgba(216, 226, 240, 0.9);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.98);
+      color: var(--hr-muted);
+      cursor: pointer;
+    }
+
+    .kebab:hover,
+    .kebab[aria-expanded="true"] {
+      color: var(--hr-blue-deep);
+      border-color: rgba(122, 174, 255, 0.46);
+      background: rgba(241, 247, 255, 0.96);
+    }
+
     .row-menu {
-      position: fixed; z-index: 60; min-width: 190px; padding: 6px;
-      background: #111a2c; border: 1px solid var(--hr-line); border-radius: 12px;
-      box-shadow: 0 20px 44px -14px rgba(0,0,0,0.8);
+      position: fixed;
+      z-index: 60;
+      min-width: 156px;
+      padding: 4px;
+      border-radius: 14px;
+      border: 1px solid rgba(195, 208, 228, 0.82);
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: var(--hr-shadow-float);
     }
-    .row-menu[hidden] { display: none; }
+
+    .row-menu[hidden] {
+      display: none;
+    }
+
     .row-menu-item {
-      display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box;
-      padding: 9px 11px; border: 0; border-radius: 8px; background: transparent; color: var(--text);
-      font: inherit; font-size: 13.5px; text-align: left; text-decoration: none; cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--hr-text);
+      font: inherit;
+      font-size: 12.5px;
+      font-weight: 700;
+      text-decoration: none;
+      text-align: left;
+      cursor: pointer;
     }
-    .row-menu-item svg { width: 16px; height: 16px; flex: 0 0 auto; opacity: .85; }
-    .row-menu-item:hover, .row-menu-item:focus-visible { background: rgba(255,255,255,0.07); outline: none; }
-    .row-menu-item.danger { color: #fca5a5; }
-    .row-menu-item.danger:hover, .row-menu-item.danger:focus-visible { background: rgba(220,38,38,0.14); }
-    /* HR action lock: PTO start date has passed (Approval page / Cancel request).
-       Visibly gray, not-allowed cursor; native [title] provides the tooltip
-       ("Unavailable after PTO start date"). Details is never affected. */
+
+    .row-menu-item svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .row-menu-item:hover,
+    .row-menu-item:focus-visible {
+      background: rgba(241, 247, 255, 0.94);
+      outline: none;
+    }
+
+    .row-menu-item.danger {
+      color: #dc2626;
+    }
+
+    .row-menu-item.danger:hover,
+    .row-menu-item.danger:focus-visible {
+      background: rgba(255, 241, 242, 0.96);
+    }
+
     .row-menu-item[aria-disabled="true"] {
-      color: #5b6577; cursor: not-allowed; opacity: .65;
+      color: #9aa4b6;
+      cursor: not-allowed;
     }
-    .row-menu-item[aria-disabled="true"] svg { opacity: .5; }
-    .row-menu-item[aria-disabled="true"]:hover, .row-menu-item[aria-disabled="true"]:focus-visible {
+
+    .row-menu-item[aria-disabled="true"]:hover,
+    .row-menu-item[aria-disabled="true"]:focus-visible {
       background: transparent;
     }
-    .row-menu-sep { height: 1px; margin: 5px 6px; background: var(--hr-line-soft); }
 
-    /* Details expansion */
-    tr.details-row > td { background: var(--hr-surface-2); white-space: normal; padding: 16px 18px; }
-    .details-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-    .details-title { font-size: 11px; color: var(--hr-accent); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-    .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 26px; }
-    .details-grid dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-    .details-grid dd { margin: 3px 0 0; font-size: 13.5px; overflow-wrap: anywhere; }
-    .details-grid .span-all { grid-column: 1 / -1; }
-    pre.audit { margin: 4px 0 0; padding: 11px; overflow: auto; background: #05090f; border: 1px solid var(--hr-line-soft);
-      border-radius: 8px; font-size: 12px; max-height: 240px; white-space: pre-wrap; }
+    .row-menu-sep {
+      height: 1px;
+      margin: 6px 8px;
+      background: rgba(225, 232, 242, 0.96);
+    }
 
-    /* ---- Pager ---- */
-    .pager { display: none; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
-      margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hr-line-soft); font-size: 13px; color: var(--muted); }
-    .pager .left, .pager .right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .pager select { width: auto; padding: 6px 8px; font-size: 13px; }
-    .page-nums { display: inline-flex; gap: 6px; }
-    .page-btn { min-width: 32px; height: 32px; padding: 0 9px; border-radius: 8px; cursor: pointer;
-      border: 1px solid rgba(255,255,255,0.12); background: transparent; color: var(--text); font: inherit; font-size: 13px; }
-    .page-btn:hover:not(:disabled) { border-color: rgba(147,197,253,0.55); }
-    .page-btn.active { background: var(--hr-blue-2); border-color: var(--hr-blue-2); color: #fff; font-weight: 700; }
-    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
-    .page-ellipsis { padding: 0 4px; color: var(--muted); }
+    .details-title {
+      color: #4b74b4;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
 
-    /* Legacy stub + footer */
-    .legacy summary { cursor: pointer; color: var(--muted); }
-    .hr-footer { margin-top: 18px; color: var(--muted); font-size: 12px; text-align: center; }
+    .details-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px 22px;
+    }
+
+    .details-grid dt {
+      color: var(--hr-muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .details-grid dd {
+      margin: 4px 0 0;
+      color: var(--hr-text);
+      font-size: 13.5px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .details-grid .span-all {
+      grid-column: 1 / -1;
+    }
+
+    pre.audit {
+      margin: 4px 0 0;
+      padding: 12px;
+      max-height: 240px;
+      overflow: auto;
+      border-radius: 12px;
+      border: 1px solid rgba(215, 223, 238, 0.92);
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--hr-text);
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .details-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(18, 34, 63, 0.24);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .details-modal[hidden] {
+      display: none;
+    }
+
+    .details-modal__dialog {
+      width: min(980px, 100%);
+      max-height: min(88vh, 920px);
+      display: flex;
+      flex-direction: column;
+      border-radius: 24px;
+      border: 1px solid rgba(195, 208, 228, 0.82);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 251, 255, 0.96));
+      box-shadow: 0 38px 70px -34px rgba(37, 59, 98, 0.34);
+      overflow: hidden;
+    }
+
+    .details-modal__head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid rgba(220, 228, 241, 0.96);
+      background: linear-gradient(180deg, rgba(244, 249, 255, 0.98), rgba(255, 255, 255, 0.96));
+    }
+
+    .details-modal__title {
+      margin: 0;
+      color: var(--hr-text-strong);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .details-modal__subtitle {
+      margin: 4px 0 0;
+      color: var(--hr-muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .details-modal__body {
+      padding: 18px 22px 22px;
+      overflow: auto;
+    }
+
+    .details-modal__close {
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid rgba(210, 221, 238, 0.94);
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--hr-muted);
+      cursor: pointer;
+    }
+
+    .details-modal__close:hover {
+      color: var(--hr-text-strong);
+      border-color: rgba(122, 174, 255, 0.44);
+      background: rgba(241, 247, 255, 0.96);
+    }
+
+    .empty {
+      display: none;
+      padding: 28px 18px 8px;
+      color: var(--hr-muted);
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .legacy summary {
+      cursor: pointer;
+      color: var(--hr-muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .hr-footer {
+      margin-top: 18px;
+      color: var(--hr-muted-soft);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .column-popover {
+      position: fixed;
+      z-index: 70;
+      width: min(var(--hr-filter-width), calc(100vw - 24px));
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(195, 208, 228, 0.82);
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: var(--hr-shadow-float);
+    }
+
+    .column-popover[hidden] {
+      display: none;
+    }
+
+    .column-popover__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .column-popover__title {
+      color: var(--hr-text-strong);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .column-popover__body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .popover-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .popover-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .popover-action {
+      appearance: none;
+      border: 1px solid rgba(186, 201, 223, 0.9);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--hr-text);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+
+    .popover-action.primary {
+      background: linear-gradient(180deg, var(--hr-blue), var(--hr-blue-deep));
+      border-color: rgba(47, 123, 255, 0.84);
+      color: #fff;
+    }
+
+    .popover-action.linkish {
+      border: 0;
+      background: transparent;
+      color: var(--hr-muted);
+      padding: 0;
+    }
+
+    @media (max-width: 1320px) {
+      .filters-grid {
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
+      }
+    }
+
+    @media (max-width: 1180px) {
+      table.reqs {
+        min-width: 940px;
+      }
+
+      table.reqs thead th:nth-child(7),
+      table.reqs tbody td:nth-child(7) {
+        display: none;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .wrap,
+      .hr-topbar__inner {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .filters-grid {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+      }
+
+      table.reqs {
+        min-width: 1160px;
+      }
+
+      table.reqs thead th:nth-child(8),
+      table.reqs tbody td:nth-child(8) {
+        display: none;
+      }
+    }
 
     @media (max-width: 720px) {
-      .hr-auth { width: 100%; justify-content: flex-start; }
-      .filters .wide { grid-column: auto; }
+      .hr-topbar__inner {
+        align-items: flex-start;
+      }
+
+      .hr-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .filters-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .filters-foot {
+        align-items: stretch;
+      }
+
+      .count {
+        margin-left: 0;
+        width: 100%;
+      }
+
+      .table-head {
+        flex-direction: column;
+      }
+
+      .table-meta {
+        width: 100%;
+        align-items: flex-start;
+      }
+
+      .pager {
+        justify-content: flex-start;
+      }
+
+      table.reqs {
+        min-width: 980px;
+      }
     }
   </style>
 </head>
-<body>
-  <main class="wrap">
-    <!-- Header bar -->
-    <header class="hr-head">
+<body class="hr-center-page">
+  <header class="hr-topbar">
+    <div class="hr-topbar__inner">
       <div class="hr-brand">
-        <span class="hr-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
-            <path d="M12 12.5v4M10 14.5h4" />
+        <span class="hr-brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3.5" y="4.5" width="17" height="16" rx="3"></rect>
+            <path d="M3.5 9.2h17"></path>
+            <path d="M8 2.8v3.8"></path>
+            <path d="M16 2.8v3.8"></path>
+            <path d="M9.2 13h5.6"></path>
+            <path d="M12 10.2v5.6"></path>
           </svg>
         </span>
-        <div>
+        <div class="hr-brand__text">
           <h1>PTO Central</h1>
-          <p class="desc">HR Center — all PTO requests</p>
+          <p>HR Center / all PTO requests</p>
         </div>
       </div>
-      <div class="hr-auth">
-        <button id="signin" class="btn" type="button">Sign in</button>
-        <button id="signout" class="btn" type="button" disabled>Sign out</button>
-        <span id="account" class="hr-acct" aria-live="polite">Not signed in.</span>
-      </div>
-    </header>
 
-    <div class="hr-banner" role="note">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 7.75h.01" />
-      </svg>
-      <div>
-        <strong>HR/Admin only.</strong> This page reads the live <code>PTO Requests</code> list.
-        Cancelling sets <code>Status = Cancelled</code> — approved requests' calendar events are then
-        removed automatically by the existing cancellation flow.
+      <div class="hr-actions">
+        <div id="user-chip" class="account-chip" aria-hidden="true">
+          <span class="account-chip__avatar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21a7 7 0 0 0-14 0"></path>
+              <circle cx="12" cy="8" r="3.2"></circle>
+            </svg>
+          </span>
+          <span class="account-chip__meta">
+            <span class="account-chip__eyebrow">Your Account</span>
+            <span id="user-chip-name" class="account-chip__name">—</span>
+          </span>
+        </div>
+
+        <button id="signin" class="btn" type="button">Sign in</button>
+        <button id="signout" class="btn primary" type="button" disabled>Sign out</button>
+        <span id="account" class="sr-only" aria-live="polite">Not signed in.</span>
       </div>
     </div>
+  </header>
 
-    <!-- Filters -->
-    <section class="panel" aria-label="Filters">
-      <div class="panel-head">
-        <span class="panel-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" />
-          </svg>
-          Filters
-        </span>
-        <button id="refresh" class="btn small icon-btn" type="button" title="Reload data from SharePoint" aria-label="Reload data" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M20 11a8 8 0 1 0-.9 4.3" /><path d="M20 4v5h-5" />
+  <main class="wrap">
+    <div class="shell">
+      <section id="hr-notice" class="notice" role="note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle>
+          <path d="M12 11v5"></path>
+          <path d="M12 7.8h.01"></path>
+        </svg>
+        <p><strong>HR/Admin only:</strong> This page reads the live PTO Requests list. Approved requests can be cancelled from the actions menu.</p>
+        <button id="dismiss-notice" class="notice-dismiss" type="button" aria-label="Dismiss notice">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 6l12 12"></path>
+            <path d="M18 6L6 18"></path>
           </svg>
         </button>
-      </div>
+      </section>
 
-      <div class="filters">
-        <div class="wide">
-          <label class="fld" for="f-search">Search employee / email / request key</label>
-          <input type="text" id="f-search" placeholder="Employee, email, or PTO-2026…" autocomplete="off" />
-        </div>
-        <div>
-          <label class="fld" for="f-status">Status</label>
-          <select id="f-status">
-            <option value="All">All</option>
-            <option value="Pending">Pending</option>
-            <option value="Approved">Approved</option>
-            <option value="Auto-Approved">Auto-Approved</option>
-            <option value="Rejected">Rejected</option>
-            <option value="Cancelled">Cancelled</option>
-          </select>
-        </div>
-        <div>
-          <label class="fld" for="f-manager">Manager (name or email)</label>
-          <input type="text" id="f-manager" placeholder="e.g. boss@mybasepay.com" autocomplete="off" />
-        </div>
-        <div>
-          <label class="fld" for="f-from">Start date from</label>
-          <input type="date" id="f-from" />
-        </div>
-        <div>
-          <label class="fld" for="f-to">Start date to</label>
-          <input type="date" id="f-to" />
-        </div>
-      </div>
+      <section class="panel" aria-label="Filters">
+        <div class="panel-inner">
+          <div class="panel-head">
+            <span class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+              </svg>
+              Filters
+            </span>
 
-      <div class="checks">
-        <label><input type="checkbox" id="f-short" /> Short notice only</label>
-        <label><input type="checkbox" id="f-obo" /> On behalf only</label>
-      </div>
+            <button id="toggle-filters" class="panel-toggle" type="button" aria-expanded="true" aria-controls="filters-panel-body">
+              <span id="filter-toggle-label">Hide filters</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 14l6-6 6 6"></path>
+              </svg>
+            </button>
+          </div>
 
-      <div class="filters-foot">
-        <button id="apply-filters" class="btn primary" type="button">Apply filters</button>
-        <button id="clear-filters" class="btn" type="button">Clear</button>
-        <button id="export-report" class="btn" type="button" title="Export the currently filtered requests as a CSV" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px;margin-right:6px;vertical-align:-2px;">
-            <path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M5 21h14" />
-          </svg>
-          Export report
-        </button>
-        <span id="count" class="count" aria-live="polite"></span>
-      </div>
+          <div id="filters-panel-body" class="filters-body">
+            <div class="filters-grid">
+              <label class="fld">
+                <span class="fld-label">Search employee or email</span>
+                <span class="field-shell">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="M20 20l-3.5-3.5"></path>
+                  </svg>
+                  <input type="text" id="f-search" placeholder="Search by name or email..." autocomplete="off" />
+                </span>
+              </label>
 
-      <div id="ok" class="msg-ok" role="status"></div>
-      <div id="warn" class="warn" role="alert"></div>
-      <div id="error" class="error" role="alert" aria-live="assertive"></div>
+              <label class="fld" for="f-status">
+                <span class="fld-label">Status</span>
+                <select id="f-status">
+                  <option value="All">All</option>
+                </select>
+              </label>
 
-      <!-- Cancel confirmation panel -->
-      <div id="cancel-panel" class="cancel-panel" role="alertdialog" aria-labelledby="cancel-title">
-        <h4 id="cancel-title">Cancel this PTO request?</h4>
-        <div class="meta" id="cancel-meta">—</div>
-        <label class="fld" for="cancel-reason">Cancellation reason (recorded in the audit log)</label>
-        <textarea id="cancel-reason" placeholder="e.g. Employee withdrew the request / dates changed"></textarea>
-        <div class="filters-foot" style="margin-top:12px;">
-          <button id="cancel-confirm" class="btn danger" type="button">Confirm cancellation</button>
-          <button id="cancel-abort" class="btn" type="button">Keep request</button>
-          <span id="cancel-status" class="status-text" aria-live="polite"></span>
+              <label class="fld" for="f-type">
+                <span class="fld-label">PTO type</span>
+                <select id="f-type">
+                  <option value="All">All</option>
+                </select>
+              </label>
+
+              <label class="fld" for="f-from">
+                <span class="fld-label">Start date from</span>
+                <input type="date" id="f-from" />
+              </label>
+
+              <label class="fld" for="f-to">
+                <span class="fld-label">Start date to</span>
+                <input type="date" id="f-to" />
+              </label>
+            </div>
+
+            <div class="checks">
+              <label><input type="checkbox" id="f-short" /> Short notice only</label>
+              <label><input type="checkbox" id="f-obo" /> On behalf only</label>
+            </div>
+
+            <div class="filters-foot">
+              <button id="apply-filters" class="btn primary icon-left" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                </svg>
+                Apply filters
+              </button>
+              <button id="clear-filters" class="btn icon-left" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 11a8 8 0 1 0-.9 4.2"></path>
+                  <path d="M20 4v5h-5"></path>
+                </svg>
+                Clear
+              </button>
+              <button id="export-report" class="btn icon-left" type="button" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3v12"></path>
+                  <path d="M7 10l5 5 5-5"></path>
+                  <path d="M5 21h14"></path>
+                </svg>
+                Export report
+              </button>
+              <button id="refresh" class="btn icon-left" type="button" title="Reload data from SharePoint" aria-label="Reload data" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 11a8 8 0 1 0-.9 4.2"></path>
+                  <path d="M20 4v5h-5"></path>
+                </svg>
+                Refresh
+              </button>
+              <span id="count" class="count" aria-live="polite"></span>
+            </div>
+          </div>
+
+          <div id="ok" class="msg-ok" role="status"></div>
+          <div id="warn" class="warn" role="alert"></div>
+          <div id="error" class="error" role="alert" aria-live="assertive"></div>
+
+          <div id="cancel-panel" class="cancel-panel" role="alertdialog" aria-labelledby="cancel-title">
+            <h4 id="cancel-title">Cancel this PTO request?</h4>
+            <div class="meta" id="cancel-meta">—</div>
+            <label class="fld" for="cancel-reason">
+              <span class="fld-label" id="cancel-reason-label">Cancellation reason (recorded in the audit log)</span>
+              <textarea id="cancel-reason" placeholder="Explain why this request is being cancelled"></textarea>
+            </label>
+            <div class="filters-foot" style="margin-top:12px;">
+              <button id="cancel-confirm" class="btn destructive" type="button">Confirm cancellation</button>
+              <button id="cancel-abort" class="btn" type="button">Keep request</button>
+              <span id="cancel-status" class="status-text" aria-live="polite"></span>
+            </div>
+            <div class="cancel-note" id="cancel-note">This updates the request status to <code>Cancelled</code> and appends the audit log. Approved requests continue using the existing calendar-cancellation flow.</div>
+          </div>
         </div>
-        <div class="cancel-note">
-          Sets <code>Status = Cancelled</code> and appends the audit log. The item is
-          <strong>not deleted</strong>. For approved requests, the existing cancellation flow
-          removes both calendar events automatically.
+      </section>
+
+      <section class="panel table-card" aria-label="Requests">
+        <div class="panel-inner">
+          <div class="table-head">
+            <div>
+              <div class="table-tip">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 17v.01"></path>
+                  <path d="M12 13a2.5 2.5 0 1 0-2.5-2.5"></path>
+                  <path d="M9.2 19.4A8 8 0 1 1 14.8 19.4"></path>
+                </svg>
+                <span>Tip: click any column header to filter.</span>
+              </div>
+              <div id="active-column-filters" class="active-column-filters" aria-live="polite"></div>
+            </div>
+
+            <div class="table-meta">
+              <div id="pager" class="pager">
+                <div class="left">
+                  <span>Rows per page:</span>
+                  <select id="page-size">
+                    <option value="10">10</option>
+                    <option value="15">15</option>
+                    <option value="25">25</option>
+                    <option value="all">All</option>
+                  </select>
+                </div>
+                <div class="right">
+                  <span id="page-range"></span>
+                  <button id="page-prev" class="page-btn" type="button" aria-label="Previous page">‹</button>
+                  <span id="page-nums" class="page-nums"></span>
+                  <button id="page-next" class="page-btn" type="button" aria-label="Next page">›</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="reqs" id="reqs-table" style="display:none;">
+              <thead>
+                <tr>
+                  <th>
+                    <button class="header-filter-btn" type="button" data-column-filter="requester">
+                      <span>Requester</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                      </svg>
+                    </button>
+                  </th>
+                  <th>
+                    <button class="header-filter-btn" type="button" data-column-filter="type">
+                      <span>Type</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                      </svg>
+                    </button>
+                  </th>
+                  <th>
+                    <button class="header-filter-btn" type="button" data-column-filter="dates">
+                      <span>Dates</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                      </svg>
+                    </button>
+                  </th>
+                  <th>
+                    <button class="header-filter-btn" type="button" data-column-filter="requested">
+                      <span>Requested</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                      </svg>
+                    </button>
+                  </th>
+                  <th>
+                    <button class="header-filter-btn" type="button" data-column-filter="approver" title="Filter by approver/manager" aria-label="Filter by approver or manager">
+                      <span>Approver</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                      </svg>
+                    </button>
+                  </th>
+                  <th>
+                    <button class="header-filter-btn" type="button" data-column-filter="status">
+                      <span>Status</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                      </svg>
+                    </button>
+                  </th>
+                  <th>
+                    <button class="header-filter-btn" type="button" data-column-filter="notice">
+                      <span>Notice</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                      </svg>
+                    </button>
+                  </th>
+                  <th>
+                    <button class="header-filter-btn" type="button" data-column-filter="mode">
+                      <span>Mode</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                      </svg>
+                    </button>
+                  </th>
+                  <th>
+                    <button class="header-filter-btn" type="button" data-column-filter="submittedBy">
+                      <span>Submitted by</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M4 5h16l-6.6 7.8v4.8l-2.8 1.4v-6.2L4 5z"></path>
+                      </svg>
+                    </button>
+                  </th>
+                  <th class="col-actions">
+                    <button class="header-filter-btn" type="button" disabled aria-disabled="true">
+                      <span>Actions</span>
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="reqs-body"></tbody>
+            </table>
+          </div>
+
+          <div id="empty" class="empty">No PTO requests found.</div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Table -->
-    <section class="panel" aria-label="Requests">
-      <div class="table-wrap">
-        <table class="reqs" id="reqs-table" style="display:none;">
-          <thead>
-            <tr>
-              <th>Request Key</th>
-              <th>Requester</th>
-              <th>Type</th>
-              <th>Dates</th>
-              <th>Requested</th>
-              <th>Manager</th>
-              <th>Status</th>
-              <th>Notice</th>
-              <th>Mode</th>
-              <th>Submitted By</th>
-              <th class="col-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="reqs-body"></tbody>
-        </table>
-      </div>
-      <div id="empty" class="empty">No PTO requests found.</div>
-
-      <!-- Pager -->
-      <div id="pager" class="pager">
-        <div class="left">
-          <span>Rows per page:</span>
-          <select id="page-size">
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-            <option value="all">All</option>
-          </select>
-          <span id="page-range"></span>
+      <section class="panel legacy" aria-label="Legacy data">
+        <div class="panel-inner">
+          <details>
+            <summary>Legacy “PTO Tracking” list (future, read-only)</summary>
+            <p class="status-text" style="margin: 10px 0 0;">
+              Historical requests live in the legacy <code>PTO Tracking</code> list. They are not loaded or merged here. This HR Center continues to operate only on the modern <code>PTO Requests</code> list.
+            </p>
+          </details>
         </div>
-        <div class="right">
-          <button id="page-prev" class="page-btn" type="button" aria-label="Previous page">‹</button>
-          <span id="page-nums" class="page-nums"></span>
-          <button id="page-next" class="page-btn" type="button" aria-label="Next page">›</button>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Legacy stub — documented, reads nothing -->
-    <section class="panel legacy" aria-label="Legacy data">
-      <details>
-        <summary>Legacy “PTO Tracking” list (future, read-only)</summary>
-        <p class="status-text" style="margin: 10px 0 0;">
-          Historical requests live in the legacy <code>PTO Tracking</code> list. They are
-          <strong>not</strong> loaded, merged, or migrated here — actions on this page apply to the
-          modern <code>PTO Requests</code> list only. A read-only legacy viewer / migration is a
-          separate, explicitly-scoped future project (see <code>docs/REMAINING_WORK.md</code> §5).
-        </p>
-      </details>
-    </section>
-
-    <footer class="hr-footer">
-      © <span id="year"></span> myBasePay · Tech Support
-    </footer>
+      <footer class="hr-footer">
+        © <span id="year"></span> myBasePay · Tech Support
+      </footer>
+    </div>
   </main>
 
-  <!-- Shared per-row action menu (one at a time; positioned in JS; kept outside
-       .table-wrap so overflow can't clip it). -->
+  <div id="column-filter-popover" class="column-popover" hidden aria-hidden="true">
+    <div class="column-popover__head">
+      <span id="column-filter-title" class="column-popover__title">Filter</span>
+      <button id="column-filter-close" class="notice-dismiss" type="button" aria-label="Close column filter">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 6l12 12"></path>
+          <path d="M18 6L6 18"></path>
+        </svg>
+      </button>
+    </div>
+    <div id="column-filter-body" class="column-popover__body"></div>
+  </div>
+
+  <div id="details-modal" class="details-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="details-modal-title">
+    <div class="details-modal__dialog">
+      <div class="details-modal__head">
+        <div>
+          <div class="details-title">Request Details</div>
+          <h2 id="details-modal-title" class="details-modal__title">PTO request</h2>
+          <p id="details-modal-subtitle" class="details-modal__subtitle">Review request information</p>
+        </div>
+        <button id="details-modal-close" class="details-modal__close" type="button" aria-label="Close details">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 6l12 12"></path>
+            <path d="M18 6L6 18"></path>
+          </svg>
+        </button>
+      </div>
+      <div id="details-modal-body" class="details-modal__body"></div>
+    </div>
+  </div>
+
   <div id="row-menu" class="row-menu" role="menu" aria-label="Row actions" hidden>
     <button type="button" class="row-menu-item" data-act="details" role="menuitem">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
       </svg>
       <span data-label="details">Details</span>
     </button>
     <a class="row-menu-item" data-act="approval" role="menuitem" href="#" target="_blank" rel="noopener noreferrer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" />
+        <path d="M14 4h6v6"></path>
+        <path d="M20 4l-9 9"></path>
+        <path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"></path>
       </svg>
       Approval page
     </a>
     <div class="row-menu-sep" data-act="cancel-sep"></div>
     <button type="button" class="row-menu-item danger" data-act="cancel" role="menuitem">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+        <path d="M4 7h16"></path>
+        <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+        <path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"></path>
       </svg>
-      Cancel request
+      Cancel
+    </button>
+    <div class="row-menu-sep" data-act="resolve-sep"></div>
+    <button type="button" class="row-menu-item" data-act="resolve-confirm" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M20 6L9 17l-5-5"></path>
+      </svg>
+      Complete cancellation
+    </button>
+    <button type="button" class="row-menu-item danger" data-act="resolve-decline" role="menuitem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 6L6 18"></path>
+        <path d="M6 6l12 12"></path>
+      </svg>
+      Decline cancellation request
     </button>
   </div>
 
-  <!--
-    Library + modules. Order matters; page last.
-
-    Cache-busting: GitHub Pages / browser caches were serving a stale
-    js/pages/hr.page.js after a deploy (old stacked-buttons UI kept showing
-    instead of the kebab menu). The app's own modules below carry a ?v=<hash>
-    query param so a new commit forces a fresh fetch instead of the cached
-    copy. BUMP THE VERSION on every future change to hr.html or any of these
-    files (the exact value doesn't matter — it only needs to CHANGE — but
-    using the latest relevant commit hash keeps it traceable).
-    lib/msal-browser.min.js is intentionally NOT versioned here: it's a
-    pinned third-party build (v3.28.1) that never changes without a
-    deliberate file replacement, unlike the app's own modules.
-  -->
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js?v=hrc7"></script>
-  <script src="js/auth.js?v=hrc7"></script>
-  <script src="js/graph.js?v=hrc7"></script>
-  <script src="js/directory.js?v=hrc7"></script>
-  <script src="js/rules.js?v=hrc7"></script>
-  <script src="js/requests.js?v=hrc7"></script>
-  <script src="js/authz.js?v=hrc7"></script>
-  <script src="js/links.js?v=hrc7"></script>
-  <script src="js/ui.js?v=hrc7"></script>
-  <script src="js/pages/hr.page.js?v=hrc7"></script>
+  <script src="js/config.js?v=hrf4"></script>
+  <script src="js/auth.js?v=hrf3"></script>
+  <script src="js/graph.js?v=hrf3"></script>
+  <script src="js/directory.js?v=hrf3"></script>
+  <script src="js/rules.js?v=hrf3"></script>
+  <script src="js/requests.js?v=hrf4"></script>
+  <script src="js/authz.js?v=hrf3"></script>
+  <script src="js/links.js?v=hrf3"></script>
+  <script src="js/ui.js?v=hrf4"></script>
+  <script src="js/pages/hr.page.js?v=hrf4"></script>
 </body>
 </html>

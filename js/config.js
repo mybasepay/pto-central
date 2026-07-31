@@ -58,4 +58,24 @@ window.PTOConfig = {
     // OWN manager via /me/manager only needs User.Read / graphMe.)
     directoryRead: ["User.Read", "User.Read.All"],
   },
+
+  // --- Feature flags ---
+  // Every reader of PTOConfig.features MUST treat a missing key (or a missing
+  // `features` object entirely) as OFF — never let an unprovisioned config
+  // silently enable a write path. See js/pages/my-requests.page.js
+  // cancellationEnabled(), which is the single choke point every employee
+  // self-service cancellation entry point (home page card, cancel-request.html
+  // redirect, My Requests button/modal, and the ?openCancel=1 direct-link
+  // shortcut) reads through.
+  features: {
+    // Employee self-service cancellation request (my-requests.html "Request
+    // cancellation") plus its HR Center counterpart — the "Complete
+    // cancellation" / "Decline cancellation request" row actions in
+    // js/pages/hr.page.js, backed by PTORequests.resolveCancellationRequest().
+    // Both halves of the workflow are implemented and validated as of
+    // 2026-07-31. Set to false to pull the employee-facing entry points from
+    // production without a code rollback — HR can still resolve any requests
+    // already sitting in "Cancellation Requested" either way.
+    employeeCancellation: true,
+  },
 };

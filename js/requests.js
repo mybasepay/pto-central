@@ -185,6 +185,28 @@ window.PTORequests = (function () {
       fields.Hours = Number(input.hours);
     }
 
+    // Pending-request-processor foundation (Phase 2A,
+    // docs/PENDING_REQUEST_PROCESSOR_POWER_AUTOMATE.md). Seed NextReminderAt =
+    // SubmittedAt + 48h so a freshly-submitted Pending request already carries
+    // its first reminder due-time, instead of relying on the processor to
+    // backfill it on first sight. Safe to add unconditionally on every submit:
+    //   - `NextReminderAt` is a brand-new, additive, optional column — if it
+    //     hasn't been provisioned yet, Graph's item-create SILENTLY DROPS
+    //     unrecognized field names rather than failing (same documented
+    //     behavior the submit-metadata/approver resolvers above depend on;
+    //     see the comment above METADATA_FIELD_CANDIDATES). Submission never
+    //     depends on this field existing.
+    //   - Sick (and any other immediately Auto-Approved) requests are
+    //     EXCLUDED — they never enter the Pending reminder timeline, so they
+    //     must never carry a NextReminderAt value.
+    //   - The 48h constant is intentionally duplicated here rather than
+    //     importing js/pending-rules.js (PTOPendingRules.REMINDER_INTERVAL_HOURS)
+    //     — that module is explicitly NOT wired into production page execution
+    //     in Phase 2A. If the cadence ever changes, update both places.
+    if (status === "Pending") {
+      fields.NextReminderAt = new Date(new Date(submittedAtIso).getTime() + 48 * 60 * 60 * 1000).toISOString();
+    }
+
     return fields;
   }
 
@@ -246,6 +268,41 @@ window.PTORequests = (function () {
     CancelledByName: ["CancelledByName", "Cancelled By Name"],
     CancelledAt: ["CancelledAt", "Cancelled At"],
     CancelReason: ["CancelReason", "Cancellation Reason", "CancellationReason"],
+  };
+
+  // Employee self-service cancellation-request metadata. These columns are
+  // required for the HR review / status-restore workflow when the in-app
+  // employee page requests cancellation without directly cancelling the item.
+  var CANCELLATION_REQUEST_FIELD_CANDIDATES = {
+    StatusBeforeCancellationRequest: [
+      "StatusBeforeCancellationRequest",
+      "Status Before Cancellation Request",
+      "Previous Status Before Cancellation Request",
+    ],
+    CancellationRequestReason: [
+      "CancellationRequestReason",
+      "Cancellation Requested Reason",
+      "Cancellation Request Reason",
+      "CancellationRequestedReason",
+    ],
+    CancellationRequestedById: [
+      "CancellationRequestedById",
+      "Cancellation Requested By (OID)",
+      "Cancellation Requested By Id",
+    ],
+    CancellationRequestedByEmail: [
+      "CancellationRequestedByEmail",
+      "Cancellation Requested By Email",
+    ],
+    CancellationRequestedByName: [
+      "CancellationRequestedByName",
+      "Cancellation Requested By Name",
+    ],
+    CancellationRequestedAt: [
+      "CancellationRequestedAt",
+      "Cancellation Requested At",
+      "Cancellation Request Date",
+    ],
   };
 
   var _columnsCache = null; // one live-columns fetch per session (shared)
@@ -343,6 +400,28 @@ window.PTORequests = (function () {
     var out = {};
     Object.keys(APPROVER_FIELD_CANDIDATES).forEach(function (canonical) {
       var internal = (_approverFieldMap && _approverFieldMap[canonical]) || canonical;
+      out[canonical] = fields[internal];
+    });
+    return out;
+  }
+
+  var _cancellationRequestFieldMap = null;
+
+  async function resolveCancellationRequestFieldMap() {
+    if (_cancellationRequestFieldMap) return _cancellationRequestFieldMap;
+    _cancellationRequestFieldMap = await resolveFieldMap(
+      CANCELLATION_REQUEST_FIELD_CANDIDATES,
+      "cancellation-request"
+    );
+    return _cancellationRequestFieldMap;
+  }
+
+  function readCancellationRequestMetadata(fields) {
+    fields = fields || {};
+    var out = {};
+    Object.keys(CANCELLATION_REQUEST_FIELD_CANDIDATES).forEach(function (canonical) {
+      var internal =
+        (_cancellationRequestFieldMap && _cancellationRequestFieldMap[canonical]) || canonical;
       out[canonical] = fields[internal];
     });
     return out;
@@ -478,13 +557,50 @@ window.PTORequests = (function () {
     return { fields: fields, response: response };
   }
 
+  function splitMultiValue(value) {
+    return String(value || "")
+      .split(/\s*(?:;|\r?\n|\|)\s*/)
+      .map(function (part) { return String(part || "").trim(); })
+      .filter(Boolean);
+  }
+
+  function normalizeBackupContacts(nameValue, emailValue) {
+    var names = splitMultiValue(nameValue);
+    var emails = splitMultiValue(emailValue);
+    var count = Math.max(names.length, emails.length);
+    var out = [];
+    for (var i = 0; i < count; i++) {
+      var name = names[i] || "";
+      var email = emails[i] || "";
+      if (!name && !email) continue;
+      out.push({
+        name: name || email,
+        email: email,
+      });
+    }
+    return out;
+  }
+
+  function getItemEtag(item) {
+    return (
+      (item && (item.eTag || item.etag || item["@odata.etag"])) ||
+      (item && item.fields && (item.fields.eTag || item.fields["@odata.etag"])) ||
+      ""
+    );
+  }
+
   /** Normalize a Graph list item into a friendly request shape. */
   function normalizeRequestItem(item) {
     var f = item.fields || {};
     var submittedAt = f.SubmittedAt || item.createdDateTime || "";
+    var approver = readApproverMetadata(f);
+    var submit = readSubmitMetadata(f);
+    var cancellation = readCancellationRequestMetadata(f);
+    var backupContacts = normalizeBackupContacts(f.BackupContactName, f.BackupContactEmail);
     return {
       id: item.id,
       webUrl: item.webUrl,
+      etag: getItemEtag(item),
       fields: f,
       requestKey: f.Title,
       ptoType: f.PtoType,
@@ -493,12 +609,32 @@ window.PTORequests = (function () {
       status: f.Status,
       managerEmail: f.ManagerEmail,
       managerName: f.ManagerName,
+      approverEmail: approver.ApproverEmail || f.ApproverEmail || f.ManagerEmail || "",
+      approverName: approver.ApproverName || f.ApproverName || f.ManagerName || "",
+      backupContacts: backupContacts,
+      backupContactName: f.BackupContactName || "",
+      backupContactEmail: f.BackupContactEmail || "",
+      notes: f.Reason || "",
       isShortNotice: f.IsShortNotice,
       isUrgent: f.IsUrgent,
       noticeDays: f.NoticeDays,
       submittedAt: submittedAt,
       requesterEmail: f.RequesterEmail, // used by the fallback filter
       requesterName: f.RequesterName,
+      requestMode: submit.RequestMode || (f.OnBehalf ? "On behalf of" : "Self"),
+      onBehalf: !!(submit.OnBehalf || f.OnBehalf),
+      submittedByName: submit.SubmittedByName || f.SubmittedByName || "",
+      submittedByEmail: submit.SubmittedByEmail || f.SubmittedByEmail || "",
+      statusBeforeCancellationRequest:
+        cancellation.StatusBeforeCancellationRequest || f.StatusBeforeCancellationRequest || "",
+      cancellationRequestReason:
+        cancellation.CancellationRequestReason || f.CancellationRequestReason || "",
+      cancellationRequestedByName:
+        cancellation.CancellationRequestedByName || f.CancellationRequestedByName || "",
+      cancellationRequestedByEmail:
+        cancellation.CancellationRequestedByEmail || f.CancellationRequestedByEmail || "",
+      cancellationRequestedAt:
+        cancellation.CancellationRequestedAt || f.CancellationRequestedAt || "",
       _sortKey: submittedAt, // ISO strings sort lexicographically
     };
   }
@@ -547,6 +683,12 @@ window.PTORequests = (function () {
       raw = await PTOGraph.request("GET", fallbackUrl, { scopes: PTOConfig.scopes.siteRead });
     }
 
+    await Promise.all([
+      resolveMetadataFieldMap().catch(function () { return null; }),
+      resolveApproverFieldMap().catch(function () { return null; }),
+      resolveCancellationRequestFieldMap().catch(function () { return null; }),
+    ]);
+
     var items = (((raw && raw.value) || [])).map(normalizeRequestItem);
 
     if (usedFallback) {
@@ -584,6 +726,12 @@ window.PTORequests = (function () {
     var url = "/sites/" + ctx.siteId + "/lists/" + ctx.listId +
       "/items?$expand=fields&$top=" + top;
 
+    await Promise.all([
+      resolveMetadataFieldMap().catch(function () { return null; }),
+      resolveApproverFieldMap().catch(function () { return null; }),
+      resolveCancellationRequestFieldMap().catch(function () { return null; }),
+    ]);
+
     var items = [];
     var pages = 0;
     while (url && pages < maxPages) {
@@ -607,6 +755,113 @@ window.PTORequests = (function () {
   // Statuses an HR cancellation may act on. Anything else is a duplicate /
   // invalid cancellation and is refused before any write.
   var CANCELLABLE_STATUSES = ["Pending", "Approved", "Auto-Approved", "Auto-Approved (Escalation)"];
+  var CANCELLATION_REQUEST_PENDING_STATUS = "Cancellation Requested";
+
+  function validateCancellationRequestStatus(current) {
+    if (CANCELLABLE_STATUSES.indexOf(current) !== -1) return;
+    if (current === CANCELLATION_REQUEST_PENDING_STATUS) {
+      throw new Error("A cancellation request is already pending HR review.");
+    }
+    if (current === "Cancelled") {
+      throw new Error("This request is already Cancelled.");
+    }
+    throw new Error(
+      'A request with status "' + (current || "unknown") + "\" can't be submitted for cancellation."
+    );
+  }
+
+  /**
+   * Employee cancellation request (my-requests.html).
+   *
+   * Writes a pending-cancellation state for HR review without directly
+   * cancelling the request. The existing HR flow remains the only place that
+   * moves a request to "Cancelled".
+   *
+   * Required live columns:
+   *   - StatusBeforeCancellationRequest
+   *   - CancellationRequestReason
+   *
+   * Optional metadata columns:
+   *   - CancellationRequestedById / Email / Name / At
+   *
+   * Concurrency:
+   *   - PATCH uses If-Match when an etag is available to prevent duplicate /
+   *     stale writes.
+   */
+  async function requestCancellation(itemId, opts) {
+    if (!itemId) throw new Error("requestCancellation requires an itemId.");
+    opts = opts || {};
+
+    var actor = opts.actor || {};
+    var actorEmail = actor.mail || actor.userPrincipalName || "";
+    var actorName = actor.displayName || actorEmail || "Unknown";
+    var reason = String(opts.reason || "").trim();
+    if (!reason) throw new Error("A cancellation reason is required.");
+
+    var current = String(opts.currentStatus || "").trim();
+    var existingAuditLog = opts.existingAuditLog;
+    var ifMatch = opts.ifMatch || opts.etag || "";
+
+    if (!current || !existingAuditLog || !ifMatch) {
+      var currentItem = await PTOGraph.getListItem(itemId);
+      var currentFields = (currentItem && currentItem.fields) || {};
+      if (!current) current = String(currentFields.Status || "").trim();
+      if (existingAuditLog === undefined || existingAuditLog === null) {
+        existingAuditLog = currentFields.AuditLog;
+      }
+      if (!ifMatch) ifMatch = getItemEtag(currentItem);
+    }
+
+    validateCancellationRequestStatus(current);
+
+    var map = await resolveCancellationRequestFieldMap();
+    if (!map.StatusBeforeCancellationRequest || !map.CancellationRequestReason) {
+      throw new Error(
+        "The PTO Requests list is missing the required cancellation-request columns. " +
+        "Restore the live configuration before using employee self-service cancellation."
+      );
+    }
+
+    var nowIso = new Date().toISOString();
+    var newLine = PTORules.buildAuditLine(
+      "Cancellation Requested",
+      actorName,
+      "Employee self-service request — reason: " + reason
+    );
+    var existing =
+      existingAuditLog === null || existingAuditLog === undefined
+        ? ""
+        : String(existingAuditLog);
+    var auditLog = existing.trim() ? existing + "\n" + newLine : newLine;
+
+    var fields = {
+      Status: CANCELLATION_REQUEST_PENDING_STATUS,
+      AuditLog: auditLog,
+    };
+    fields[map.StatusBeforeCancellationRequest] = current;
+    fields[map.CancellationRequestReason] = reason;
+    if (map.CancellationRequestedById) fields[map.CancellationRequestedById] = actor.id || "";
+    if (map.CancellationRequestedByEmail) fields[map.CancellationRequestedByEmail] = actorEmail;
+    if (map.CancellationRequestedByName) fields[map.CancellationRequestedByName] = actorName;
+    if (map.CancellationRequestedAt) fields[map.CancellationRequestedAt] = nowIso;
+
+    try {
+      var response = await PTOGraph.updateListItem(itemId, fields, ifMatch ? { ifMatch: ifMatch } : {});
+      return {
+        fields: fields,
+        response: response,
+        statusBeforeCancellationRequest: current,
+        cancellationRequestedAt: nowIso,
+      };
+    } catch (e) {
+      if (e && (e.status === 412 || e.status === 409)) {
+        throw new Error(
+          "This request changed before your cancellation could be submitted. Refresh the page and try again."
+        );
+      }
+      throw e;
+    }
+  }
 
   /**
    * HR/Admin cancellation of a request (hr.html).
@@ -703,6 +958,140 @@ window.PTORequests = (function () {
     return { fields: fields, response: response };
   }
 
+  /**
+   * HR resolution of a pending employee cancellation request (hr.html).
+   *
+   * requestCancellation() moves a request to "Cancellation Requested" for HR
+   * review without touching Status permanently; this function is the other
+   * half of that workflow — it is the ONLY place a "Cancellation Requested"
+   * item is resolved. Two outcomes:
+   *
+   *   action: "confirm" — Status becomes "Cancelled", the EXACT value + write
+   *     shape as cancelRequest() above, so the existing calendar
+   *     cancellation/cleanup flow (which triggers on Status="Cancelled" and
+   *     removes events via the stored CorpEventId/EmployeeEventId) requires
+   *     no changes. CorpEventId/EmployeeEventId are never touched here —
+   *     event deletion stays the flow's job, same as cancelRequest().
+   *
+   *   action: "decline" — Status is restored to the value captured in
+   *     StatusBeforeCancellationRequest when the employee requested
+   *     cancellation (normally "Approved" or "Auto-Approved"). This is
+   *     intentionally NOT a fresh approval decision: DecisionNoticeSentAt /
+   *     DecisionNoticeStatus and the AutoApproval*SentAt markers are left
+   *     untouched, so the Decision Notification / Auto-Approved Notification
+   *     flows (which gate on those markers being empty) never re-fire for a
+   *     request they already notified on once. CorpEventId/EmployeeEventId
+   *     are also left untouched, so no duplicate calendar event is created.
+   *
+   * Concurrency: PATCH uses If-Match when an etag is available (same
+   * duplicate-write guard as requestCancellation()), and the current status
+   * is re-validated as "Cancellation Requested" before any write.
+   *
+   * @param {string|number} itemId
+   * @param {object} opts
+   *   { action: "confirm"|"decline",
+   *     actor: {id, displayName, mail|userPrincipalName},
+   *     reason: string,                          // optional HR note
+   *     currentStatus: string,                    // must be "Cancellation Requested"
+   *     statusBeforeCancellationRequest: string,   // required for "decline"
+   *     existingAuditLog: string,
+   *     ifMatch: string }
+   * @returns {Promise<{fields: object, response: any, action: string}>}
+   */
+  async function resolveCancellationRequest(itemId, opts) {
+    if (!itemId) throw new Error("resolveCancellationRequest requires an itemId.");
+    opts = opts || {};
+
+    var action = opts.action;
+    if (action !== "confirm" && action !== "decline") {
+      throw new Error('resolveCancellationRequest requires action "confirm" or "decline".');
+    }
+
+    var current = String(opts.currentStatus || "").trim();
+    if (current !== CANCELLATION_REQUEST_PENDING_STATUS) {
+      throw new Error(
+        current === "Cancelled"
+          ? "This request is already Cancelled."
+          : 'Only a request with status "' + CANCELLATION_REQUEST_PENDING_STATUS + '" can be resolved here.'
+      );
+    }
+
+    var actor = opts.actor || {};
+    var actorEmail = actor.mail || actor.userPrincipalName || "";
+    var actorName = actor.displayName || actorEmail || "Unknown";
+    var reason = String(opts.reason || "").trim();
+    var nowIso = new Date().toISOString();
+    var ifMatch = opts.ifMatch || opts.etag || "";
+
+    var existingRaw = opts.existingAuditLog;
+    var existing = (existingRaw === null || existingRaw === undefined) ? "" : String(existingRaw);
+
+    var fields;
+    if (action === "confirm") {
+      var confirmLine = PTORules.buildAuditLine(
+        "Cancelled",
+        actorName,
+        "HR confirmed employee cancellation request" + (reason ? " — " + reason : "")
+      );
+      fields = {
+        Status: "Cancelled",
+        AuditLog: existing.trim() ? existing + "\n" + confirmLine : confirmLine,
+      };
+
+      // Optional metadata — same tolerant column lookup as cancelRequest().
+      try {
+        var cancelMap = await resolveFieldMap(CANCEL_FIELD_CANDIDATES, "cancellation");
+        var values = {
+          CancelledById: actor.id || "",
+          CancelledByEmail: actorEmail,
+          CancelledByName: actorName,
+          CancelledAt: nowIso,
+          CancelReason: reason,
+        };
+        Object.keys(values).forEach(function (canonical) {
+          if (cancelMap[canonical]) fields[cancelMap[canonical]] = values[canonical];
+        });
+      } catch (e) {
+        console.warn("[PTORequests] cancellation metadata column lookup failed on confirm — " +
+          "Status + AuditLog only.", e);
+      }
+    } else {
+      var restoreStatus = String(opts.statusBeforeCancellationRequest || "").trim();
+      if (!restoreStatus) {
+        throw new Error("Cannot decline: the prior status (StatusBeforeCancellationRequest) is unknown.");
+      }
+      var declineLine = PTORules.buildAuditLine(
+        restoreStatus,
+        actorName,
+        "HR declined employee cancellation request — restored to " + restoreStatus +
+          (reason ? " — " + reason : "")
+      );
+      fields = {
+        Status: restoreStatus,
+        AuditLog: existing.trim() ? existing + "\n" + declineLine : declineLine,
+      };
+    }
+
+    try {
+      var response = await PTOGraph.updateListItem(itemId, fields, ifMatch ? { ifMatch: ifMatch } : {});
+      return { fields: fields, response: response, action: action };
+    } catch (e) {
+      if (e && (e.status === 412 || e.status === 409)) {
+        throw new Error(
+          "This request changed before it could be resolved. Refresh the page and try again."
+        );
+      }
+      if (e && (/not recognized|does not exist|invalid/i.test((e && e.message) || "")) && action === "confirm" &&
+        Object.keys(fields).length > 2) {
+        console.warn("[PTORequests] cancellation-resolution PATCH rejected optional metadata — retrying core-only.");
+        var core = { Status: fields.Status, AuditLog: fields.AuditLog };
+        var retryResponse = await PTOGraph.updateListItem(itemId, core, ifMatch ? { ifMatch: ifMatch } : {});
+        return { fields: core, response: retryResponse, action: action };
+      }
+      throw e;
+    }
+  }
+
   // --- Later phases (kept as labeled stubs) --------------------------------
 
   /** Patch fields (approve/reject/escalate/HR edit) (Phase 2D+). */
@@ -726,10 +1115,16 @@ window.PTORequests = (function () {
     // the submit-metadata resolver above.
     resolveApproverFieldMap: resolveApproverFieldMap,
     readApproverMetadata: readApproverMetadata,
+    resolveCancellationRequestFieldMap: resolveCancellationRequestFieldMap,
+    readCancellationRequestMetadata: readCancellationRequestMetadata,
     // HR Center (hr.html — HR/Admin-gated by PTOAuthz before use)
     listAllRequests: listAllRequests,
     cancelRequest: cancelRequest,
+    requestCancellation: requestCancellation,
+    resolveCancellationRequest: resolveCancellationRequest,
     CANCELLABLE_STATUSES: CANCELLABLE_STATUSES,
+    CANCELLATION_REQUEST_PENDING_STATUS: CANCELLATION_REQUEST_PENDING_STATUS,
+    normalizeRequestItem: normalizeRequestItem,
     getRequest: getRequest,
     getRequestById: getRequestById,
     updateRequestDecision: updateRequestDecision,

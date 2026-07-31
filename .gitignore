@@ -13,8 +13,9 @@ flows/
 scripts/
 PTO_CENTRAL_ARCHITECTURE.md
 
-# Dev/diagnostic pages (localhost-only; not linked from the app).
+# Dev/diagnostic pages and their fixtures (localhost-only; not linked from the app).
 dev-*.html
+dev-*.js
 serve.json
 
 # Placeholder modules for future phases (not loaded by any published page).
@@ -22,6 +23,18 @@ js/calendar.js
 js/notify.js
 js/pages/hr-dashboard.page.js
 js/pages/hr-employee.page.js
+# Pending-request reminder/escalation/auto-approval rules — mirrors a planned
+# Power Automate flow (docs/PENDING_REQUEST_PROCESSOR_POWER_AUTOMATE.md) that
+# does not exist yet. Pure/deterministic and independently useful later, but
+# not wired into any production page today (see js/requests.js's duplicated
+# 48h constant comment) — same "not loaded by any published page" precedent
+# as the placeholders above.
+js/pending-rules.js
 
 # Editor / local tooling.
 .vscode/
+
+# Local dev-server logs and ad hoc QA screenshot/snapshot captures.
+preview-server.log
+preview-server.err
+.codex-artifacts/

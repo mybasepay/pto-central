@@ -31,7 +31,7 @@
     <section class="card home-panel" role="region" aria-label="PTO Central">
       <div class="home-shell">
         <section class="home-hero row g-4 g-xl-5 align-items-start">
-          <div class="col-xl-8 col-lg-7">
+          <div class="col-12">
             <div class="home-hero__main">
             <div class="home-header">
               <span class="home-badge" aria-hidden="true">
@@ -45,55 +45,6 @@
               </div>
             </div>
             </div>
-          </div>
-
-          <div class="col-xl-4 col-lg-5">
-            <aside class="quick-links" aria-label="Quick links">
-              <div class="ql-header">
-                <span class="ql-title">Quick Links</span>
-              </div>
-
-              <div class="ql-items">
-                <a class="ql-card ql-card--requests" href="my-requests.html">
-                  <span class="ql-icon" aria-hidden="true">
-                    <i class="bi bi-phone"></i>
-                  </span>
-                  <span class="ql-copy">
-                    <span class="ql-label">My Requests</span>
-                    <span class="ql-note">Track status and review past submissions.</span>
-                  </span>
-                  <span class="ql-arrow" aria-hidden="true">
-                    <i class="bi bi-arrow-right"></i>
-                  </span>
-                </a>
-
-                <a class="ql-card ql-card--manual" href="manual.html">
-                  <span class="ql-icon" aria-hidden="true">
-                    <i class="bi bi-journal-text"></i>
-                  </span>
-                  <span class="ql-copy">
-                    <span class="ql-label">User Manual</span>
-                    <span class="ql-note">Review guidance, process steps, and FAQs.</span>
-                  </span>
-                  <span class="ql-arrow" aria-hidden="true">
-                    <i class="bi bi-arrow-right"></i>
-                  </span>
-                </a>
-
-                <a class="ql-card ql-card--guide" href="manual.html">
-                  <span class="ql-icon" aria-hidden="true">
-                    <i class="bi bi-signpost-2"></i>
-                  </span>
-                  <span class="ql-copy">
-                    <span class="ql-label">Need guidance before you submit?</span>
-                    <span class="ql-note">Keep the user manual nearby for policy details and request expectations.</span>
-                  </span>
-                  <span class="ql-arrow" aria-hidden="true">
-                    <i class="bi bi-arrow-right"></i>
-                  </span>
-                </a>
-              </div>
-            </aside>
           </div>
         </section>
 
@@ -115,11 +66,10 @@
 
         <section class="action-section" aria-label="Primary actions">
           <div class="grid" role="navigation" aria-label="Primary actions">
-            <!-- HOME CUTOVER (2026-07-07): Submit PTO Request now routes to the
-                 in-app request.html (same tab). Cancel a PTO intentionally stays on
-                 the legacy Microsoft Forms process for now (no in-app self-cancel
-                 yet). Rollback = restore the Forms URL + target/rel below (kept in
-                 git history + pages/index-backup.html). -->
+            <!-- HOME CUTOVER (2026-07-31): Submit PTO Request routes to request.html
+                 and the old "Cancel a PTO Request" entry now routes into the
+                 unified local management page via cancel-request.html. Rollback =
+                 restore the Forms URL kept in git history + pages/index-backup.html. -->
             <a
               class="action-card action-card--primary"
               href="request.html"
@@ -160,9 +110,7 @@
 
             <a
               class="action-card action-card--secondary"
-              href="https://forms.office.com/Pages/ResponsePage.aspx?id=lHyi4Qz7KEe3HTdm8ho6y6sGTemyH-VGqGh4tFUruAVUM0ZOWktWMlA2VDcwMERWSUM3RDY0TExYWC4u"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="cancel-request.html"
             >
               <span class="action-decor" aria-hidden="true">
                 <span class="action-glow"></span>
@@ -185,7 +133,7 @@
                 <span class="action-eyebrow">Request change</span>
                 <span class="action-title">Cancel a PTO Request</span>
                 <span class="action-note">
-                  Submit a cancellation for pending, submitted, or already approved PTO when plans change.
+                  Open your request history and submit a cancellation for eligible PTO when plans change.
                 </span>
               </span>
               <span class="action-meta">
@@ -199,6 +147,53 @@
             </a>
           </div>
         </section>
+
+        <aside class="quick-links" aria-label="Quick links">
+          <div class="ql-header">
+            <span class="ql-title">Quick Links</span>
+          </div>
+
+          <div class="ql-items">
+            <a class="ql-card ql-card--requests" href="my-requests.html">
+              <span class="ql-icon" aria-hidden="true">
+                <i class="bi bi-phone"></i>
+              </span>
+              <span class="ql-copy">
+                <span class="ql-label">My Requests</span>
+                <span class="ql-note">Track status, review history, and request cancellations.</span>
+              </span>
+              <span class="ql-arrow" aria-hidden="true">
+                <i class="bi bi-arrow-right"></i>
+              </span>
+            </a>
+
+            <a class="ql-card ql-card--manual" href="manual.html">
+              <span class="ql-icon" aria-hidden="true">
+                <i class="bi bi-journal-text"></i>
+              </span>
+              <span class="ql-copy">
+                <span class="ql-label">User Manual</span>
+                <span class="ql-note">Review guidance, process steps, and FAQs.</span>
+              </span>
+              <span class="ql-arrow" aria-hidden="true">
+                <i class="bi bi-arrow-right"></i>
+              </span>
+            </a>
+
+            <a class="ql-card ql-card--guide" href="manual.html">
+              <span class="ql-icon" aria-hidden="true">
+                <i class="bi bi-signpost-2"></i>
+              </span>
+              <span class="ql-copy">
+                <span class="ql-label">Need guidance before you submit?</span>
+                <span class="ql-note">Keep the user manual nearby for policy details and request expectations.</span>
+              </span>
+              <span class="ql-arrow" aria-hidden="true">
+                <i class="bi bi-arrow-right"></i>
+              </span>
+            </a>
+          </div>
+        </aside>
 
         <div class="tips">
           <span class="tips-icon" aria-hidden="true">

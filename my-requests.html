@@ -3,344 +3,1070 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>My Requests — PTO Central</title>
+  <title>Manage PTO Requests — PTO Central</title>
   <link rel="stylesheet" href="styles.css" />
-  <!--
-    My Requests — employee view of their own PTO requests (READ-ONLY) from the
-    PTO Requests SharePoint list, via PTORequests.listMyRequests. Visual pass
-    2026-07-03 to match request.html / approve.html; kept deliberately simple
-    (3 summary cards, search + status filter + refresh, 4-column table).
-
-    All element IDs consumed by js/pages/my-requests.page.js are PRESERVED
-    (auth + user chip, refresh, statusFilter, search, count, warn, error,
-    empty, reqs-table, reqs-body, raw, the three stat-* counters, and the
-    page-size / page-prev / page-next pager).
-  -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"
+  />
   <style>
-    /* ===== My Requests — scoped. Loaded AFTER styles.css; equal-specificity
-       element rules below win, same pattern as hr.html / request.html /
-       approve.html. Wide, top-down document flow. ===== */
-
     :root {
-      --mr-surface: #0e1626;
-      --mr-surface-2: #0b1220;
-      --mr-tile: #0a101d;
-      --mr-line: rgba(120, 150, 210, 0.16);
-      --mr-line-soft: rgba(255, 255, 255, 0.07);
-      --mr-teal: #2dd4bf;
-      --mr-blue: #60a5fa;
-      --mr-amber: #fbbf24;
-      --mr-green: #34d399;
+      --mpr-bg: #edf4ff;
+      --mpr-bg-soft: rgba(255, 255, 255, 0.74);
+      --mpr-surface: rgba(255, 255, 255, 0.94);
+      --mpr-border: rgba(161, 181, 214, 0.42);
+      --mpr-border-strong: rgba(149, 174, 214, 0.62);
+      --mpr-shadow: 0 24px 54px -34px rgba(15, 23, 42, 0.2);
+      --mpr-text: #11264b;
+      --mpr-muted: #5e7091;
+      --mpr-muted-2: #7e8daa;
+      --mpr-teal: #1fb7ac;
+      --mpr-blue: #4f8dff;
+      --mpr-amber: #efb23e;
+      --mpr-green: #2fbe87;
+      --mpr-lavender: #8977f4;
+      --mpr-red: #d4616d;
+      --mpr-table-line: rgba(195, 209, 234, 0.76);
+      --mpr-page-max: 1380px;
     }
 
-    html, body { height: auto; min-height: 100%; }
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
     body {
+      min-height: 100%;
+    }
+
+    body.manage-requests-page {
       display: block;
-      padding: 0 clamp(14px, 3vw, 40px) 56px;
+      width: 100%;
+      margin: 0;
+      color: var(--mpr-text);
       background:
-        radial-gradient(1000px 600px at 12% -8%, #0d1730, transparent 60%),
-        radial-gradient(1100px 640px at 100% 0%, #0a1424, transparent 55%),
-        linear-gradient(180deg, #0a111e 0%, #070c16 60%, #05080f 100%);
+        radial-gradient(900px 460px at 8% 0%, rgba(138, 198, 255, 0.18), transparent 60%),
+        radial-gradient(760px 420px at 100% 2%, rgba(96, 218, 201, 0.14), transparent 58%),
+        linear-gradient(180deg, #f8fbff 0%, #eef4ff 34%, #edf3ff 100%);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      padding: 0 0 28px;
       overflow-x: hidden;
     }
-    .wrap { width: 100%; max-width: 1180px; margin: 0 auto; }
 
-    /* ---- Top bar ---- */
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
-      flex-wrap: wrap; padding: 16px 2px 14px; margin: 0 0 4px;
+    .manage-shell {
+      width: min(100%, var(--mpr-page-max));
+      margin: 0 auto;
     }
-    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    .brand-logo {
-      width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto;
-      display: grid; place-items: center; color: var(--mr-blue);
-      background: linear-gradient(160deg, rgba(96, 165, 250, 0.22), rgba(56, 189, 248, 0.08));
-      border: 1px solid rgba(96, 165, 250, 0.32);
+
+    .manage-topbar {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.96);
+      border-bottom: 1px solid rgba(206, 219, 242, 0.92);
+      box-shadow: 0 18px 42px -38px rgba(15, 23, 42, 0.18);
+      padding: 0 16px;
     }
-    .brand-logo svg { width: 22px; height: 22px; }
-    .brand-name { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
 
-    .auth-area { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
-    .user-chip {
-      display: none; align-items: center; gap: 10px; padding: 6px 14px 6px 8px;
-      border-radius: 999px; border: 1px solid var(--mr-line);
-      background: rgba(255, 255, 255, 0.03); max-width: 340px;
+    .manage-topbar__inner {
+      width: min(100%, calc(var(--mpr-page-max) + 8px));
+      margin: 0 auto;
     }
-    .user-chip.show { display: inline-flex; }
-    .user-chip .avatar {
-      width: 28px; height: 28px; border-radius: 50%; flex: 0 0 auto;
-      display: grid; place-items: center; font-size: 11px; font-weight: 800; letter-spacing: .03em;
-      color: #cbd5e1; background: rgba(255, 255, 255, 0.07); border: 1px solid var(--mr-line-soft);
+
+    .manage-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(420px, 0.95fr);
+      gap: 20px;
+      align-items: end;
+      padding: 22px 4px 12px;
     }
-    .user-chip .who { min-width: 0; font-size: 13px; font-weight: 700; color: #eef2f8;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #account { display: none; }
-    #account.show-text { display: inline; font-size: 12.5px; color: var(--muted); }
 
-    /* ---- Buttons ---- */
-    .btn {
-      appearance: none; cursor: pointer; color: var(--text); font: inherit; font-weight: 600;
-      padding: 9px 16px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.14);
-      background: rgba(255, 255, 255, 0.03);
-      transition: border-color .15s ease, background .15s ease, transform .1s ease;
-      display: inline-flex; align-items: center; gap: 8px;
+    .manage-hero__lead {
+      min-width: 0;
     }
-    .btn svg { width: 15px; height: 15px; }
-    .btn:hover { border-color: rgba(147, 197, 253, 0.5); background: rgba(255, 255, 255, 0.06); }
-    .btn:active { transform: translateY(1px); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; }
-    .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.45); }
-    .btn.small { padding: 6px 12px; font-size: 12.5px; border-radius: 9px; }
 
-    /* ---- Page head ---- */
-    .page-head { margin: 16px 2px 0; }
-    .page-head h1 { font-size: clamp(24px, 3vw, 30px); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-    .page-head .desc { margin: 5px 0 0; font-size: 14px; }
-
-    /* ---- Summary cards ---- */
-    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
-    @media (max-width: 720px) { .stats { grid-template-columns: 1fr; } }
-    .stat {
-      display: flex; align-items: center; gap: 15px; padding: 18px 20px; border-radius: 15px;
-      border: 1px solid var(--mr-line);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)), var(--mr-surface);
-      box-shadow: 0 18px 40px -30px rgba(0, 0, 0, 0.8);
+    .manage-hero__head {
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      min-width: 0;
     }
-    .stat-ico { width: 48px; height: 48px; border-radius: 13px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--mr-line); }
-    .stat-ico svg { width: 25px; height: 25px; }
-    .stat-ico.blue { color: var(--mr-blue); background: linear-gradient(160deg, rgba(96,165,250,0.2), rgba(56,189,248,0.06)); border-color: rgba(96,165,250,0.3); }
-    .stat-ico.amber { color: var(--mr-amber); background: linear-gradient(160deg, rgba(251,191,36,0.18), rgba(217,119,6,0.06)); border-color: rgba(251,191,36,0.32); }
-    .stat-ico.green { color: var(--mr-green); background: linear-gradient(160deg, rgba(52,211,153,0.18), rgba(45,212,191,0.06)); border-color: rgba(52,211,153,0.3); }
-    .stat-body { min-width: 0; line-height: 1.2; }
-    .stat-label { font-size: 13px; color: var(--muted); }
-    .stat-value { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; margin-top: 3px; color: #f1f5f9; }
 
-    /* ---- Controls bar ---- */
-    .panel {
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)), var(--mr-surface);
-      border: 1px solid var(--mr-line); border-radius: 16px;
-      box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.8);
-      margin-top: 16px;
+    .manage-hero__badge {
+      width: 56px;
+      height: 56px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      color: var(--mpr-teal);
+      background: linear-gradient(180deg, rgba(36, 184, 170, 0.16), rgba(255, 255, 255, 0.92));
+      border: 1px solid rgba(71, 203, 190, 0.34);
+      box-shadow: 0 22px 48px -36px rgba(24, 151, 139, 0.4);
+      font-size: 24px;
     }
-    .controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 16px clamp(14px, 2vw, 20px); }
-    .search-wrap { position: relative; flex: 1 1 300px; min-width: 0; }
-    .search-wrap .search-ico { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #5f708a; pointer-events: none; }
-    .search-wrap input { padding-left: 38px; }
-    input, select {
-      width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px;
-      background: var(--mr-surface-2); color: var(--text); border: 1px solid rgba(255, 255, 255, 0.12);
-      font: inherit; font-size: 13.5px;
+
+    .manage-hero__title {
+      font-size: clamp(2rem, 4vw, 3.05rem);
+      line-height: 0.98;
+      letter-spacing: -0.04em;
+      font-weight: 800;
+      margin: 0;
     }
-    input::placeholder { color: #5f708a; }
-    input:focus, select:focus { outline: none; border-color: var(--mr-blue); box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.28); }
-    select#statusFilter { width: auto; min-width: 150px; }
-    .controls .spacer { flex: 1 1 auto; }
 
-    /* ---- Messages ---- */
-    .warn { display: none; margin: 0 clamp(14px, 2vw, 20px); padding: 10px 13px; border-radius: 11px; font-size: 13px;
-      background: rgba(217, 119, 6, 0.1); border: 1px solid rgba(217, 119, 6, 0.45); color: #fed7aa; }
-    .error { display: none; margin: 0 clamp(14px, 2vw, 20px); padding: 12px 14px; border-radius: 11px;
-      border-left: 5px solid #dc2626; background: #1a0f12; color: #fecaca; white-space: pre-wrap; font-size: 13.5px; }
-    .empty { display: none; padding: 40px 20px; color: var(--muted); font-size: 14px; text-align: center; }
-
-    /* ---- Table ---- */
-    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table.reqs { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-    table.reqs thead th {
-      text-align: left; padding: 13px 20px; background: var(--mr-surface-2);
-      color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700;
-      border-top: 1px solid var(--mr-line); border-bottom: 1px solid var(--mr-line); white-space: nowrap;
+    .manage-hero__subtitle {
+      margin: 10px 0 0;
+      max-width: 700px;
+      color: var(--mpr-muted);
+      font-size: 1rem;
+      line-height: 1.5;
     }
-    table.reqs tbody td { padding: 14px 20px; border-bottom: 1px solid var(--mr-line-soft); vertical-align: middle; white-space: nowrap; }
-    table.reqs tbody tr:last-child td { border-bottom: 0; }
-    table.reqs tbody tr:hover > td { background: rgba(255, 255, 255, 0.02); }
-    td.key { font-variant-numeric: tabular-nums; color: #dbe4f0; }
 
-    /* ---- Pager ---- */
-    .pager { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
-      padding: 14px clamp(14px, 2vw, 20px); border-top: 1px solid var(--mr-line-soft); font-size: 13px; color: var(--muted); }
-    .pager .right { display: flex; align-items: center; gap: 10px; }
-    .pager select { width: auto; padding: 6px 9px; font-size: 13px; }
-    .pager .nav { display: inline-flex; gap: 6px; }
-    .page-btn { min-width: 32px; height: 32px; padding: 0 9px; border-radius: 8px; cursor: pointer;
-      border: 1px solid rgba(255, 255, 255, 0.12); background: transparent; color: var(--text); font: inherit; font-size: 13px; }
-    .page-btn:hover:not(:disabled) { border-color: rgba(147, 197, 253, 0.55); }
-    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .manage-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
 
-    .mr-footer { margin-top: 20px; color: var(--muted); font-size: 12px; text-align: center; }
-    details.debug { margin-top: 14px; }
-    details.debug > summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 12.5px;
-      display: inline-flex; align-items: center; gap: 7px; }
-    details.debug > summary::-webkit-details-marker { display: none; }
-    details.debug > summary svg { width: 14px; height: 14px; transition: transform .18s ease; }
-    details.debug[open] > summary svg { transform: rotate(90deg); }
-    details.debug pre { margin: 12px 0 0; padding: 13px 15px; overflow: auto; border-radius: 11px;
-      background: #05090f; border: 1px solid var(--mr-line-soft); font-size: 12px; max-height: 320px;
-      color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .manage-stat {
+      min-width: 0;
+      padding: 18px 20px;
+      border-radius: 22px;
+      border: 1px solid rgba(199, 214, 237, 0.82);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.92));
+      box-shadow: var(--mpr-shadow);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .manage-stat__icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 17px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      font-size: 23px;
+      border: 1px solid rgba(174, 196, 233, 0.58);
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    }
+
+    .manage-stat__icon.is-blue {
+      color: var(--mpr-blue);
+      background: linear-gradient(180deg, rgba(79, 141, 255, 0.14), rgba(255, 255, 255, 0.96));
+    }
+
+    .manage-stat__icon.is-amber {
+      color: var(--mpr-amber);
+      background: linear-gradient(180deg, rgba(239, 178, 62, 0.15), rgba(255, 255, 255, 0.96));
+    }
+
+    .manage-stat__icon.is-green {
+      color: var(--mpr-teal);
+      background: linear-gradient(180deg, rgba(47, 190, 135, 0.14), rgba(255, 255, 255, 0.96));
+    }
+
+    .manage-stat__label {
+      font-size: 0.9rem;
+      color: var(--mpr-muted);
+      margin: 0 0 2px;
+    }
+
+    .manage-stat__value {
+      font-size: 2rem;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      font-weight: 800;
+      margin: 0;
+    }
+
+    .manage-workspace {
+      margin-top: 10px;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.42);
+      border: 1px solid rgba(211, 223, 244, 0.76);
+      box-shadow: 0 32px 70px -48px rgba(15, 23, 42, 0.26);
+      padding: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    .manage-panel {
+      border-radius: 24px;
+      border: 1px solid rgba(193, 208, 235, 0.82);
+      background: var(--mpr-surface);
+      box-shadow: 0 22px 56px -42px rgba(15, 23, 42, 0.22);
+    }
+
+    .toolbar-panel {
+      padding: 16px;
+    }
+
+    .toolbar-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) repeat(3, minmax(160px, 0.7fr)) auto;
+      gap: 14px;
+      align-items: end;
+    }
+
+    .toolbar-field {
+      min-width: 0;
+    }
+
+    .toolbar-field label,
+    .pager-label {
+      display: block;
+      margin: 0 0 6px;
+      font-size: 0.73rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--mpr-muted-2);
+      font-weight: 700;
+    }
+
+    .toolbar-search {
+      position: relative;
+    }
+
+    .toolbar-search i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--mpr-muted-2);
+      font-size: 0.95rem;
+      pointer-events: none;
+    }
+
+    .toolbar-search input {
+      padding-left: 40px;
+    }
+
+    .manage-input,
+    .manage-select {
+      width: 100%;
+      min-height: 46px;
+      border-radius: 15px;
+      border: 1px solid var(--mpr-border);
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--mpr-text);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+      font-size: 0.96rem;
+    }
+
+    .manage-input::placeholder {
+      color: #8d99b0;
+    }
+
+    .manage-input:focus,
+    .manage-select:focus,
+    .manage-btn:focus-visible,
+    .table-action:focus-visible,
+    .pager-btn:focus-visible,
+    .manage-link-btn:focus-visible {
+      outline: none;
+      border-color: rgba(79, 141, 255, 0.78);
+      box-shadow: 0 0 0 4px rgba(79, 141, 255, 0.18);
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: end;
+      justify-content: flex-end;
+    }
+
+    .manage-btn {
+      min-height: 46px;
+      border-radius: 15px;
+      border-width: 1px;
+      padding-inline: 18px;
+      font-weight: 700;
+      box-shadow: 0 18px 34px -28px rgba(15, 23, 42, 0.24);
+    }
+
+    .manage-alert {
+      display: none;
+      margin-top: 14px;
+      border-radius: 18px;
+      border-width: 1px;
+      font-size: 0.95rem;
+    }
+
+    .manage-alert.is-visible {
+      display: block;
+    }
+
+    .table-panel {
+      margin-top: 14px;
+      overflow: hidden;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+    }
+
+    .manage-table {
+      width: 100%;
+      margin: 0;
+      color: var(--mpr-text);
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .manage-table thead th {
+      border-bottom: 1px solid var(--mpr-table-line);
+      padding: 14px 18px;
+      background: rgba(246, 249, 255, 0.9);
+      color: var(--mpr-muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .manage-table tbody td {
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(223, 231, 246, 0.96);
+      vertical-align: top;
+      font-size: 0.95rem;
+    }
+
+    .manage-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .manage-table .group-row th {
+      padding: 14px 18px 10px;
+      background: rgba(255, 255, 255, 0.98);
+      border-bottom: 1px solid rgba(219, 230, 245, 0.92);
+      color: var(--mpr-text);
+      font-size: 1.02rem;
+      font-weight: 800;
+    }
+
+    .group-row__count {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 10px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(236, 242, 253, 0.96);
+      color: var(--mpr-muted);
+      font-size: 0.72rem;
+      letter-spacing: 0;
+      vertical-align: middle;
+    }
+
+    .row-primary {
+      display: block;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .row-secondary {
+      display: block;
+      margin-top: 3px;
+      color: var(--mpr-muted);
+      font-size: 0.83rem;
+      line-height: 1.4;
+    }
+
+    .wrap-clean {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 0.78rem;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .status-badge i {
+      font-size: 0.72rem;
+    }
+
+    .status-badge.is-pending {
+      color: #ad7812;
+      background: rgba(255, 244, 221, 0.98);
+      border-color: rgba(239, 178, 62, 0.38);
+    }
+
+    .status-badge.is-approved {
+      color: #0f8f65;
+      background: rgba(229, 251, 241, 0.98);
+      border-color: rgba(47, 190, 135, 0.34);
+    }
+
+    .status-badge.is-escalated {
+      color: #18779a;
+      background: rgba(230, 247, 255, 0.98);
+      border-color: rgba(79, 141, 255, 0.3);
+    }
+
+    .status-badge.is-rejected,
+    .status-badge.is-cancelled {
+      color: #9d4956;
+      background: rgba(255, 239, 242, 0.98);
+      border-color: rgba(212, 97, 109, 0.28);
+    }
+
+    .status-badge.is-cancel-requested {
+      color: #6957ce;
+      background: rgba(243, 238, 255, 0.98);
+      border-color: rgba(137, 119, 244, 0.28);
+    }
+
+    .table-action {
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      padding: 7px 14px;
+      white-space: nowrap;
+    }
+
+    .action-note {
+      display: inline-block;
+      color: var(--mpr-muted);
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .empty-state {
+      display: none;
+      padding: 48px 20px;
+      text-align: center;
+      color: var(--mpr-muted);
+    }
+
+    .empty-state.is-visible {
+      display: block;
+    }
+
+    .empty-state__icon {
+      width: 62px;
+      height: 62px;
+      border-radius: 20px;
+      margin: 0 auto 14px;
+      display: grid;
+      place-items: center;
+      color: var(--mpr-blue);
+      font-size: 1.65rem;
+      background: rgba(236, 243, 255, 0.96);
+      border: 1px solid rgba(79, 141, 255, 0.18);
+    }
+
+    .mobile-list {
+      display: none;
+      padding: 10px;
+    }
+
+    .mobile-card {
+      border: 1px solid rgba(210, 222, 243, 0.92);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 18px 42px -36px rgba(15, 23, 42, 0.18);
+      padding: 16px;
+    }
+
+    .mobile-group-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 1rem;
+      font-weight: 800;
+      padding: 12px 8px 6px;
+    }
+
+    .mobile-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 16px;
+      margin-top: 14px;
+    }
+
+    .mobile-meta dt {
+      margin: 0 0 2px;
+      color: var(--mpr-muted-2);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .mobile-meta dd {
+      margin: 0;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      color: var(--mpr-text);
+    }
+
+    .pager-panel {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 16px 18px;
+      border-top: 1px solid rgba(219, 230, 245, 0.92);
+      color: var(--mpr-muted);
+      font-size: 0.92rem;
+    }
+
+    .pager-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pager-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      border: 1px solid var(--mpr-border);
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--mpr-text);
+      box-shadow: 0 16px 28px -24px rgba(15, 23, 42, 0.24);
+    }
+
+    .pager-btn:disabled {
+      opacity: 0.46;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .pager-select {
+      width: auto;
+      min-width: 82px;
+      display: inline-block;
+    }
+
+    .manage-footer {
+      padding: 16px 6px 0;
+      text-align: center;
+      color: var(--mpr-muted);
+      font-size: 0.82rem;
+    }
+
+    .summary-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(244, 247, 253, 0.96);
+      border: 1px solid rgba(210, 221, 241, 0.94);
+      color: var(--mpr-text);
+      font-size: 0.84rem;
+      font-weight: 600;
+    }
+
+    .manage-link-btn {
+      border: 0;
+      background: transparent;
+      color: var(--mpr-blue);
+      font-weight: 700;
+      padding: 0;
+    }
+
+    .modal-content.manage-modal {
+      border: 1px solid rgba(198, 213, 239, 0.88);
+      border-radius: 24px;
+      box-shadow: 0 34px 76px -38px rgba(15, 23, 42, 0.34);
+    }
+
+    .modal-content.manage-modal .modal-header,
+    .modal-content.manage-modal .modal-footer {
+      border-color: rgba(223, 232, 246, 0.96);
+      padding: 18px 22px;
+    }
+
+    .modal-content.manage-modal .modal-body {
+      padding: 20px 22px;
+    }
+
+    .modal-title {
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--mpr-text);
+    }
+
+    .modal-guidance {
+      color: var(--mpr-muted);
+      margin-bottom: 16px;
+    }
+
+    .modal-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .modal-summary__card {
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(247, 250, 255, 0.96);
+      border: 1px solid rgba(214, 225, 244, 0.96);
+    }
+
+    .modal-summary__label {
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--mpr-muted-2);
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+
+    .modal-status {
+      margin-top: 4px;
+    }
+
+    .modal-footer-note {
+      margin-right: auto;
+      color: var(--mpr-muted);
+      font-size: 0.84rem;
+    }
+
+    .manage-modal-fallback {
+      display: none;
+      background: rgba(17, 38, 75, 0.38);
+    }
+
+    .manage-modal-fallback.show {
+      display: block;
+    }
+
+    .manage-modal-backdrop {
+      background: rgba(17, 38, 75, 0.38);
+    }
+
+    body.modal-open {
+      overflow: hidden;
+    }
+
+    body.manage-requests-page.is-tablet .manage-hero,
+    body.manage-requests-page.is-mobile .manage-hero {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    body.manage-requests-page.is-tablet .toolbar-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    body.manage-requests-page.is-tablet .toolbar-actions {
+      justify-content: stretch;
+    }
+
+    body.manage-requests-page.is-tablet .toolbar-actions .manage-btn {
+      width: 100%;
+    }
+
+    body.manage-requests-page.is-mobile {
+      padding-inline: 12px;
+    }
+
+    body.manage-requests-page.is-mobile .manage-hero {
+      padding-top: 12px;
+    }
+
+    body.manage-requests-page.is-mobile .manage-hero__head {
+      gap: 14px;
+    }
+
+    body.manage-requests-page.is-mobile .manage-hero__badge {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      font-size: 21px;
+    }
+
+    body.manage-requests-page.is-mobile .manage-stats,
+    body.manage-requests-page.is-mobile .toolbar-row,
+    body.manage-requests-page.is-mobile .modal-summary,
+    body.manage-requests-page.is-mobile .mobile-meta {
+      grid-template-columns: 1fr;
+    }
+
+    body.manage-requests-page.is-mobile .desktop-table-wrap {
+      display: none;
+    }
+
+    body.manage-requests-page.is-mobile .mobile-list {
+      display: grid;
+    }
+
+    body.manage-requests-page.is-mobile .pager-panel {
+      align-items: flex-start;
+    }
+
+    @media (max-width: 1199.98px) {
+      .manage-hero {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .manage-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .toolbar-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .toolbar-actions {
+        justify-content: stretch;
+      }
+
+      .toolbar-actions .manage-btn {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 991.98px) {
+      body.manage-requests-page {
+        padding-bottom: 24px;
+      }
+
+      .manage-shell {
+        width: 100%;
+      }
+
+      .manage-topbar {
+        padding-inline: 12px;
+      }
+
+      .manage-workspace {
+        padding: 12px;
+      }
+
+      .manage-table thead th,
+      .manage-table tbody td,
+      .manage-table .group-row th {
+        padding-inline: 14px;
+      }
+    }
+
+    @media (max-width: 767.98px) {
+      .manage-hero {
+        padding-top: 16px;
+      }
+
+      .manage-hero__head {
+        gap: 14px;
+      }
+
+      .manage-hero__badge {
+        width: 48px;
+        height: 48px;
+        border-radius: 16px;
+        font-size: 21px;
+      }
+
+      .manage-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar-row,
+      .modal-summary,
+      .mobile-meta {
+        grid-template-columns: 1fr;
+      }
+
+      .desktop-table-wrap {
+        display: none;
+      }
+
+      .mobile-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .pager-panel {
+        align-items: flex-start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition: none !important;
+        animation: none !important;
+      }
+    }
   </style>
 </head>
-<body>
-  <main class="wrap">
-    <!-- Top bar -->
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18" /><path d="M8 2.5v4M16 2.5v4" />
-          </svg>
-        </span>
-        <span class="brand-name">PTO Central</span>
-      </div>
-      <div class="auth-area">
-        <span id="user-chip" class="user-chip">
-          <span class="avatar" id="user-chip-avatar" aria-hidden="true">··</span>
-          <span class="who" id="user-chip-name">—</span>
-        </span>
-        <span id="account" aria-live="polite">Not signed in.</span>
-        <button id="signin" class="btn" type="button">Sign in</button>
-        <button id="signout" class="btn small" type="button" disabled>
-          Sign out
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
-          </svg>
-        </button>
-      </div>
-    </header>
-
-    <!-- Page head -->
-    <div class="page-head">
-      <h1>My Requests</h1>
-      <p class="desc">View your PTO requests and current status.</p>
+<body class="manage-requests-page">
+  <div class="manage-topbar">
+    <div class="manage-topbar__inner">
+      <div id="requestsHeaderMount"></div>
     </div>
+  </div>
 
-    <!-- Summary cards -->
-    <div class="stats">
-      <div class="stat">
-        <span class="stat-ico blue" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="6" y="4" width="12" height="17" rx="2" /><rect x="9" y="2.5" width="6" height="3.2" rx="1" /><path d="M9 11h6M9 15h4" />
-          </svg>
-        </span>
-        <div class="stat-body">
-          <div class="stat-label">Total Requests</div>
-          <div class="stat-value" id="stat-total">—</div>
-        </div>
-      </div>
-      <div class="stat">
-        <span class="stat-ico amber" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-          </svg>
-        </span>
-        <div class="stat-body">
-          <div class="stat-label">Pending</div>
-          <div class="stat-value" id="stat-pending">—</div>
-        </div>
-      </div>
-      <div class="stat">
-        <span class="stat-ico green" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9" /><path d="M8.5 12.5l2.5 2.5 4.5-5" />
-          </svg>
-        </span>
-        <div class="stat-body">
-          <div class="stat-label">Approved</div>
-          <div class="stat-value" id="stat-approved">—</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Controls + table -->
-    <section class="panel" aria-label="My PTO requests">
-      <div class="controls">
-        <div class="search-wrap">
-          <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
-          </svg>
-          <input type="text" id="search" placeholder="Search requests…" autocomplete="off" aria-label="Search requests by key or PTO type" />
-        </div>
-        <select id="statusFilter" aria-label="Filter by status">
-          <option value="All">All Statuses</option>
-          <option value="Pending">Pending</option>
-          <option value="Approved">Approved</option>
-          <option value="Auto-Approved">Auto-Approved</option>
-          <option value="Rejected">Rejected</option>
-          <option value="Cancelled">Cancelled</option>
-        </select>
-        <div class="spacer"></div>
-        <button id="refresh" class="btn" type="button" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M20 11a8 8 0 1 0-.9 4.3" /><path d="M20 4v5h-5" />
-          </svg>
-          Refresh
-        </button>
-      </div>
-
-      <div id="warn" class="warn" role="alert"></div>
-      <div id="error" class="error" role="alert" aria-live="assertive"></div>
-
-      <div class="table-wrap">
-        <table class="reqs" id="reqs-table" style="display:none;">
-          <thead>
-            <tr>
-              <th>Request Key</th>
-              <th>PTO Type</th>
-              <th>Dates</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="reqs-body"></tbody>
-        </table>
-      </div>
-      <div id="empty" class="empty">No PTO requests found for this account.</div>
-
-      <!-- Pager -->
-      <div class="pager">
-        <span id="count" aria-live="polite"></span>
-        <div class="right">
-          <span>Rows per page:</span>
-          <select id="page-size" aria-label="Rows per page">
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="all">All</option>
-          </select>
-          <span class="nav">
-            <button id="page-prev" class="page-btn" type="button" aria-label="Previous page">‹</button>
-            <button id="page-next" class="page-btn" type="button" aria-label="Next page">›</button>
+  <main class="manage-shell">
+    <section class="manage-hero" aria-labelledby="manage-requests-title">
+      <div class="manage-hero__lead">
+        <div class="manage-hero__head">
+          <span class="manage-hero__badge" aria-hidden="true">
+            <i class="bi bi-calendar2-week"></i>
           </span>
+          <div class="manage-hero__copy">
+            <h1 id="manage-requests-title" class="manage-hero__title">Manage PTO Requests</h1>
+            <p class="manage-hero__subtitle">
+              Review your PTO request history, track status, and request cancellation for eligible items.
+            </p>
+          </div>
         </div>
+      </div>
+
+      <div class="manage-stats" aria-label="Request summary">
+        <article class="manage-stat">
+          <span class="manage-stat__icon is-blue" aria-hidden="true">
+            <i class="bi bi-clipboard2-check"></i>
+          </span>
+          <div>
+            <p class="manage-stat__label">Total Requests</p>
+            <p class="manage-stat__value" id="stat-total">0</p>
+          </div>
+        </article>
+        <article class="manage-stat">
+          <span class="manage-stat__icon is-amber" aria-hidden="true">
+            <i class="bi bi-hourglass-split"></i>
+          </span>
+          <div>
+            <p class="manage-stat__label">Pending</p>
+            <p class="manage-stat__value" id="stat-pending">0</p>
+          </div>
+        </article>
+        <article class="manage-stat">
+          <span class="manage-stat__icon is-green" aria-hidden="true">
+            <i class="bi bi-check2-circle"></i>
+          </span>
+          <div>
+            <p class="manage-stat__label">Approved</p>
+            <p class="manage-stat__value" id="stat-approved">0</p>
+          </div>
+        </article>
       </div>
     </section>
 
-    <details class="debug">
-      <summary>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-        Show raw JSON (debug)
-      </summary>
-      <pre id="raw">—</pre>
-    </details>
+    <section class="manage-workspace" aria-label="PTO request management">
+      <section class="manage-panel toolbar-panel" aria-label="Search and filters">
+        <div class="toolbar-row">
+          <div class="toolbar-field">
+            <label for="search">Search</label>
+            <div class="toolbar-search">
+              <i class="bi bi-search" aria-hidden="true"></i>
+              <input
+                id="search"
+                class="form-control manage-input"
+                type="text"
+                placeholder="Search by PTO type, date, status, notes, or approver"
+                autocomplete="off"
+              />
+            </div>
+          </div>
 
-    <footer class="mr-footer">
-      © <span id="year"></span> myBasePay · Tech Support
+          <div class="toolbar-field">
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter" class="form-select manage-select" aria-label="Filter by status">
+              <option value="All">All Statuses</option>
+            </select>
+          </div>
+
+          <div class="toolbar-field">
+            <label for="typeFilter">PTO Type</label>
+            <select id="typeFilter" class="form-select manage-select" aria-label="Filter by PTO type">
+              <option value="All">All Types</option>
+            </select>
+          </div>
+
+          <div class="toolbar-field">
+            <label for="dateRangeFilter">Date Range</label>
+            <select id="dateRangeFilter" class="form-select manage-select" aria-label="Filter by date range">
+              <option value="all">All Dates</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="past">Past &amp; Closed</option>
+              <option value="next30">Next 30 Days</option>
+              <option value="thisYear">This Year</option>
+            </select>
+          </div>
+
+          <div class="toolbar-actions">
+            <button id="refresh" type="button" class="btn btn-outline-primary manage-btn">
+              <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="pageMessage" class="alert manage-alert" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="manage-panel table-panel" aria-label="PTO requests list">
+        <div class="desktop-table-wrap table-scroll">
+          <table class="manage-table" id="requestsTable">
+            <thead>
+              <tr>
+                <th scope="col">PTO Type</th>
+                <th scope="col">Dates</th>
+                <th scope="col">Status</th>
+                <th scope="col">Approver</th>
+                <th scope="col">Backup Contact(s)</th>
+                <th scope="col">Submitted</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="requestsTableBody"></tbody>
+          </table>
+        </div>
+
+        <div id="mobileList" class="mobile-list" aria-live="polite"></div>
+
+        <div id="emptyState" class="empty-state">
+          <div class="empty-state__icon" aria-hidden="true">
+            <i class="bi bi-inbox"></i>
+          </div>
+          <h2 class="h5 mb-2">No requests to show</h2>
+          <p class="mb-0" id="emptyStateText">No PTO requests were found for this account.</p>
+        </div>
+
+        <div class="pager-panel">
+          <div id="count" aria-live="polite">Loading…</div>
+          <div class="pager-actions">
+            <label class="pager-label mb-0" for="pageSize">Rows per page</label>
+            <select id="pageSize" class="form-select manage-select pager-select" aria-label="Rows per page">
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="all">All</option>
+            </select>
+            <button id="pagePrev" type="button" class="pager-btn" aria-label="Previous page">
+              <i class="bi bi-chevron-left" aria-hidden="true"></i>
+            </button>
+            <span id="pageLabel" aria-live="polite">Page 1</span>
+            <button id="pageNext" type="button" class="pager-btn" aria-label="Next page">
+              <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <footer class="manage-footer">
+      © <span id="year"></span> myBasePay · PTO Central
     </footer>
   </main>
 
-  <!--
-    Library + modules. Order matters; page last.
-    Cache-busting (?v=): same convention as the other pages — bump on any change
-    to my-requests.html or a module below. lib/msal-browser.min.js is
-    intentionally NOT versioned (pinned v3.28.1).
-  -->
+  <div
+    class="modal fade"
+    id="cancelRequestModal"
+    tabindex="-1"
+    aria-labelledby="cancelRequestModalLabel"
+    aria-hidden="true"
+  >
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content manage-modal">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title h4 mb-1" id="cancelRequestModalLabel">Request cancellation</h2>
+            <p class="modal-guidance mb-0">
+              Submit a cancellation request for this PTO item. HR will review the request before the status changes to Cancelled.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="modal"
+            aria-label="Close"
+          ></button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-summary">
+            <div class="modal-summary__card">
+              <span class="modal-summary__label">PTO Type</span>
+              <div id="cancelSummaryType">—</div>
+            </div>
+            <div class="modal-summary__card">
+              <span class="modal-summary__label">Dates</span>
+              <div id="cancelSummaryDates">—</div>
+            </div>
+            <div class="modal-summary__card">
+              <span class="modal-summary__label">Current Status</span>
+              <div id="cancelSummaryStatus" class="modal-status">—</div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <span class="modal-summary__label">Approver</span>
+            <div id="cancelSummaryApprover" class="summary-chip wrap-clean">—</div>
+          </div>
+
+          <div id="cancelModalAlert" class="alert d-none" role="alert" aria-live="assertive"></div>
+
+          <div>
+            <label for="cancelReason" class="form-label fw-semibold text-dark">Cancellation reason <span class="text-danger">*</span></label>
+            <textarea
+              id="cancelReason"
+              class="form-control manage-input"
+              rows="4"
+              maxlength="600"
+              placeholder="Explain why this PTO request should be cancelled."
+            ></textarea>
+            <div class="form-text text-muted">
+              Include enough context for HR to review the request quickly.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="modal-footer-note" id="cancelModalHint">The request will remain active until HR reviews the cancellation.</span>
+          <button type="button" class="btn btn-outline-secondary manage-btn" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary manage-btn" id="cancelSubmit">
+            <i class="bi bi-send" aria-hidden="true"></i>
+            <span>Submit cancellation request</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="lib/msal-browser.min.js"></script>
-  <script src="js/config.js?v=mr3"></script>
-  <script src="js/auth.js?v=mr3"></script>
-  <script src="js/graph.js?v=mr3"></script>
-  <script src="js/directory.js?v=mr3"></script>
-  <script src="js/rules.js?v=mr3"></script>
-  <script src="js/requests.js?v=mr3"></script>
-  <script src="js/authz.js?v=mr3"></script>
-  <script src="js/ui.js?v=mr3"></script>
-  <script src="js/pages/my-requests.page.js?v=mr3"></script>
+  <script src="js/config.js?v=mr9"></script>
+  <script src="js/auth.js?v=mr4"></script>
+  <script src="js/graph.js?v=mr5"></script>
+  <script src="js/directory.js?v=mr4"></script>
+  <script src="js/rules.js?v=mr4"></script>
+  <script src="js/requests.js?v=mr9"></script>
+  <script src="js/authz.js?v=mr4"></script>
+  <script src="js/ui.js?v=mr9"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/components/pto-header.js?v=mr4"></script>
+  <script>
+    PTOHeader.render("requestsHeaderMount", {
+      singleTitle: "PTO Central",
+      accountLabel: "Your Account",
+      homeHref: "index.html"
+    });
+  </script>
+  <script src="js/pages/my-requests.page.js?v=mr9"></script>
 </body>
 </html>
