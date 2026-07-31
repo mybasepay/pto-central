@@ -467,7 +467,7 @@
     if (els.changeSelection) {
       els.changeSelection.innerHTML = other
         ? '<i class="bi bi-arrow-left" aria-hidden="true"></i><span>Back to my request</span>'
-        : '<i class="bi bi-arrow-left-right" aria-hidden="true"></i><span>Switch request type</span>';
+        : '<i class="bi bi-arrow-left-right" aria-hidden="true"></i><span>Request on behalf of someone else</span>';
       els.changeSelection.setAttribute(
         "aria-label",
         other ? "Switch back to my PTO request" : "Switch this PTO request to another employee"
