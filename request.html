@@ -340,6 +340,20 @@
     .confirm-box .t { display: block; font-size: 13.5px; font-weight: 700; }
     .confirm-box .s { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
     .actions { margin-top: 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .submit-copy-check {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 12px;
+      border: 1px solid var(--rq-line-soft);
+      background: rgba(255, 255, 255, 0.03);
+      cursor: pointer;
+    }
+    .submit-copy-check input[type=checkbox] {
+      width: 16px; height: 16px; margin: 0; flex: 0 0 auto;
+      accent-color: var(--rq-green); cursor: pointer;
+    }
+    .submit-copy-check__copy { display: flex; flex-direction: column; line-height: 1.15; }
+    .submit-copy-check__title { font-size: 13px; font-weight: 700; color: var(--text); }
+    .submit-copy-check__note { margin-top: 2px; font-size: 11px; color: var(--muted); }
     .status { font-size: 13px; color: var(--muted); }
     .error { display: none; margin-top: 14px; padding: 12px 14px; border-radius: 11px;
       border-left: 5px solid #dc2626; background: #1a0f12; color: #fecaca;
@@ -2081,6 +2095,32 @@
       padding: 13px 22px;
     }
 
+    body.request-page .submit-copy-check {
+      min-height: 46px;
+      padding: 9px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(190, 205, 231, 0.88);
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 12px 24px -24px rgba(42, 66, 109, 0.2);
+    }
+
+    body.request-page .submit-copy-check:hover {
+      border-color: rgba(140, 164, 230, 0.95);
+      background: rgba(255, 255, 255, 0.94);
+    }
+
+    body.request-page .submit-copy-check input[type=checkbox] {
+      accent-color: #7c3aed;
+    }
+
+    body.request-page .submit-copy-check__title {
+      color: #18315f;
+    }
+
+    body.request-page .submit-copy-check__note {
+      color: #7183a3;
+    }
+
     body.request-page .request-approver-inline {
       margin-top: 0;
       padding: 14px 16px 16px;
@@ -3506,6 +3546,13 @@
               </svg>
               <span id="submitLabel">Submit my PTO request</span>
             </button>
+            <label class="submit-copy-check" for="requestCopy">
+              <input type="checkbox" id="requestCopy" />
+              <span class="submit-copy-check__copy">
+                <span class="submit-copy-check__title">Email me a copy</span>
+                <span class="submit-copy-check__note">Receive a copy of this request by email</span>
+              </span>
+            </label>
             <span id="submit-status" class="status" aria-live="polite"></span>
           </div>
 
@@ -3626,7 +3673,7 @@
   <script src="js/graph.js?v=rq5"></script>
   <script src="js/directory.js?v=rq5"></script>
   <script src="js/rules.js?v=rq5"></script>
-  <script src="js/requests.js?v=rq14"></script>
+  <script src="js/requests.js?v=rq16"></script>
   <script src="js/authz.js?v=rq5"></script>
   <script src="js/ui.js?v=rq14"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -3638,6 +3685,6 @@
       homeHref: "index.html"
     });
   </script>
-  <script src="js/pages/request.page.js?v=rq15"></script>
+  <script src="js/pages/request.page.js?v=rq16"></script>
 </body>
 </html>

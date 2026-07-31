@@ -173,6 +173,13 @@ window.PTORequests = (function () {
       ShortNoticeResolved: false,
       IsUrgent: !!input.isUrgent,
 
+      // Employee opted in to receiving their own copy of this request by
+      // email (request.html "Email me a copy" checkbox). Additive/optional —
+      // if the column isn't provisioned yet, Graph's item-create silently
+      // drops it, same as every other optional field in this module. Actually
+      // sending that copy is a notification-flow concern, not this app's.
+      NotifyRequesterCopy: !!input.notifyRequesterCopy,
+
       // Escalation
       EscalationLevel: 0,
 

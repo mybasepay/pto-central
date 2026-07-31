@@ -138,7 +138,7 @@
     signin: $("signin"), signout: $("signout"), account: $("account"),
     userChip: $("user-chip"), userChipName: $("user-chip-name"),
     ptoType: $("ptoType"), startDate: $("startDate"), endDate: $("endDate"),
-    reason: $("reason"), confirm: $("confirm"),
+    reason: $("reason"), confirm: $("confirm"), requestCopy: $("requestCopy"),
     // Backup contacts = employee autocomplete (fills BackupContactName/Email on submit).
     backupSearch: $("backupSearch"), backupLookup: $("backupLookup"),
     backupResults: $("backupResults"), backupSelected: $("backupSelected"),
@@ -1288,6 +1288,7 @@
       isPartialDay: false,
       hours: "",
       onBehalfReason: state.onBehalf && els.oboReason ? els.oboReason.value : "",
+      notifyRequesterCopy: !!(els.requestCopy && els.requestCopy.checked),
     };
   }
 
