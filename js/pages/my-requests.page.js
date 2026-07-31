@@ -668,13 +668,32 @@
     return !!(features && features.employeeCancellation === true);
   }
 
+  function cancellableStatuses() {
+    return (window.PTORequests && PTORequests.CANCELLABLE_STATUSES) ||
+      ["Pending", "Approved", "Auto-Approved", "Auto-Approved (Escalation)"];
+  }
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function todayDateOnly() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
+  // Cancellable through (and including) the PTO start date itself — only
+  // once the start date has actually passed is it blocked. Date-only
+  // compare, never time-of-day (matches hr.page.js's isPastStart, except
+  // that one also blocks the start date itself since it's the HR-side
+  // guard; this is the employee-facing one, one day more permissive).
+  function isPastStart(item) {
+    var start = String(item.startDate || "").slice(0, 10);
+    if (!start) return false;
+    return start < todayDateOnly();
+  }
+
   function canRequestCancellation(item) {
     if (!cancellationEnabled()) return false;
-    var eligible =
-      window.PTORequests && PTORequests.CANCELLABLE_STATUSES
-        ? PTORequests.CANCELLABLE_STATUSES
-        : ["Pending", "Approved", "Auto-Approved", "Auto-Approved (Escalation)"];
-    return eligible.indexOf(item.status) !== -1;
+    if (isPastStart(item)) return false;
+    return cancellableStatuses().indexOf(item.status) !== -1;
   }
 
   function renderTextCell(primary, secondary) {
@@ -754,6 +773,13 @@
       note.className = "action-note";
       note.textContent = "Pending HR review";
       wrap.appendChild(note);
+      return wrap;
+    }
+    if (cancellationEnabled() && isPastStart(item) && cancellableStatuses().indexOf(item.status) !== -1) {
+      var pastNote = document.createElement("span");
+      pastNote.className = "action-note";
+      pastNote.textContent = "Unavailable after PTO start date";
+      wrap.appendChild(pastNote);
       return wrap;
     }
     wrap.appendChild(document.createTextNode("—"));
