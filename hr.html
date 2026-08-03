@@ -1559,7 +1559,7 @@
           <div id="error" class="error" role="alert" aria-live="assertive"></div>
 
           <div id="cancel-panel" class="cancel-panel" role="alertdialog" aria-labelledby="cancel-title">
-            <h4 id="cancel-title">Cancel this PTO request?</h4>
+            <h4 id="cancel-title">Cancel this PTO request</h4>
             <div class="meta" id="cancel-meta">—</div>
             <label class="fld" for="cancel-reason">
               <span class="fld-label" id="cancel-reason-label">Cancellation reason (recorded in the audit log)</span>
@@ -1570,7 +1570,7 @@
               <button id="cancel-abort" class="btn" type="button">Keep request</button>
               <span id="cancel-status" class="status-text" aria-live="polite"></span>
             </div>
-            <div class="cancel-note" id="cancel-note">This updates the request status to <code>Cancelled</code> and appends the audit log. Approved requests continue using the existing calendar-cancellation flow.</div>
+            <div class="cancel-note" id="cancel-note">This updates the request status to <code>Cancelled</code> and appends the audit log. The existing calendar-cancellation flow will remove any available events automatically. HR/Admin can cancel approved PTO requests regardless of the scheduled dates.</div>
           </div>
         </div>
       </section>

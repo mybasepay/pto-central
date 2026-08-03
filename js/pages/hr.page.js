@@ -732,8 +732,12 @@
     return start <= todayDateOnly();
   }
 
+  // HR/Admin direct cancellation is an operational override: it applies to
+  // Approved / Auto-Approved / Auto-Approved (Escalation) regardless of
+  // StartDate/EndDate. Pending is excluded — it's resolved via the approval
+  // action instead. See PTORequests.HR_CANCELLABLE_STATUSES.
   function cancellable(r) {
-    return PTORequests.CANCELLABLE_STATUSES.indexOf(String(r.status || "").trim()) !== -1;
+    return PTORequests.HR_CANCELLABLE_STATUSES.indexOf(String(r.status || "").trim()) !== -1;
   }
 
   // A request sits in "Cancellation Requested" until HR either confirms it
@@ -1333,7 +1337,9 @@
 
     cancelEl.style.display = canCancel ? "" : "none";
     cancelSepEl.style.display = canCancel ? "" : "none";
-    if (canCancel) setMenuItemDisabled(cancelEl, past);
+    // HR/Admin cancellation is an operational override — never disabled by
+    // StartDate/EndDate (unlike the approval action above).
+    if (canCancel) setMenuItemDisabled(cancelEl, false);
 
     resolveSepEl.style.display = pendingCancellation ? "" : "none";
     resolveConfirmEl.style.display = pendingCancellation ? "" : "none";
@@ -1389,12 +1395,13 @@
 
   var CANCEL_PANEL_COPY = {
     "cancel": {
-      title: "Cancel this PTO request?",
+      title: "Cancel this PTO request",
       reasonLabel: "Cancellation reason (recorded in the audit log)",
       reasonPlaceholder: "Explain why this request is being cancelled",
       confirmLabel: "Confirm cancellation",
       note: "This updates the request status to Cancelled and appends the audit log. " +
-        "Approved requests continue using the existing calendar-cancellation flow.",
+        "The existing calendar-cancellation flow will remove any available events automatically. " +
+        "HR/Admin can cancel approved PTO requests regardless of the scheduled dates.",
     },
     "resolve-confirm": {
       title: "Complete this cancellation request?",
@@ -1456,16 +1463,11 @@
     showOk("");
 
     if (mode === "cancel") {
+      // HR/Admin cancellation is an operational override — deliberately not
+      // gated on StartDate/EndDate here (past, present, or future PTO all
+      // cancel the same way). Only status eligibility is re-checked.
       if (!cancellable(r)) {
         showError("This request can no longer be cancelled (status: " + r.status + ").");
-        closeCancelPanel();
-        return;
-      }
-      if (isPastStart(r)) {
-        showError(
-          "Cannot cancel " + (r.requestKey || ("#" + r.id)) + ": the PTO start date has passed. " +
-          PAST_START_REASON + "."
-        );
         closeCancelPanel();
         return;
       }

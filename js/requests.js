@@ -759,9 +759,16 @@ window.PTORequests = (function () {
     return { items: items, truncated: truncated, pages: pages };
   }
 
-  // Statuses an HR cancellation may act on. Anything else is a duplicate /
-  // invalid cancellation and is refused before any write.
+  // Statuses an employee may submit a cancellation *request* for (moves the
+  // item to "Cancellation Requested" pending HR review). Anything else is a
+  // duplicate / invalid cancellation request and is refused before any write.
   var CANCELLABLE_STATUSES = ["Pending", "Approved", "Auto-Approved", "Auto-Approved (Escalation)"];
+  // Statuses HR/Admin may *directly* cancel (no employee review step) via
+  // PTORequests.cancelRequest(). Deliberately excludes "Pending" — a Pending
+  // request is resolved through the approval action (Approve/Reject), not
+  // cancellation. Never gated on StartDate/EndDate: HR cancellation is an
+  // operational override that must work regardless of the scheduled dates.
+  var HR_CANCELLABLE_STATUSES = ["Approved", "Auto-Approved", "Auto-Approved (Escalation)"];
   var CANCELLATION_REQUEST_PENDING_STATUS = "Cancellation Requested";
 
   function validateCancellationRequestStatus(current) {
@@ -871,13 +878,19 @@ window.PTORequests = (function () {
   }
 
   /**
-   * HR/Admin cancellation of a request (hr.html).
+   * HR/Admin direct cancellation of a request (hr.html).
+   *
+   * Allowed from HR_CANCELLABLE_STATUSES (Approved / Auto-Approved /
+   * Auto-Approved (Escalation)) only — Pending goes through the approval
+   * action instead. Never gated on StartDate/EndDate: this is an HR
+   * operational override, so a past-dated PTO cancels the same as a future
+   * one (a past request may already have no calendar events — that must not
+   * make the write fail; the flow below tolerates it).
    *
    * Writes (single partial PATCH — nothing else touched):
    *   - Status = "Cancelled"  ← the EXACT value the validated
    *     `PTO Calendar Cancellation MVP Clean` flow triggers on. The app does
    *     NOT touch EmployeeEventId/CorpEventId — event deletion is the flow's job.
-   *     (Pending requests have no events; the flow safely terminates.)
    *   - AuditLog             ← APPENDED (existing preserved), with actor + reason.
    *   - Optional metadata IF the columns exist on the live list (resolved at
    *     runtime, same tolerant matching as submit metadata): CancelledById,
@@ -897,7 +910,7 @@ window.PTORequests = (function () {
     opts = opts || {};
 
     var current = String(opts.currentStatus || "").trim();
-    if (CANCELLABLE_STATUSES.indexOf(current) === -1) {
+    if (HR_CANCELLABLE_STATUSES.indexOf(current) === -1) {
       throw new Error(
         current === "Cancelled"
           ? "This request is already Cancelled."
@@ -1130,6 +1143,7 @@ window.PTORequests = (function () {
     requestCancellation: requestCancellation,
     resolveCancellationRequest: resolveCancellationRequest,
     CANCELLABLE_STATUSES: CANCELLABLE_STATUSES,
+    HR_CANCELLABLE_STATUSES: HR_CANCELLABLE_STATUSES,
     CANCELLATION_REQUEST_PENDING_STATUS: CANCELLATION_REQUEST_PENDING_STATUS,
     normalizeRequestItem: normalizeRequestItem,
     getRequest: getRequest,
