@@ -1,0 +1,12 @@
+{
+  "name": "pto-central",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PTO Central browser app. This package.json exists only so the repo's Node-based unit tests can be run (npm test); nothing here is published to GitHub Pages and the app itself has no build step and no runtime dependencies.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -12,7 +12,7 @@
  *     - calculateNoticeDays(start, submit) -> whole days of advance notice
  *     - isShortNotice(noticeDays)          -> noticeDays < MIN_NOTICE_DAYS (rule 1)
  *     - generateRequestKey()               -> "PTO-YYYYMMDD-HHMMSS-XXXX" (non-sequential)
- *     - getInitialStatus(ptoType)          -> "Auto-Approved" (Sick) | "Pending"
+ *     - getInitialStatus(ptoType)          -> always "Pending" (see below)
  *     - buildAuditLine(action, actor, det) -> "[ISO] action by actor — details"
  *
  * OPEN DECISION (§13 Q8): calendar-day vs business-day for the 7-day notice.
@@ -98,12 +98,24 @@ window.PTORules = (function () {
   }
 
   /**
-   * Initial Status for a new request.
-   *   Sick                 => "Auto-Approved" (no manager needed, rule 2)
-   *   everything else      => "Pending"
+   * Initial Status for a new request — ALWAYS "Pending", for every PTO type.
+   *
+   * HR removed automatic approval entirely on 2026-08-19. Sick used to return
+   * "Auto-Approved" here (architecture rule 2, "no manager needed"); it now
+   * enters the normal approval workflow exactly like every other type and
+   * waits for a manager's Approved/Rejected decision.
+   *
+   * The function is deliberately KEPT (rather than inlined at the single call
+   * site in js/requests.js) so "what status does a new request start in?"
+   * still has one, testable answer in the rules module — and so `ptoType`
+   * remains in the signature, making any future per-type divergence an
+   * explicit, reviewed change here rather than a new branch elsewhere.
+   *
+   * @param {string} ptoType - accepted and intentionally ignored
+   * @returns {"Pending"}
    */
-  function getInitialStatus(ptoType) {
-    return String(ptoType || "").toLowerCase() === "sick" ? "Auto-Approved" : "Pending";
+  function getInitialStatus(ptoType) { // eslint-disable-line no-unused-vars
+    return "Pending";
   }
 
   /**
