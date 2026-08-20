@@ -361,14 +361,14 @@
     PTOUI.setText("c-mgr", t.manager ? fmtUserName(t.manager) : (r.id ? "(none found)" : "—"));
     PTOUI.setText("c-mm", t.managersManager ? fmtUserName(t.managersManager) : (r.id ? "(none / unavailable)" : "—"));
 
-    // Manager-missing warning (same rule for self and on-behalf: required unless Sick).
+    // Manager-missing warning (same rule for self and on-behalf, every type).
     var w = $("mgr-warn");
     if (r.id && !t.manager) {
       w.textContent = (state.onBehalf
         ? "This employee has no manager in Entra ID. "
         : "No manager found in Entra ID for your account. ") +
-        "To submit a non-Sick request, enable \"Route approval to someone else\" and select an " +
-        "approver — or contact HR (pto-approvals@mybasepay.com). Sick leave is auto-approved either way.";
+        "To submit any request — including Sick — enable \"Route approval to someone else\" and " +
+        "select an approver, or contact HR (pto-approvals@mybasepay.com).";
       w.style.display = "block";
     } else {
       w.style.display = "none";
@@ -1194,9 +1194,11 @@
     var start = els.startDate.value;
     updateDateRangeUI();
 
-    // Sick note + manager-requirement messaging.
+    // Sick note + manager-requirement messaging. Sick is no longer
+    // auto-approved (HR change 2026-08-19) — it follows the normal approval
+    // workflow, so the note now says exactly that instead of the opposite.
     PTOUI.show("sickNote", type === "Sick");
-    if (type === "Sick") $("sickNote").textContent = "Sick time is auto-approved — no manager approval needed.";
+    if (type === "Sick") $("sickNote").textContent = "Sick time goes to your approver for a decision, the same as any other request.";
 
     // Notice days + short-notice warning.
     if (start) {
@@ -1235,15 +1237,22 @@
     var dateProblem = updateDateRangeUI();
     if (dateProblem) return dateProblem;
 
-    // An approval route is required unless Sick (auto-approved): either the
-    // resolved target has a manager in Entra, OR the user enabled "Route
-    // approval to someone else" (the override block below enforces that a
-    // valid approver is selected + a reason is given). This unblocks
-    // requesters with no manager configured (e.g. service-style accounts).
-    if (type !== "Sick" && !state.target.manager && !state.approverOverride.active) {
+    // An approval route is required for EVERY PTO type: either the resolved
+    // target has a manager in Entra, OR the user enabled "Route approval to
+    // someone else" (the override block below enforces that a valid approver
+    // is selected + a reason is given). This unblocks requesters with no
+    // manager configured (e.g. service-style accounts).
+    //
+    // Sick used to be exempt here because it auto-approved on submit and so
+    // needed nobody to act on it. HR removed automatic approval on 2026-08-19,
+    // which makes the exemption actively harmful: a Sick request with no
+    // approval route would be created Pending with no one able to decide it,
+    // and would sit Pending indefinitely. The exemption is therefore removed
+    // together with the auto-approval it existed to serve.
+    if (!state.target.manager && !state.approverOverride.active) {
       return state.onBehalf
         ? "This employee has no manager in Entra ID. Enable \"Route approval to someone else\" " +
-          "and select an approver, submit Sick (auto-approved), or contact HR (pto-approvals@mybasepay.com)."
+          "and select an approver, or contact HR (pto-approvals@mybasepay.com)."
         : "No manager found in Entra ID for your account. Enable \"Route approval to someone else\" " +
           "and select an approver, or contact HR (pto-approvals@mybasepay.com).";
     }

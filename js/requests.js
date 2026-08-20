@@ -96,13 +96,10 @@ window.PTORequests = (function () {
     var requestKey = input.requestKey || PTORules.generateRequestKey();
 
     var actorName = submitter.displayName || requester.displayName || "Unknown";
-    // Sick is the only PTO type getInitialStatus() auto-approves — call that
-    // out explicitly in the audit trail so "why was this already Approved?"
-    // never requires guessing from the status word alone.
-    var isSickAutoApproved = status === "Auto-Approved" && String(input.ptoType || "").trim().toLowerCase() === "sick";
-    var statusNote = isSickAutoApproved
-      ? "Auto-Approved — PTO Type = Sick, no manager approval required"
-      : status;
+    // Every PTO type — Sick included — now starts Pending and waits for a
+    // manager decision (HR removed automatic approval on 2026-08-19), so there
+    // is no longer a per-type note to disambiguate in the audit trail.
+    var statusNote = status;
     var managerEmail = manager ? pickEmail(manager) : "";
     var managerName = manager ? manager.displayName || "" : "";
 
@@ -203,9 +200,11 @@ window.PTORequests = (function () {
     //     behavior the submit-metadata/approver resolvers above depend on;
     //     see the comment above METADATA_FIELD_CANDIDATES). Submission never
     //     depends on this field existing.
-    //   - Sick (and any other immediately Auto-Approved) requests are
-    //     EXCLUDED — they never enter the Pending reminder timeline, so they
-    //     must never carry a NextReminderAt value.
+    //   - As of 2026-08-19 EVERY type (Sick included) is created Pending, so
+    //     every new request enters the reminder timeline and carries a
+    //     NextReminderAt. The `status === "Pending"` guard below is kept as a
+    //     correctness invariant, not as a per-type exclusion: nothing may ever
+    //     seed a reminder time onto a request that is not actually Pending.
     //   - The 48h constant is intentionally duplicated here rather than
     //     importing js/pending-rules.js (PTOPendingRules.REMINDER_INTERVAL_HOURS)
     //     — that module is explicitly NOT wired into production page execution

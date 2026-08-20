@@ -748,6 +748,11 @@
     return String(r.status || "").trim() === PTORequests.CANCELLATION_REQUEST_PENDING_STATUS;
   }
 
+  // HISTORICAL RECORDS ONLY. PTO Central stopped auto-approving Sick (and
+  // everything else) on 2026-08-19 — no NEW request can match this. It is kept
+  // so Sick requests auto-approved BEFORE that date still render correctly in
+  // HR Center: there is no approval decision to link to on such a record, so
+  // the row's "Approval" action stays hidden. Read-side only; writes nothing.
   function isSickAutoApproved(r) {
     return String(r.ptoType || "").trim().toLowerCase() === "sick" && r.status === "Auto-Approved";
   }
