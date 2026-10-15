@@ -1451,7 +1451,7 @@
           <path d="M12 11v5"></path>
           <path d="M12 7.8h.01"></path>
         </svg>
-        <p><strong>HR/Admin only:</strong> This page reads the live PTO Requests list. Approved requests can be cancelled from the actions menu.</p>
+        <p><strong>HR/Admin only:</strong> This page reads the live PTO Requests list. Pending and approved requests can be cancelled from the actions menu.</p>
         <button id="dismiss-notice" class="notice-dismiss" type="button" aria-label="Dismiss notice">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M6 6l12 12"></path>
@@ -1570,7 +1570,7 @@
               <button id="cancel-abort" class="btn" type="button">Keep request</button>
               <span id="cancel-status" class="status-text" aria-live="polite"></span>
             </div>
-            <div class="cancel-note" id="cancel-note">This updates the request status to <code>Cancelled</code> and appends the audit log. The existing calendar-cancellation flow will remove any available events automatically. HR/Admin can cancel approved PTO requests regardless of the scheduled dates.</div>
+            <div class="cancel-note" id="cancel-note">This updates the request status to <code>Cancelled</code> and appends the audit log. The existing calendar-cancellation flow will remove any available events automatically. HR/Admin can cancel pending or approved PTO requests regardless of the scheduled dates. Cancelling a pending request closes it without an approval decision or creating calendar events.</div>
           </div>
         </div>
       </section>
@@ -1798,10 +1798,10 @@
   <script src="js/graph.js?v=hrf3"></script>
   <script src="js/directory.js?v=hrf3"></script>
   <script src="js/rules.js?v=hrf3"></script>
-  <script src="js/requests.js?v=hrf4"></script>
+  <script src="js/requests.js?v=hrf5"></script>
   <script src="js/authz.js?v=hrf3"></script>
   <script src="js/links.js?v=hrf3"></script>
   <script src="js/ui.js?v=hrf4"></script>
-  <script src="js/pages/hr.page.js?v=hrf4"></script>
+  <script src="js/pages/hr.page.js?v=hrf5"></script>
 </body>
 </html>

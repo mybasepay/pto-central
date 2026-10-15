@@ -733,9 +733,9 @@
   }
 
   // HR/Admin direct cancellation is an operational override: it applies to
-  // Approved / Auto-Approved / Auto-Approved (Escalation) regardless of
-  // StartDate/EndDate. Pending is excluded — it's resolved via the approval
-  // action instead. See PTORequests.HR_CANCELLABLE_STATUSES.
+  // Pending / Approved / Auto-Approved / Auto-Approved (Escalation) regardless
+  // of StartDate/EndDate. A Pending request closes without first approving or
+  // rejecting it. See PTORequests.HR_CANCELLABLE_STATUSES.
   function cancellable(r) {
     return PTORequests.HR_CANCELLABLE_STATUSES.indexOf(String(r.status || "").trim()) !== -1;
   }
@@ -1406,7 +1406,8 @@
       confirmLabel: "Confirm cancellation",
       note: "This updates the request status to Cancelled and appends the audit log. " +
         "The existing calendar-cancellation flow will remove any available events automatically. " +
-        "HR/Admin can cancel approved PTO requests regardless of the scheduled dates.",
+        "HR/Admin can cancel pending or approved PTO requests regardless of the scheduled dates. " +
+        "Cancelling a pending request closes it without an approval decision or creating calendar events.",
     },
     "resolve-confirm": {
       title: "Complete this cancellation request?",

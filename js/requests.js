@@ -524,7 +524,7 @@ window.PTORequests = (function () {
    *   { status: "Approved"|"Rejected",
    *     actor: { id, displayName, mail|userPrincipalName },
    *     comment: string,
-   *     existingAuditLog: string }
+   *     existingAuditLog: string } // live AuditLog is re-read before writing
    * @returns {Promise<{fields: object, response: any}>} the patched fields (so the
    *   page can render the new status + appended AuditLog) and the Graph response.
    */
@@ -536,6 +536,11 @@ window.PTORequests = (function () {
       throw new Error("updateRequestDecision: status must be 'Approved' or 'Rejected'.");
     }
 
+    // An approval page may have been left open before HR cancelled the request.
+    // Re-read Pending and use its etag so a concurrent cancellation cannot be
+    // overwritten by a stale approval/rejection (or lose newer audit entries).
+    var snapshot = await readCurrentWriteState(itemId, "Pending");
+
     var actor = decision.actor || {};
     var actorEmail = actor.mail || actor.userPrincipalName || "";
     var actorName = actor.displayName || actorEmail || "Unknown";
@@ -545,7 +550,7 @@ window.PTORequests = (function () {
     // Append (do not overwrite) the audit trail. Handle null/undefined/empty
     // (or non-string) existing logs safely before appending.
     var newLine = PTORules.buildAuditLine(status, actorName, comment ? "comment: " + comment : "no comment");
-    var existingRaw = decision.existingAuditLog;
+    var existingRaw = snapshot.fields.AuditLog;
     var existing = (existingRaw === null || existingRaw === undefined) ? "" : String(existingRaw);
     var auditLog = existing.trim() ? existing + "\n" + newLine : newLine;
 
@@ -559,7 +564,15 @@ window.PTORequests = (function () {
       AuditLog: auditLog,
     };
 
-    var response = await PTOGraph.updateListItem(itemId, fields);
+    var response;
+    try {
+      response = await PTOGraph.updateListItem(itemId, fields, { ifMatch: snapshot.etag });
+    } catch (e) {
+      if (e && (e.status === 412 || e.status === 409)) {
+        throw new Error("This request changed before your decision could be saved. Refresh the page and review its current status.");
+      }
+      throw e;
+    }
     return { fields: fields, response: response };
   }
 
@@ -593,6 +606,22 @@ window.PTORequests = (function () {
       (item && item.fields && (item.fields.eTag || item.fields["@odata.etag"])) ||
       ""
     );
+  }
+
+  /** Read the state that a conditional status change is about to replace. */
+  async function readCurrentWriteState(itemId, expectedStatus) {
+    var item = await PTOGraph.getListItem(itemId);
+    var fields = (item && item.fields) || {};
+    var current = String(fields.Status || "").trim();
+    if (current !== expectedStatus) {
+      throw new Error("This request changed and is now " + (current || "in an unknown status") +
+        ". Refresh the page and review it before trying again.");
+    }
+    var etag = getItemEtag(item);
+    if (!etag || etag === "*") {
+      throw new Error("Could not verify the current request version. Refresh the page and try again.");
+    }
+    return { fields: fields, etag: etag };
   }
 
   /** Normalize a Graph list item into a friendly request shape. */
@@ -763,11 +792,11 @@ window.PTORequests = (function () {
   // duplicate / invalid cancellation request and is refused before any write.
   var CANCELLABLE_STATUSES = ["Pending", "Approved", "Auto-Approved", "Auto-Approved (Escalation)"];
   // Statuses HR/Admin may *directly* cancel (no employee review step) via
-  // PTORequests.cancelRequest(). Deliberately excludes "Pending" — a Pending
-  // request is resolved through the approval action (Approve/Reject), not
-  // cancellation. Never gated on StartDate/EndDate: HR cancellation is an
+  // PTORequests.cancelRequest(). Pending may be closed without first making
+  // an approval decision or creating calendar events. Never gated on
+  // StartDate/EndDate: HR cancellation is an
   // operational override that must work regardless of the scheduled dates.
-  var HR_CANCELLABLE_STATUSES = ["Approved", "Auto-Approved", "Auto-Approved (Escalation)"];
+  var HR_CANCELLABLE_STATUSES = ["Pending", "Approved", "Auto-Approved", "Auto-Approved (Escalation)"];
   var CANCELLATION_REQUEST_PENDING_STATUS = "Cancellation Requested";
 
   function validateCancellationRequestStatus(current) {
@@ -879,9 +908,9 @@ window.PTORequests = (function () {
   /**
    * HR/Admin direct cancellation of a request (hr.html).
    *
-   * Allowed from HR_CANCELLABLE_STATUSES (Approved / Auto-Approved /
-   * Auto-Approved (Escalation)) only — Pending goes through the approval
-   * action instead. Never gated on StartDate/EndDate: this is an HR
+   * Allowed from HR_CANCELLABLE_STATUSES (Pending / Approved / Auto-Approved /
+   * Auto-Approved (Escalation)). Pending closes directly without a manager
+   * decision or any calendar creation. Never gated on StartDate/EndDate: this is an HR
    * operational override, so a past-dated PTO cancels the same as a future
    * one (a past request may already have no calendar events — that must not
    * make the write fail; the flow below tolerates it).
@@ -901,7 +930,10 @@ window.PTORequests = (function () {
    *   { actor: {id, displayName, mail|userPrincipalName},
    *     reason: string,             // optional free text
    *     currentStatus: string,      // status as loaded — duplicate guard
-   *     existingAuditLog: string }
+   *     existingAuditLog: string } // live AuditLog is re-read before writing
+   *
+   * The signed-in profile is authoritative for the actor and HR/Admin role.
+   * Both the initial PATCH and any metadata fallback use a fresh If-Match.
    * @returns {Promise<{fields: object, response: any}>}
    */
   async function cancelRequest(itemId, opts) {
@@ -917,8 +949,15 @@ window.PTORequests = (function () {
       );
     }
 
-    var actor = opts.actor || {};
+    // Keep direct cancellation HR/Admin-only even if called outside hr.html.
+    // This supplements the page gate; SharePoint permissions remain the actual
+    // security boundary, as documented in authz.js.
+    var actor = (await PTOGraph.getMe()) || {};
     var actorEmail = actor.mail || actor.userPrincipalName || "";
+    if (!window.PTOAuthz || !(await window.PTOAuthz.hasRole(actorEmail, ["HR", "Admin"]))) {
+      throw new Error("Only HR/Admin can directly cancel a PTO request.");
+    }
+    var snapshot = await readCurrentWriteState(itemId, current);
     var actorName = actor.displayName || actorEmail || "Unknown";
     var reason = String(opts.reason || "").trim();
     var nowIso = new Date().toISOString();
@@ -927,9 +966,10 @@ window.PTORequests = (function () {
     var newLine = PTORules.buildAuditLine(
       "Cancelled",
       actorName,
-      "HR Center cancellation — " + (reason ? "reason: " + reason : "no reason given")
+      "HR Center cancellation" + (current === "Pending" ? " of pending request" : "") +
+        " — " + (reason ? "reason: " + reason : "no reason given")
     );
-    var existingRaw = opts.existingAuditLog;
+    var existingRaw = snapshot.fields.AuditLog;
     var existing = (existingRaw === null || existingRaw === undefined) ? "" : String(existingRaw);
     var auditLog = existing.trim() ? existing + "\n" + newLine : newLine;
 
@@ -960,15 +1000,25 @@ window.PTORequests = (function () {
 
     var response;
     try {
-      response = await PTOGraph.updateListItem(itemId, fields);
+      response = await PTOGraph.updateListItem(itemId, fields, { ifMatch: snapshot.etag });
     } catch (e) {
       // Resilience: if an optional column was resolved stale and PATCH rejects
       // it, retry once with the guaranteed core fields only.
       var msg = (e && e.message) || "";
+      if (e && (e.status === 412 || e.status === 409)) {
+        throw new Error("This request changed before it could be cancelled. Refresh the page and review its current status.");
+      }
       if (/not recognized|does not exist|invalid/i.test(msg) && Object.keys(fields).length > 2) {
         console.warn("[PTORequests] cancellation PATCH rejected optional metadata — retrying core-only.", msg);
         var core = { Status: "Cancelled", AuditLog: auditLog };
-        response = await PTOGraph.updateListItem(itemId, core);
+        try {
+          response = await PTOGraph.updateListItem(itemId, core, { ifMatch: snapshot.etag });
+        } catch (retryError) {
+          if (retryError && (retryError.status === 412 || retryError.status === 409)) {
+            throw new Error("This request changed before it could be cancelled. Refresh the page and review its current status.");
+          }
+          throw retryError;
+        }
         fields = core;
       } else {
         throw e;
