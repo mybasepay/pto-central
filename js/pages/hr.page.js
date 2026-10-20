@@ -1317,7 +1317,6 @@
     state.menuRequest = r;
     state.menuAnchor = anchor;
 
-    var past = isPastStart(r);
     var sickAutoApproved = isSickAutoApproved(r);
     var approvalEl = menuItem("approval");
     var cancelEl = menuItem("cancel");
@@ -1328,13 +1327,13 @@
     var resolveConfirmEl = menuItem("resolve-confirm");
     var resolveDeclineEl = menuItem("resolve-decline");
 
+    // Keep approval navigation available regardless of PTO dates.
+    // approve.page.js enforces authorization and Pending status; the write
+    // path re-reads the current status/audit and checks the request ETag.
     approvalEl.style.display = sickAutoApproved ? "none" : "";
     if (sickAutoApproved) {
       approvalEl.removeAttribute("href");
       setMenuItemDisabled(approvalEl, false);
-    } else if (past) {
-      approvalEl.removeAttribute("href");
-      setMenuItemDisabled(approvalEl, true);
     } else {
       approvalEl.setAttribute("href", PTOLinks.relativeApprovalUrl(r.id));
       setMenuItemDisabled(approvalEl, false);
@@ -1343,7 +1342,7 @@
     cancelEl.style.display = canCancel ? "" : "none";
     cancelSepEl.style.display = canCancel ? "" : "none";
     // HR/Admin cancellation is an operational override — never disabled by
-    // StartDate/EndDate (unlike the approval action above).
+    // StartDate/EndDate.
     if (canCancel) setMenuItemDisabled(cancelEl, false);
 
     resolveSepEl.style.display = pendingCancellation ? "" : "none";
